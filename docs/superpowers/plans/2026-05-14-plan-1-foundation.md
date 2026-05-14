@@ -23,7 +23,7 @@
 
 **Files:** none — verification only.
 
-- [ ] **Step 0.1: Confirm Node and pnpm versions**
+- [x] **Step 0.1: Confirm Node and pnpm versions**
 
 Run:
 ```bash
@@ -40,7 +40,7 @@ Expected:
 - pnpm: `9.12.0`
 - docker compose: `v2.x` or higher
 
-- [ ] **Step 0.2: Remove npm lockfile (we are switching to pnpm)**
+- [x] **Step 0.2: Remove npm lockfile (we are switching to pnpm)**
 
 Run:
 ```bash
@@ -49,7 +49,7 @@ rm -f package-lock.json
 
 Expected: file gone, no error.
 
-- [ ] **Step 0.3: Commit the pre-flight cleanup**
+- [x] **Step 0.3: Commit the pre-flight cleanup**
 
 ```bash
 git add -A
@@ -66,7 +66,7 @@ git commit -m "chore: remove npm lockfile in preparation for pnpm workspace"
 - Modify: `package.json` (rewrite to workspace root)
 - Modify: `.gitignore` (add env/dist patterns)
 
-- [ ] **Step 1.1: Write `pnpm-workspace.yaml`**
+- [x] **Step 1.1: Write `pnpm-workspace.yaml`**
 
 ```yaml
 packages:
@@ -74,7 +74,7 @@ packages:
   - "packages/*"
 ```
 
-- [ ] **Step 1.2: Write `tsconfig.base.json`**
+- [x] **Step 1.2: Write `tsconfig.base.json`**
 
 ```json
 {
@@ -96,7 +96,7 @@ packages:
 }
 ```
 
-- [ ] **Step 1.3: Replace root `package.json`**
+- [x] **Step 1.3: Replace root `package.json`**
 
 ```json
 {
@@ -128,7 +128,7 @@ packages:
 }
 ```
 
-- [ ] **Step 1.4: Update `.gitignore`**
+- [x] **Step 1.4: Update `.gitignore`**
 
 Append the following lines (don't replace existing content):
 
@@ -157,7 +157,7 @@ dist/
 EOF
 ```
 
-- [ ] **Step 1.5: Install root-level dependencies**
+- [x] **Step 1.5: Install root-level dependencies**
 
 Run:
 ```bash
@@ -167,7 +167,7 @@ pnpm install
 
 Expected: `Done in Xs`. `pnpm-lock.yaml` should now exist at the repo root.
 
-- [ ] **Step 1.6: Verify the workspace is recognized**
+- [x] **Step 1.6: Verify the workspace is recognized**
 
 Run:
 ```bash
@@ -176,7 +176,7 @@ pnpm -r ls --depth -1
 
 Expected: shows `oneness-ai` and no other packages yet (we haven't created apps yet).
 
-- [ ] **Step 1.7: Commit**
+- [x] **Step 1.7: Commit**
 
 ```bash
 git add pnpm-workspace.yaml tsconfig.base.json package.json .gitignore pnpm-lock.yaml
@@ -193,7 +193,7 @@ git commit -m "chore: bootstrap pnpm workspace and root scripts"
 
 The existing tree has `src/`, `public/`, `next.config.ts`, `next-env.d.ts`, `tsconfig.json`, `eslint.config.mjs`, `postcss.config.mjs`, `components.json`. The package.json for web becomes `apps/web/package.json`.
 
-- [ ] **Step 2.1: Create the app folder and move files with `git mv` (preserves history)**
+- [x] **Step 2.1: Create the app folder and move files with `git mv` (preserves history)**
 
 Run:
 ```bash
@@ -208,7 +208,7 @@ git mv postcss.config.mjs apps/web/postcss.config.mjs
 git mv components.json apps/web/components.json
 ```
 
-- [ ] **Step 2.2: Create `apps/web/package.json`**
+- [x] **Step 2.2: Create `apps/web/package.json`**
 
 ```json
 {
@@ -244,7 +244,7 @@ git mv components.json apps/web/components.json
 }
 ```
 
-- [ ] **Step 2.3: Patch `apps/web/tsconfig.json` to extend the shared base**
+- [x] **Step 2.3: Patch `apps/web/tsconfig.json` to extend the shared base**
 
 Open `apps/web/tsconfig.json` and change the top to extend `tsconfig.base.json`. Replace the whole file with:
 
@@ -267,7 +267,7 @@ Open `apps/web/tsconfig.json` and change the top to extend `tsconfig.base.json`.
 }
 ```
 
-- [ ] **Step 2.4: Reinstall to wire the workspace package**
+- [x] **Step 2.4: Reinstall to wire the workspace package**
 
 Run:
 ```bash
@@ -276,7 +276,7 @@ pnpm install
 
 Expected: pnpm lists `web` as a workspace package. `apps/web/node_modules` should appear.
 
-- [ ] **Step 2.5: Verify the web app still type-checks and builds the dev server**
+- [x] **Step 2.5: Verify the web app still type-checks and builds the dev server**
 
 Run:
 ```bash
@@ -295,7 +295,7 @@ kill %1
 
 Expected: prints `200`. Background dev server is killed at the end.
 
-- [ ] **Step 2.6: Commit**
+- [x] **Step 2.6: Commit**
 
 ```bash
 git add apps/ pnpm-lock.yaml
@@ -311,7 +311,7 @@ git commit -m "chore: move Next.js app into apps/web workspace"
 - Create: `.env.example`
 - Create: `.env.docker.example`
 
-- [ ] **Step 3.1: Create `docker/docker-compose.yml`**
+- [x] **Step 3.1: Create `docker/docker-compose.yml`**
 
 ```yaml
 name: oneness-ai
@@ -380,7 +380,7 @@ volumes:
 
 > Note: `api` and `worker` services with `profiles: ["full"]` are deferred to Plan 4 (containerized prod-style run). Plan 1 only needs infra services.
 
-- [ ] **Step 3.2: Create `.env.example`**
+- [x] **Step 3.2: Create `.env.example`**
 
 ```bash
 # Database (host dev — connects to docker postgres on localhost)
@@ -411,7 +411,7 @@ INTERNAL_SECRET=change-me-to-a-long-random-string
 NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
 ```
 
-- [ ] **Step 3.3: Create `.env.docker.example`**
+- [x] **Step 3.3: Create `.env.docker.example`**
 
 This file is used when the api/worker run **inside** docker compose (Plan 4 profile). It swaps localhost for service names.
 
@@ -430,7 +430,7 @@ WEB_ORIGINS=http://localhost:3000
 INTERNAL_SECRET=change-me-to-a-long-random-string
 ```
 
-- [ ] **Step 3.4: Copy `.env.example` to `.env` for local dev**
+- [x] **Step 3.4: Copy `.env.example` to `.env` for local dev**
 
 Run:
 ```bash
@@ -439,7 +439,7 @@ cp .env.example .env
 
 `.env` is gitignored.
 
-- [ ] **Step 3.5: Validate compose file syntactically**
+- [x] **Step 3.5: Validate compose file syntactically**
 
 Run:
 ```bash
@@ -448,7 +448,7 @@ docker compose -f docker/docker-compose.yml config > /dev/null
 
 Expected: exits 0, no errors. (Sends parsed config to /dev/null.)
 
-- [ ] **Step 3.6: Bring up infra**
+- [x] **Step 3.6: Bring up infra**
 
 Run:
 ```bash
@@ -457,7 +457,7 @@ pnpm infra:up
 
 Wait ~15 seconds for healthchecks to settle.
 
-- [ ] **Step 3.7: Verify each service is healthy**
+- [x] **Step 3.7: Verify each service is healthy**
 
 Run:
 ```bash
@@ -480,7 +480,7 @@ Expected:
 - (empty body, but `curl -i` would show 200)
 - `[date] user-uploads/` and `[date] task-outputs/`
 
-- [ ] **Step 3.8: Commit**
+- [x] **Step 3.8: Commit**
 
 ```bash
 git add docker/ .env.example .env.docker.example
