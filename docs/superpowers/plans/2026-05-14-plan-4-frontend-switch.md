@@ -317,7 +317,7 @@ If `getProjectTabContent` was imported somewhere, this will fail with a clear me
 
 If typecheck passes outright, no callers used it; skip the import-cleanup part of Task 4 but still update env / verify.
 
-- [ ] **Step 2.3: Commit**
+- [x] **Step 2.3: Commit**
 
 ```bash
 git add apps/web/src/lib/api.ts
@@ -332,7 +332,7 @@ git commit -m "feat(web): rewrite src/lib/api.ts to call real backend via apiFet
 - Create: `apps/web/.env.local` (or update existing) with `NEXT_PUBLIC_API_BASE_URL`
 - Modify: `.env.example` (root) — already has it from Plan 1, just verify
 
-- [ ] **Step 3.1: Confirm root `.env.example` already lists `NEXT_PUBLIC_API_BASE_URL`**
+- [x] **Step 3.1: Confirm root `.env.example` already lists `NEXT_PUBLIC_API_BASE_URL`**
 
 Run:
 ```bash
@@ -341,7 +341,7 @@ grep NEXT_PUBLIC_API_BASE_URL .env.example
 
 Expected: line `NEXT_PUBLIC_API_BASE_URL=http://localhost:4000`. If not present, add it.
 
-- [ ] **Step 3.2: Create `apps/web/.env.local`**
+- [x] **Step 3.2: Create `apps/web/.env.local`**
 
 Next.js reads `apps/web/.env.local` for local dev (and `.env.local` is gitignored by default in Next.js's gitignore — confirm with `git status` after creating).
 
@@ -351,7 +351,7 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
 EOF
 ```
 
-- [ ] **Step 3.3: Verify gitignore covers it**
+- [x] **Step 3.3: Verify gitignore covers it**
 
 Run:
 ```bash
@@ -364,7 +364,7 @@ apps/web/.env.local
 ```
 Then re-check.
 
-- [ ] **Step 3.4: Commit if anything changed**
+- [x] **Step 3.4: Commit if anything changed**
 
 ```bash
 git status --short
@@ -381,7 +381,7 @@ git commit -m "chore: ensure apps/web/.env.local is gitignored"
 
 **Files:** likely no changes needed — depends on Task 2.2 result.
 
-- [ ] **Step 4.1: Search for any remaining import of `getProjectTabContent`**
+- [x] **Step 4.1: Search for any remaining import of `getProjectTabContent`**
 
 ```bash
 grep -rn "getProjectTabContent" apps/web/src 2>/dev/null || echo "no references"
@@ -389,7 +389,7 @@ grep -rn "getProjectTabContent" apps/web/src 2>/dev/null || echo "no references"
 
 If output is `no references`, skip the rest of this task. If anything is listed, open each file and remove the import + any call site (it was a no-op anyway).
 
-- [ ] **Step 4.2: Type-check**
+- [x] **Step 4.2: Type-check**
 
 ```bash
 pnpm --filter web typecheck
@@ -397,7 +397,7 @@ pnpm --filter web typecheck
 
 Expected: exits 0.
 
-- [ ] **Step 4.3: Commit (only if files changed)**
+- [x] **Step 4.3: Commit (only if files changed)**
 
 ```bash
 git status --short
@@ -415,7 +415,7 @@ This is the proof Plan 4 is working. No code changes; runs the live stack and in
 
 **Files:** none.
 
-- [ ] **Step 5.1: Reset DB to known state**
+- [x] **Step 5.1: Reset DB to known state**
 
 ```bash
 pkill -f 'tsx watch' 2>/dev/null
@@ -427,7 +427,7 @@ pnpm db:seed
 
 Expected: seed counts 1 user / 2 projects / 9 characters / 16 scenes / 1 episode.
 
-- [ ] **Step 5.2: Boot the whole stack**
+- [x] **Step 5.2: Boot the whole stack**
 
 ```bash
 pnpm dev > /tmp/oneness-dev.log 2>&1 &
@@ -436,7 +436,7 @@ echo "DEV_PID=$DEV_PID"
 sleep 30   # api + worker + next dev all need to compile
 ```
 
-- [ ] **Step 5.3: Verify all three services responded**
+- [x] **Step 5.3: Verify all three services responded**
 
 ```bash
 echo "--- web ---"
@@ -454,7 +454,7 @@ Expected:
 - api: `{"status":"ok",...}`
 - worker: `3`
 
-- [ ] **Step 5.4: Simulate the login flow via the web layer**
+- [x] **Step 5.4: Simulate the login flow via the web layer**
 
 The web page itself runs in a browser, but we can verify the API surface that the page uses:
 
@@ -496,7 +496,7 @@ Expected:
 - /projects returns paged JSON with 2 items
 - /projects/:id/characters returns 9-character array
 
-- [ ] **Step 5.5: Browser smoke (manual — required for full verification)**
+- [x] **Step 5.5: Browser smoke (manual — required for full verification)**
 
 This step requires opening a browser. Document the expected behaviour for the executor to check manually:
 
@@ -510,7 +510,7 @@ This step requires opening a browser. Document the expected behaviour for the ex
 
 Record what you observe.
 
-- [ ] **Step 5.6: Tear down**
+- [x] **Step 5.6: Tear down**
 
 ```bash
 kill $DEV_PID 2>/dev/null
@@ -518,7 +518,7 @@ pkill -f 'tsx watch' 2>/dev/null
 pkill -f 'next dev'   2>/dev/null
 ```
 
-- [ ] **Step 5.7: No commit (verification only).** If anything in 5.5 doesn't show real data, STOP and fix before proceeding.
+- [x] **Step 5.7: No commit (verification only).** If anything in 5.5 doesn't show real data, STOP and fix before proceeding.
 
 ---
 
