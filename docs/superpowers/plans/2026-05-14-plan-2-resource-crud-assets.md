@@ -1729,7 +1729,7 @@ Same structure as Items — `{id, name, image}`. Reuse pattern.
 - Modify: `apps/api/src/index.ts`
 - Create: `apps/api/tests/integration/scenes.test.ts`
 
-- [ ] **Step 7.1: Write `packages/shared/src/schemas/scenes.ts`** — copy `items.ts` content from Task 6.1 but rename `CreateItemSchema` → `CreateSceneSchema` and `UpdateItemSchema` → `UpdateSceneSchema`. Concretely:
+- [x] **Step 7.1: Write `packages/shared/src/schemas/scenes.ts`** — copy `items.ts` content from Task 6.1 but rename `CreateItemSchema` → `CreateSceneSchema` and `UpdateItemSchema` → `UpdateSceneSchema`. Concretely:
 
 ```ts
 import { z } from 'zod';
@@ -1746,9 +1746,9 @@ export type CreateSceneInput = z.infer<typeof CreateSceneSchema>;
 export type UpdateSceneInput = z.infer<typeof UpdateSceneSchema>;
 ```
 
-- [ ] **Step 7.2: Append `export * from './scenes.js';` to the schemas barrel.
+- [x] **Step 7.2: Append `export * from './scenes.js';` to the schemas barrel.
 
-- [ ] **Step 7.3: Write `apps/api/src/serializers/scene.ts`**
+- [x] **Step 7.3: Write `apps/api/src/serializers/scene.ts`**
 
 ```ts
 import type { Scene, Asset } from '@oneness/shared/prisma';
@@ -1767,7 +1767,7 @@ export async function serializeScene(s: SceneWithAsset): Promise<SceneDTO> {
 }
 ```
 
-- [ ] **Step 7.4: Write `apps/api/src/routes/scenes.ts`**
+- [x] **Step 7.4: Write `apps/api/src/routes/scenes.ts`**
 
 Same shape as `routes/items.ts` (Task 6.4) with substitutions:
 - `Item` model → `Scene`
@@ -1897,7 +1897,7 @@ async function assertAssetOwned(assetId: string, userId: string) {
 }
 ```
 
-- [ ] **Step 7.5: Mount + Test + Commit (mirror Task 6's last step)**
+- [x] **Step 7.5: Mount + Test + Commit (mirror Task 6's last step)**
 
 Edit `apps/api/src/index.ts` to import and `app.route('/api', sceneRoutes)`.
 
