@@ -11,6 +11,8 @@ import {
   ProjectListQuerySchema,
   IdParamSchema,
 } from '@oneness/shared/schemas';
+import type { AnalyticsDTO } from '../serializers/analytics.js';
+import { TaskType, TaskStatus } from '@oneness/shared/enums';
 
 export const projectRoutes = new Hono();
 
@@ -89,5 +91,49 @@ projectRoutes.delete(
     }
     await prisma.project.delete({ where: { id } });
     return c.body(null, 204);
+  },
+);
+
+projectRoutes.get(
+  '/projects/:id/analytics',
+  zValidator('param', IdParamSchema),
+  async (c) => {
+    const user = c.var.user!;
+    const { id: projectId } = c.req.valid('param');
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, ownerId: user.id },
+      select: { id: true },
+    });
+    if (!project) {
+      throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
+    }
+    // Only count tasks that actually consumed credits (succeeded or in-flight).
+    const includedStatuses = [TaskStatus.SUCCEEDED, TaskStatus.RUNNING, TaskStatus.QUEUED];
+    const [byType, totalAgg, latest] = await Promise.all([
+      prisma.task.groupBy({
+        by: ['type'],
+        where: { projectId, status: { in: includedStatuses } },
+        _count: { _all: true },
+      }),
+      prisma.task.aggregate({
+        where: { projectId, status: { in: includedStatuses } },
+        _sum: { costCredits: true },
+      }),
+      prisma.task.findFirst({
+        where: { projectId },
+        orderBy: { updatedAt: 'desc' },
+        select: { updatedAt: true },
+      }),
+    ]);
+    const countOf = (t: typeof TaskType.IMAGE | typeof TaskType.VIDEO | typeof TaskType.TEXT_ANALYZE) =>
+      byType.find((b) => b.type === t)?._count._all ?? 0;
+    const dto: AnalyticsDTO = {
+      totalCredits: totalAgg._sum.costCredits ?? 0,
+      imageCount: countOf(TaskType.IMAGE),
+      videoCount: countOf(TaskType.VIDEO),
+      textTaskCount: countOf(TaskType.TEXT_ANALYZE),
+      updateTime: (latest?.updatedAt ?? new Date()).toISOString(),
+    };
+    return c.json(dto);
   },
 );

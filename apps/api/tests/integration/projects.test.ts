@@ -97,4 +97,26 @@ describe('projects CRUD', () => {
     const body = (await res.json()) as { items: Array<{ name: string }> };
     expect(body.items.every((p) => p.name.includes('动画'))).toBe(true);
   });
+
+  it('GET /projects/:id/analytics returns zeros (no tasks yet)', async () => {
+    const seeded = await prisma.project.findFirst({
+      where: { name: '格斗动画' },
+      select: { id: true },
+    });
+    if (!seeded) throw new Error('Seed project missing.');
+    const res = await app.request(`/api/projects/${seeded.id}/analytics`, { headers: auth });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      totalCredits: number;
+      imageCount: number;
+      videoCount: number;
+      textTaskCount: number;
+      updateTime: string;
+    };
+    expect(body.totalCredits).toBe(0);
+    expect(body.imageCount).toBe(0);
+    expect(body.videoCount).toBe(0);
+    expect(body.textTaskCount).toBe(0);
+    expect(typeof body.updateTime).toBe('string');
+  });
 });
