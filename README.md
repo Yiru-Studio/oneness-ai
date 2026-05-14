@@ -182,3 +182,52 @@ Visit:
 - `pnpm infra:up` / `pnpm infra:down` — start/stop docker services
 - `pnpm db:reset` — wipe the database and re-run migrations + seed
 - `pnpm --filter api test` — run API integration tests (needs infra up)
+
+### Plan 2: Resource CRUD + Assets
+
+Backend now serves the full resource graph the frontend mock used to:
+
+```
+GET    /api/projects (paginated, ?search=)
+POST   /api/projects
+GET    /api/projects/:id
+PATCH  /api/projects/:id
+DELETE /api/projects/:id
+GET    /api/projects/:id/analytics
+
+GET    /api/projects/:id/characters
+POST   /api/projects/:id/characters
+GET    /api/characters/:id
+PATCH  /api/characters/:id
+DELETE /api/characters/:id
+
+POST   /api/characters/:id/styles
+PATCH  /api/character-styles/:id
+DELETE /api/character-styles/:id
+
+GET    /api/projects/:id/items
+POST   /api/projects/:id/items
+PATCH  /api/items/:id
+DELETE /api/items/:id
+
+GET    /api/projects/:id/scenes
+POST   /api/projects/:id/scenes
+PATCH  /api/scenes/:id
+DELETE /api/scenes/:id
+
+GET    /api/projects/:id/episodes
+POST   /api/projects/:id/episodes
+PATCH  /api/episodes/:id
+DELETE /api/episodes/:id
+
+GET    /api/knowledge-docs (?type=CREATED|FAVORITED|COLLABORATED, paginated)
+POST   /api/knowledge-docs
+GET    /api/knowledge-docs/:id
+PATCH  /api/knowledge-docs/:id
+DELETE /api/knowledge-docs/:id
+
+POST   /api/assets (multipart/form-data, file field)
+DELETE /api/assets/:id
+```
+
+All asset references (`avatar`, `image`, `styles[].image`) in responses are presigned MinIO GET URLs with 1-hour expiry. Pass any `Bearer <token>` in `Authorization` to act as the seed user.

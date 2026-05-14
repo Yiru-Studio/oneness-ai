@@ -2260,7 +2260,7 @@ User-owned (not project-owned). Type-filtered list.
 - Modify: `apps/api/src/index.ts`
 - Create: `apps/api/tests/integration/knowledge-docs.test.ts`
 
-- [ ] **Step 9.1: Schema**
+- [x] **Step 9.1: Schema**
 
 ```ts
 // packages/shared/src/schemas/knowledge-docs.ts
@@ -2294,7 +2294,7 @@ export type KnowledgeDocListQuery = z.infer<typeof KnowledgeDocListQuerySchema>;
 
 Append to barrel.
 
-- [ ] **Step 9.2: Serializer**
+- [x] **Step 9.2: Serializer**
 
 ```ts
 // apps/api/src/serializers/knowledge-doc.ts
@@ -2319,7 +2319,7 @@ export function serializeKnowledgeDoc(d: KnowledgeDoc): KnowledgeDocDTO {
 }
 ```
 
-- [ ] **Step 9.3: Routes**
+- [x] **Step 9.3: Routes**
 
 ```ts
 // apps/api/src/routes/knowledge-docs.ts
@@ -2420,7 +2420,7 @@ knowledgeDocRoutes.delete(
 );
 ```
 
-- [ ] **Step 9.4: Mount + Test + Commit**
+- [x] **Step 9.4: Mount + Test + Commit**
 
 Mount in `index.ts`. Tests:
 
@@ -2511,7 +2511,7 @@ git commit -m "feat(api): knowledge-docs CRUD with type filter"
 - Create: `apps/api/src/serializers/analytics.ts`
 - Modify: `apps/api/tests/integration/projects.test.ts` (add analytics test)
 
-- [ ] **Step 10.1: Write `apps/api/src/serializers/analytics.ts`**
+- [x] **Step 10.1: Write `apps/api/src/serializers/analytics.ts`**
 
 ```ts
 export type AnalyticsDTO = {
@@ -2523,7 +2523,7 @@ export type AnalyticsDTO = {
 };
 ```
 
-- [ ] **Step 10.2: Add the route in `apps/api/src/routes/projects.ts`**
+- [x] **Step 10.2: Add the route in `apps/api/src/routes/projects.ts`**
 
 Before the closing of the file (after the DELETE handler), add:
 
@@ -2578,7 +2578,7 @@ projectRoutes.get(
 
 > Note: this route is intentionally placed inside `projects.ts` to keep all `/projects/:id/*` reads on the same router. Mounting was already done in Task 3.
 
-- [ ] **Step 10.3: Append a test to `apps/api/tests/integration/projects.test.ts`**
+- [x] **Step 10.3: Append a test to `apps/api/tests/integration/projects.test.ts`**
 
 Add this `it` block inside the `describe('projects CRUD', ...)` block:
 
@@ -2606,7 +2606,7 @@ it('GET /projects/:id/analytics returns zeros (no tasks yet)', async () => {
 });
 ```
 
-- [ ] **Step 10.4: Run + Commit**
+- [x] **Step 10.4: Run + Commit**
 
 ```bash
 pnpm --filter api test
@@ -2622,7 +2622,7 @@ Stand up the actual server with `pnpm dev:api`, hit every endpoint with curl, co
 
 **Files:** none — bash script run inline.
 
-- [ ] **Step 11.1: Reset DB to known seed state**
+- [x] **Step 11.1: Reset DB to known seed state**
 
 Run:
 ```bash
@@ -2638,7 +2638,7 @@ pnpm db:seed
 
 Expected: counts are 1/2/9/16 (user/project/character/scene), same as Plan 1.
 
-- [ ] **Step 11.2: Start the API**
+- [x] **Step 11.2: Start the API**
 
 Run:
 ```bash
@@ -2652,7 +2652,7 @@ echo
 
 Expected: `{"status":"ok",...}`
 
-- [ ] **Step 11.3: Walk the resource graph end-to-end**
+- [x] **Step 11.3: Walk the resource graph end-to-end**
 
 Run:
 ```bash
@@ -2693,14 +2693,14 @@ Expected, in order:
 - presigned URL HEAD → 200
 - asset delete → 204
 
-- [ ] **Step 11.4: Cleanup**
+- [x] **Step 11.4: Cleanup**
 
 ```bash
 pkill -f 'tsx watch' 2>/dev/null
 rm -f /tmp/blue.png /tmp/api.log
 ```
 
-- [ ] **Step 11.5: No code changes — no commit. Just record the curls passed.**
+- [x] **Step 11.5: No code changes — no commit. Just record the curls passed.**
 
 If any curl in 11.3 returned the wrong shape, **stop and investigate**. Do not proceed to Plan 3 until all 10 curls succeed.
 
@@ -2711,7 +2711,7 @@ If any curl in 11.3 returned the wrong shape, **stop and investigate**. Do not p
 **Files:**
 - Modify: `README.md` (append Plan 2 summary)
 
-- [ ] **Step 12.1: Append to `README.md`**
+- [x] **Step 12.1: Append to `README.md`**
 
 Run:
 ```bash
@@ -2768,14 +2768,14 @@ All asset references (`avatar`, `image`, `styles[].image`) in responses are pres
 EOF
 ```
 
-- [ ] **Step 12.2: Commit**
+- [x] **Step 12.2: Commit**
 
 ```bash
 git add README.md
 git commit -m "docs: README Plan 2 endpoint catalog"
 ```
 
-- [ ] **Step 12.3: Final cross-workspace typecheck**
+- [x] **Step 12.3: Final cross-workspace typecheck**
 
 Run:
 ```bash
@@ -2784,7 +2784,7 @@ pnpm typecheck
 
 Expected: exit 0.
 
-- [ ] **Step 12.4: Final test run**
+- [x] **Step 12.4: Final test run**
 
 Run:
 ```bash
