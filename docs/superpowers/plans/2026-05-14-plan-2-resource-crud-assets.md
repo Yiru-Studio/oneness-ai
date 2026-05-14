@@ -893,7 +893,7 @@ The Character DTO matches the frontend `Character` type (`id, name, avatar, desc
 - Modify: `apps/api/src/index.ts`
 - Create: `apps/api/tests/integration/characters.test.ts`
 
-- [ ] **Step 4.1: Write `packages/shared/src/schemas/characters.ts`**
+- [x] **Step 4.1: Write `packages/shared/src/schemas/characters.ts`**
 
 ```ts
 import { z } from 'zod';
@@ -915,7 +915,7 @@ export type UpdateCharacterInput = z.infer<typeof UpdateCharacterSchema>;
 
 `avatarAssetId` is API-only — it's the asset id of an already-uploaded image. The route resolves it to `avatarKey` (the MinIO key) before storing on the DB column. This isolates clients from the DB column shape and lets us swap storage backends without touching the request schema.
 
-- [ ] **Step 4.2: Update `packages/shared/src/schemas/index.ts`**
+- [x] **Step 4.2: Update `packages/shared/src/schemas/index.ts`**
 
 ```ts
 export * from './common.js';
@@ -924,7 +924,7 @@ export * from './projects.js';
 export * from './characters.js';
 ```
 
-- [ ] **Step 4.3: Write `apps/api/src/serializers/character.ts`**
+- [x] **Step 4.3: Write `apps/api/src/serializers/character.ts`**
 
 ```ts
 import type { Character, CharacterStyle, Asset } from '@oneness/shared/prisma';
@@ -966,7 +966,7 @@ export async function serializeCharacter(c: CharacterWithStyles): Promise<Charac
 }
 ```
 
-- [ ] **Step 4.4: Write `apps/api/src/routes/characters.ts`**
+- [x] **Step 4.4: Write `apps/api/src/routes/characters.ts`**
 
 ```ts
 import { Hono } from 'hono';
@@ -1122,11 +1122,11 @@ async function resolveAvatarKey(
 }
 ```
 
-- [ ] **Step 4.5: Mount in `apps/api/src/index.ts`**
+- [x] **Step 4.5: Mount in `apps/api/src/index.ts`**
 
 Add `import { characterRoutes } from './routes/characters.js';` and `app.route('/api', characterRoutes);`.
 
-- [ ] **Step 4.6: Write `apps/api/tests/integration/characters.test.ts`**
+- [x] **Step 4.6: Write `apps/api/tests/integration/characters.test.ts`**
 
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -1220,11 +1220,11 @@ describe('characters CRUD', () => {
 });
 ```
 
-- [ ] **Step 4.7: Run tests**
+- [x] **Step 4.7: Run tests**
 
 Run `pnpm --filter api test`. Expect all to pass.
 
-- [ ] **Step 4.8: Commit**
+- [x] **Step 4.8: Commit**
 
 ```bash
 git add packages/shared/src/schemas/characters.ts packages/shared/src/schemas/index.ts apps/api/src/serializers/character.ts apps/api/src/routes/characters.ts apps/api/src/index.ts apps/api/tests/integration/characters.test.ts
