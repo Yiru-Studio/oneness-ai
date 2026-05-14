@@ -580,7 +580,7 @@ git commit -m "feat(api): POST /api/assets (MinIO proxy upload) + DELETE /api/as
 
 The Project frontend type expects `createdAt` as ISO string, all the enum fields as lowercase mock-style values (`'pending'`/`'completed'`). The DB stores enums as `PENDING`/`COMPLETED`. The serializer lowercases.
 
-- [ ] **Step 3.1: Write `packages/shared/src/schemas/projects.ts`**
+- [x] **Step 3.1: Write `packages/shared/src/schemas/projects.ts`**
 
 ```ts
 import { z } from 'zod';
@@ -613,7 +613,7 @@ export type UpdateProjectInput = z.infer<typeof UpdateProjectSchema>;
 export type ProjectListQuery = z.infer<typeof ProjectListQuerySchema>;
 ```
 
-- [ ] **Step 3.2: Update `packages/shared/src/schemas/index.ts`**
+- [x] **Step 3.2: Update `packages/shared/src/schemas/index.ts`**
 
 ```ts
 export * from './common.js';
@@ -621,7 +621,7 @@ export * from './assets.js';
 export * from './projects.js';
 ```
 
-- [ ] **Step 3.3: Write `apps/api/src/serializers/project.ts`**
+- [x] **Step 3.3: Write `apps/api/src/serializers/project.ts`**
 
 ```ts
 import type { Project } from '@oneness/shared/prisma';
@@ -657,7 +657,7 @@ export function serializeProject(p: Project): ProjectDTO {
 }
 ```
 
-- [ ] **Step 3.4: Write `apps/api/src/routes/projects.ts`**
+- [x] **Step 3.4: Write `apps/api/src/routes/projects.ts`**
 
 ```ts
 import { Hono } from 'hono';
@@ -755,11 +755,11 @@ projectRoutes.delete(
 );
 ```
 
-- [ ] **Step 3.5: Mount in `apps/api/src/index.ts`**
+- [x] **Step 3.5: Mount in `apps/api/src/index.ts`**
 
 Add `import { projectRoutes } from './routes/projects.js';` and `app.route('/api', projectRoutes);`.
 
-- [ ] **Step 3.6: Write `apps/api/tests/integration/projects.test.ts`**
+- [x] **Step 3.6: Write `apps/api/tests/integration/projects.test.ts`**
 
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -864,7 +864,7 @@ describe('projects CRUD', () => {
 });
 ```
 
-- [ ] **Step 3.7: Run tests**
+- [x] **Step 3.7: Run tests**
 
 Run:
 ```bash
@@ -873,7 +873,7 @@ pnpm --filter api test
 
 Expected: all tests (health + assets + projects) pass.
 
-- [ ] **Step 3.8: Commit**
+- [x] **Step 3.8: Commit**
 
 ```bash
 git add packages/shared/src/schemas/projects.ts packages/shared/src/schemas/index.ts apps/api/src/serializers/project.ts apps/api/src/routes/projects.ts apps/api/src/index.ts apps/api/tests/integration/projects.test.ts
