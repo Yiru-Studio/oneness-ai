@@ -1,0 +1,27 @@
+{
+  "name": "worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@oneness/shared": "workspace:*",
+    "@paralleldrive/cuid2": "^2.2.2",
+    "@prisma/client": "^5.22.0",
+    "bullmq": "^5.34.0",
+    "ioredis": "^5.4.1",
+    "minio": "^8.0.2",
+    "sharp": "^0.33.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
