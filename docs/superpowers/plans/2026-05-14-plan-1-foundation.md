@@ -1165,7 +1165,7 @@ git commit -m "feat(shared): Prisma seed script ported from frontend mock data"
 - Create: `packages/shared/src/logger.ts`
 - Create: `packages/shared/src/errors.ts`
 
-- [ ] **Step 7.1: Write `packages/shared/src/logger.ts`**
+- [x] **Step 7.1: Write `packages/shared/src/logger.ts`**
 
 ```ts
 import pino from 'pino';
@@ -1198,7 +1198,7 @@ export const metrics = {
 };
 ```
 
-- [ ] **Step 7.2: Write `packages/shared/src/errors.ts`**
+- [x] **Step 7.2: Write `packages/shared/src/errors.ts`**
 
 ```ts
 export const ErrorCodes = {
@@ -1258,7 +1258,7 @@ export class AppError extends Error {
 }
 ```
 
-- [ ] **Step 7.3: Type-check the shared package**
+- [x] **Step 7.3: Type-check the shared package**
 
 Run:
 ```bash
@@ -1267,7 +1267,7 @@ pnpm --filter @oneness/shared typecheck
 
 Expected: exits 0.
 
-- [ ] **Step 7.4: Commit**
+- [x] **Step 7.4: Commit**
 
 ```bash
 git add packages/shared/src/logger.ts packages/shared/src/errors.ts
