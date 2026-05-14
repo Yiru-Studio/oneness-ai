@@ -1,13 +1,16 @@
 'use client';
 
-import { Project } from '@/types';
+import { Project, StoryboardEpisode } from '@/types';
 import { CheckCircle2, Pencil } from 'lucide-react';
+import { ScriptUploadCard } from '@/components/projects/ScriptUploadCard';
 
 interface Props {
   project: Project;
+  episodes: StoryboardEpisode[];
+  onEpisodeUploaded: (episode: StoryboardEpisode) => void;
 }
 
-export function InfoTabContent({ project }: Props) {
+export function InfoTabContent({ project, episodes, onEpisodeUploaded }: Props) {
   const infoItems = [
     { label: '分辨率', value: project.ratio },
     { label: '风格', value: project.style },
@@ -16,6 +19,8 @@ export function InfoTabContent({ project }: Props) {
     { label: '图像模型', value: project.imageModel },
     { label: '视频模型', value: project.videoModel },
   ];
+
+  const firstEpisode = episodes[0];
 
   return (
     <div className="flex gap-8 h-full">
@@ -29,7 +34,7 @@ export function InfoTabContent({ project }: Props) {
         </div>
 
         <div className="space-y-4">
-          {infoItems.map(item => (
+          {infoItems.map((item) => (
             <div key={item.label}>
               <div className="text-xs text-[var(--color-text-secondary)] mb-1">{item.label}</div>
               <div className="text-sm font-medium">{item.value}</div>
@@ -72,17 +77,13 @@ export function InfoTabContent({ project }: Props) {
 
       {/* Right content area */}
       <div className="flex-1 overflow-y-auto">
-        <div className="prose max-w-none whitespace-pre-wrap leading-relaxed text-[var(--color-text)] text-sm">
-          {`故事背景设定在一个近未来的世界，武术"极意"成为了全球主流竞技项目。
-
-主角是一位名叫李昊的年轻格斗家，他在一场国际邀请赛后意外卷入了一个神秘组织的阴谋。这个组织试图利用"极意"技术控制全球能源命脉。
-
-李昊必须联合来自不同国家的格斗家，包括日本的空手道高手、巴西的柔术冠军、泰国的泰拳王者，共同对抗这个组织。
-
-在旅途中，李昊逐渐发现了自己体内潜藏的特殊能力——"共鸣"，这种能力让他能够短暂预知对手的动作。但随着能力的觉醒，他也面临着身体被能力反噬的危险。
-
-最终决战发生在组织的总部，一座隐藏在太平洋深处的浮空城市。李昊必须在保护同伴和拯救世界之间做出选择...`}
-        </div>
+        {firstEpisode ? (
+          <div className="prose max-w-none whitespace-pre-wrap leading-relaxed text-[var(--color-text)] text-sm">
+            {firstEpisode.content}
+          </div>
+        ) : (
+          <ScriptUploadCard projectId={project.id} onUploaded={onEpisodeUploaded} />
+        )}
       </div>
     </div>
   );

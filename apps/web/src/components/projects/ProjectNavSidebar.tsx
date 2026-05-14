@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation';
 interface Props {
   activeTab: ProjectTab;
   onTabChange: (tab: ProjectTab) => void;
+  /** When false, only the 'info' tab is interactive — used before a script is uploaded. */
+  scriptUploaded: boolean;
 }
 
 const NAV_ITEMS: Array<{
@@ -26,7 +28,7 @@ const NAV_ITEMS: Array<{
   { tab: 'analytics', icon: BarChart3, label: '数据分析' },
 ];
 
-export function ProjectNavSidebar({ activeTab, onTabChange }: Props) {
+export function ProjectNavSidebar({ activeTab, onTabChange, scriptUploaded }: Props) {
   const router = useRouter();
   const [hoveredTab, setHoveredTab] = useState<ProjectTab | null>(null);
 
@@ -42,22 +44,27 @@ export function ProjectNavSidebar({ activeTab, onTabChange }: Props) {
       {NAV_ITEMS.map(({ tab, icon: Icon, label }) => {
         const isActive = activeTab === tab;
         const isHovered = hoveredTab === tab;
+        const disabled = !scriptUploaded && tab !== 'info' && tab !== 'analytics';
 
         return (
           <div key={tab} className="relative">
             {(isActive || isHovered) && (
               <span className="absolute left-12 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs px-3 py-1.5 rounded-lg whitespace-nowrap z-50">
                 {label}
+                {disabled && <span className="ml-1 opacity-70">（上传剧本后可用）</span>}
               </span>
             )}
             <button
-              onClick={() => onTabChange(tab)}
+              onClick={() => !disabled && onTabChange(tab)}
+              disabled={disabled}
               onMouseEnter={() => setHoveredTab(tab)}
               onMouseLeave={() => setHoveredTab(null)}
               className={`w-10 h-10 flex items-center justify-center rounded-full shadow-md border transition-all ${
                 isActive
                   ? 'bg-[var(--color-dark)] text-white border-[var(--color-dark)]'
-                  : 'bg-white text-[var(--color-text)] border-[var(--color-border)] hover:shadow-lg'
+                  : disabled
+                    ? 'bg-gray-100 text-gray-300 border-[var(--color-border)] cursor-not-allowed'
+                    : 'bg-white text-[var(--color-text)] border-[var(--color-border)] hover:shadow-lg'
               }`}
             >
               <Icon className="w-4 h-4" />

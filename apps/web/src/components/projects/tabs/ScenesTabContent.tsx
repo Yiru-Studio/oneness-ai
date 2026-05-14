@@ -8,6 +8,14 @@ interface Props {
 }
 
 export function ScenesTabContent({ scenes }: Props) {
+  if (scenes.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-sm text-[var(--color-text-secondary)]">
+        正在分析场景…
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
@@ -18,7 +26,7 @@ export function ScenesTabContent({ scenes }: Props) {
         </button>
 
         {/* Scene cards */}
-        {scenes.map(scene => (
+        {scenes.map((scene) => (
           <div key={scene.id} className="rounded-xl overflow-hidden bg-[var(--color-bg-card)]">
             <div className="aspect-[4/3] flex items-center justify-center">
               <ImagePlus className="w-10 h-10 text-gray-400" />

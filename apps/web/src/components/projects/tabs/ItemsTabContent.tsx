@@ -8,6 +8,14 @@ interface Props {
 }
 
 export function ItemsTabContent({ items }: Props) {
+  if (items.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-sm text-[var(--color-text-secondary)]">
+        正在分析物品…
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4">
@@ -18,7 +26,7 @@ export function ItemsTabContent({ items }: Props) {
         </button>
 
         {/* Item cards */}
-        {items.map(item => (
+        {items.map((item) => (
           <div key={item.id} className="rounded-xl overflow-hidden bg-[var(--color-bg-card)]">
             <div className="aspect-square flex items-center justify-center">
               <ImagePlus className="w-10 h-10 text-gray-400" />

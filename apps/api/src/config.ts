@@ -15,6 +15,12 @@ const ConfigSchema = z.object({
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
     .default('info'),
+  // Default provider names mirror the worker's env vars; the API uses them
+  // when a request doesn't specify a provider explicitly (e.g. the analyze
+  // fan-out endpoint).
+  PROVIDER_IMAGE: z.string().default('stub'),
+  PROVIDER_VIDEO: z.string().default('stub'),
+  PROVIDER_TEXT: z.string().default('stub'),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

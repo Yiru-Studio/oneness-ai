@@ -9,15 +9,28 @@ interface Props {
 }
 
 export function CharactersTabContent({ characters }: Props) {
-  const [selectedId, setSelectedId] = useState(characters[0]?.id);
-  const selected = characters.find(c => c.id === selectedId);
+  // Track the user's explicit selection; fall back to the first character so
+  // the panel still renders right after polling brings the list in.
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const effectiveId = pickedId ?? characters[0]?.id ?? null;
+  const selected = characters.find((c) => c.id === effectiveId);
+  const setSelectedId = setPickedId;
+  const selectedId = effectiveId;
+
+  if (characters.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-sm text-[var(--color-text-secondary)]">
+        正在分析角色…
+      </div>
+    );
+  }
 
   return (
     <div className="flex gap-0 h-full">
       {/* Left character list */}
       <div className="w-[280px] flex-shrink-0 border-r border-[var(--color-border)] overflow-y-auto">
         <div className="p-4 space-y-2">
-          {characters.map(char => (
+          {characters.map((char) => (
             <button
               key={char.id}
               onClick={() => setSelectedId(char.id)}

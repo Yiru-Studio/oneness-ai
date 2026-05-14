@@ -4,12 +4,20 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Project } from '@/types';
-import { getProjects } from '@/lib/api';
+import { createProject, deleteProject, getProjects } from '@/lib/api';
 import { TopBar } from '@/components/layout/TopBar';
 import { FloatingKnowledgeButton } from '@/components/layout/FloatingKnowledgeButton';
 import { ProjectGrid } from '@/components/projects/ProjectGrid';
 import { ProjectFilters } from '@/components/projects/ProjectFilters';
-import { CreateProjectModal } from '@/components/modals/CreateProjectModal';
+import {
+  CreateProjectModal,
+  type CreateProjectPayload,
+} from '@/components/modals/CreateProjectModal';
+import {
+  DEFAULT_ANALYSIS_MODEL,
+  DEFAULT_IMAGE_MODEL,
+  DEFAULT_VIDEO_MODEL,
+} from '@/data/style-presets';
 
 export default function ProjectsPage() {
   const { isLoggedIn, isLoading } = useAuth();
@@ -17,40 +25,44 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  useEffect(() => {
-    if (!isLoading && !isLoggedIn) {
-      router.push('/');
-      return;
-    }
-    if (isLoggedIn) {
-      loadProjects();
-    }
-  }, [isLoggedIn, isLoading, router]);
-
   const loadProjects = async (search?: string) => {
     const data = await getProjects(search);
     setProjects(data);
   };
 
-  const handleCreate = async (name: string, ratio: string) => {
-    const newProject: Project = {
-      id: 'proj_' + Date.now(),
-      name,
-      ratio,
-      style: '未设定',
-      createdAt: new Date().toISOString(),
-      stylePrompt: '',
-      analysisModel: 'Gemini 3 Pro',
-      imageModel: 'Nano banana pro',
-      videoModel: 'Seedance 2.0',
+  useEffect(() => {
+    if (!isLoading && !isLoggedIn) {
+      router.push('/');
+      return;
+    }
+    if (!isLoggedIn) return;
+    let cancelled = false;
+    getProjects().then((data) => {
+      if (!cancelled) setProjects(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, isLoading, router]);
+
+  const handleCreate = async (payload: CreateProjectPayload) => {
+    const created = await createProject({
+      name: payload.name,
+      ratio: payload.ratio,
+      style: payload.styleLabel,
+      stylePrompt: payload.stylePrompt,
+      analysisModel: DEFAULT_ANALYSIS_MODEL,
+      imageModel: DEFAULT_IMAGE_MODEL,
+      videoModel: DEFAULT_VIDEO_MODEL,
       generalAnalysis: 'pending',
       basicAnalysis: 'pending',
-    };
-    setProjects(prev => [...prev, newProject]);
+    });
+    router.push(`/projects/${created.id}`);
   };
 
-  const handleDelete = (id: string) => {
-    setProjects(prev => prev.filter(p => p.id !== id));
+  const handleDelete = async (id: string) => {
+    await deleteProject(id);
+    setProjects((prev) => prev.filter((p) => p.id !== id));
   };
 
   if (isLoading) {

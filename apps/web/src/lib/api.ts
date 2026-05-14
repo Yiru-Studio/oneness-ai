@@ -105,6 +105,35 @@ export async function getProjectStoryboard(
   return await apiFetch<EpisodeDTO[]>(`/api/projects/${projectId}/episodes`);
 }
 
+export async function createEpisode(
+  projectId: string,
+  data: { number: number; title: string; content: string },
+): Promise<StoryboardEpisode> {
+  return await apiFetch<EpisodeDTO>(`/api/projects/${projectId}/episodes`, {
+    method: 'POST',
+    body: data,
+  });
+}
+
+export type TaskSummary = {
+  id: string;
+  type: 'IMAGE' | 'VIDEO' | 'TEXT_ANALYZE';
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown> | null;
+  error?: string | null;
+};
+
+export async function analyzeEpisode(
+  projectId: string,
+  episodeId: string,
+): Promise<{ tasks: TaskSummary[] }> {
+  return await apiFetch<{ tasks: TaskSummary[] }>(
+    `/api/projects/${projectId}/episodes/${episodeId}/analyze`,
+    { method: 'POST', body: {} },
+  );
+}
+
 export async function getProjectAnalytics(projectId: string): Promise<AnalyticsData> {
   return await apiFetch<AnalyticsDTO>(`/api/projects/${projectId}/analytics`);
 }

@@ -85,10 +85,15 @@ export type VideoInput = {
   returnLastFrame?: boolean;
   references?: VideoReference[];
 };
-export type TextInput = {
-  episodeId: string;
-  analysisType: 'general' | 'basic';
-};
+export type TextInput =
+  | {
+      episodeId: string;
+      analysisType: 'general' | 'basic';
+    }
+  | {
+      episodeId: string;
+      subjectType: 'characters' | 'items' | 'scenes';
+    };
 
 /** Convenience union — used by worker's registry. */
 export type AnyProvider = ImageProvider | VideoProvider | TextProvider;

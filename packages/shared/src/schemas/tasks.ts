@@ -46,10 +46,19 @@ const VideoInputSchema = z.object({
   references: z.array(VideoReferenceSchema).max(15).optional(),
 });
 
-const TextInputSchema = z.object({
-  episodeId: CuidSchema,
-  analysisType: z.enum(['general', 'basic']),
-});
+// Text input has two variants: the original summary/keyPoints analysis,
+// and the entity-extraction variant used by the parallel-analysis fan-out
+// triggered after a script upload.
+const TextInputSchema = z.union([
+  z.object({
+    episodeId: CuidSchema,
+    analysisType: z.enum(['general', 'basic']),
+  }),
+  z.object({
+    episodeId: CuidSchema,
+    subjectType: z.enum(['characters', 'items', 'scenes']),
+  }),
+]);
 
 export const CreateTaskSchema = z.discriminatedUnion('type', [
   z.object({
