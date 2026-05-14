@@ -55,7 +55,20 @@
        - Generated 2 scene images (INT. 吴雨华家 - 午后) via openai/gpt-image-2
        - Generated 1 video shot via doubao-seedance-2-0-fast-260128 (5s, 16:9)
        Real credits used. All assets saved to MinIO.
-- [ ] Phase 6: Wide-and-shallow remaining features (workbench canvas, collab, etc.)
+- [x] Phase 6a: Side-by-side comparison with likeai.pro
+       New test script: docs/test-scripts/comparison-script.md (《最后一班地铁》, original)
+       Auth: localStorage token works for likeai.pro projects list page; deep-link to
+       project detail tabs failed (label-text click on SPA didn't activate fully)
+       Captures saved at docs/research/comparison/{likeai,mine}-{A..H}-*.png
+       Comparison report: docs/research/comparison/REPORT.md
+       Critical gaps identified: shot-level Prisma model + UI for per-shot image/video
+       generation. Logged as deferred (>30min).
+- [x] Phase 6b: Quick wins from comparison
+       - Project status pills (未开始 / 测试中 / 已立项) on project cards
+       - Verified pnpm typecheck pass
+       - Verified Playwright load with 0 console errors
+- [ ] Phase 7: shot-level model + UI (DEFERRED - structural change, scope >30min)
+- [ ] Phase 8: workbench canvas, collab tab, knowledge-base richer UI
 
 ## Notes (overnight session 2)
 
