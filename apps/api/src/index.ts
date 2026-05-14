@@ -15,6 +15,7 @@ import { characterStyleRoutes } from './routes/character-styles.js';
 import { itemRoutes } from './routes/items.js';
 import { sceneRoutes } from './routes/scenes.js';
 import { episodeRoutes } from './routes/episodes.js';
+import { knowledgeDocRoutes } from './routes/knowledge-docs.js';
 import './types/hono-env.js';
 
 const app = new Hono();
@@ -33,6 +34,7 @@ app.route('/api', characterStyleRoutes);
 app.route('/api', itemRoutes);
 app.route('/api', sceneRoutes);
 app.route('/api', episodeRoutes);
+app.route('/api', knowledgeDocRoutes);
 
 serve({ fetch: app.fetch, port: config.PORT }, (info) => {
   logger.info({ port: info.port }, 'API server started');
