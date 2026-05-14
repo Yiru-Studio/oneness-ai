@@ -1933,7 +1933,7 @@ git commit -m "feat(api): /auth/login, /auth/logout, GET/PATCH /me (mock auth)"
 - Create: `apps/api/src/routes/health.ts`
 - Modify: `apps/api/src/index.ts` (mount)
 
-- [ ] **Step 13.1: Write `apps/api/src/routes/health.ts`**
+- [x] **Step 13.1: Write `apps/api/src/routes/health.ts`**
 
 ```ts
 import { Hono } from 'hono';
@@ -1977,7 +1977,7 @@ healthRoutes.get('/metrics', (c) =>
 );
 ```
 
-- [ ] **Step 13.2: Mount in `apps/api/src/index.ts`**
+- [x] **Step 13.2: Mount in `apps/api/src/index.ts`**
 
 Add the import and `app.route` line. The file becomes:
 
@@ -2009,7 +2009,7 @@ serve({ fetch: app.fetch, port: config.PORT }, (info) => {
 });
 ```
 
-- [ ] **Step 13.3: Smoke test**
+- [x] **Step 13.3: Smoke test**
 
 Run:
 ```bash
@@ -2038,7 +2038,7 @@ Expected:
 - `_ready`: `{"status":"ready"}`
 - `metrics`: status line `HTTP/1.1 501 Not Implemented` and body `{"error":{"code":"NOT_IMPLEMENTED","message":"wire prom-client here"}}`
 
-- [ ] **Step 13.4: Commit**
+- [x] **Step 13.4: Commit**
 
 ```bash
 git add apps/api/src/routes/health.ts apps/api/src/index.ts

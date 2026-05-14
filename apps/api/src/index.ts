@@ -7,6 +7,7 @@ import { requestIdMiddleware } from './middleware/request-id.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { authRoutes } from './routes/auth.js';
 import { meRoutes } from './routes/me.js';
+import { healthRoutes } from './routes/health.js';
 import './types/hono-env.js';
 
 const app = new Hono();
@@ -15,6 +16,7 @@ app.use('*', corsMiddleware);
 app.use('*', requestIdMiddleware);
 app.onError(errorHandler);
 
+app.route('/api', healthRoutes);
 app.route('/api', authRoutes);
 app.route('/api', meRoutes);
 
