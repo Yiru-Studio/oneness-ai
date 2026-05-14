@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AnalysisStatus {
+  PENDING
+  COMPLETED
+}
+
+enum KnowledgeDocType {
+  CREATED
+  FAVORITED
+  COLLABORATED
+}
+
+enum TaskType {
+  IMAGE
+  VIDEO
+  TEXT_ANALYZE
+}
+
+enum TaskStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  avatarKey String?
+  credits   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects      Project[]
+  knowledgeDocs KnowledgeDoc[]
+  tasks         Task[]
+  assets        Asset[]
+}
+
+model Project {
+  id              String         @id @default(cuid())
+  ownerId         String
+  name            String
+  ratio           String
+  style           String
+  stylePrompt     String         @db.Text
+  analysisModel   String
+  imageModel      String
+  videoModel      String
+  generalAnalysis AnalysisStatus @default(PENDING)
+  basicAnalysis   AnalysisStatus @default(PENDING)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  owner      User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  characters Character[]
+  items      Item[]
+  scenes     Scene[]
+  episodes   StoryboardEpisode[]
+  tasks      Task[]
+
+  @@index([ownerId, createdAt])
+}
+
+model Character {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  description String   @db.Text
+  bio         String   @db.Text
+  voice       String?
+  avatarKey   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  styles  CharacterStyle[]
+
+  @@index([projectId])
+}
+
+model CharacterStyle {
+  id          String   @id @default(cuid())
+  characterId String
+  name        String
+  assetId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  asset     Asset?    @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([characterId])
+}
+
+model Item {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  assetId   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  asset   Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+}
+
+model Scene {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  assetId   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  asset   Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+}
+
+model StoryboardEpisode {
+  id        String   @id @default(cuid())
+  projectId String
+  number    Int
+  title     String
+  content   String   @db.Text
+  analyzed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, number])
+}
+
+model KnowledgeDoc {
+  id        String           @id @default(cuid())
+  ownerId   String
+  title     String
+  type      KnowledgeDocType
+  content   String?          @db.Text
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, type])
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  ownerId     String
+  projectId   String?
+  type        TaskType
+  status      TaskStatus @default(QUEUED)
+  provider    String
+  input       Json
+  output      Json?
+  error       String?
+  costCredits Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  owner   User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  project Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  assets  TaskAsset[]
+
+  @@index([ownerId, status, createdAt])
+  @@index([projectId, type])
+}
+
+model Asset {
+  id          String   @id @default(cuid())
+  ownerId     String
+  bucket      String
+  key         String
+  contentType String
+  sizeBytes   Int
+  width       Int?
+  height      Int?
+  durationMs  Int?
+  createdAt   DateTime @default(now())
+
+  owner           User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  characterStyles CharacterStyle[]
+  items           Item[]
+  scenes          Scene[]
+  taskAssets      TaskAsset[]
+
+  @@unique([bucket, key])
+  @@index([ownerId, createdAt])
+}
+
+model TaskAsset {
+  taskId  String
+  assetId String
+  role    String
+
+  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, assetId, role])
+}
