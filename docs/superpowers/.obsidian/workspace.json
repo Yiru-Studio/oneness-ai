@@ -1,38 +1,24 @@
 {
   "main": {
-    "id": "5773595745758fe3",
+    "id": "42fa4e60476ed7b9",
     "type": "split",
     "children": [
       {
-        "id": "aa66775ab539cd24",
+        "id": "fd9bb1ae7d013c77",
         "type": "tabs",
         "children": [
           {
-            "id": "564bbfef315bd7e8",
+            "id": "cfc0bf407415ae1f",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "2026-05-14-backend-design.md",
+                "file": "specs/2026-05-13-oneness-ai-clone-design.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "2026-05-14-backend-design"
-            }
-          },
-          {
-            "id": "6e042be9beae704f",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "映射.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "映射"
+              "title": "2026-05-13-oneness-ai-clone-design"
             }
           }
         ]
@@ -41,28 +27,28 @@
     "direction": "vertical"
   },
   "left": {
-    "id": "3a5cb9b1582d6b4f",
+    "id": "7c1ec8ac1ab5e812",
     "type": "split",
     "children": [
       {
-        "id": "c58ae67f3ad3ce73",
+        "id": "031814bd5f3843b2",
         "type": "tabs",
         "children": [
           {
-            "id": "c8ff7ba698334278",
+            "id": "be17ff3e140cad2e",
             "type": "leaf",
             "state": {
               "type": "file-explorer",
               "state": {
                 "sortOrder": "alphabetical",
-                "autoReveal": true
+                "autoReveal": false
               },
               "icon": "lucide-folder-closed",
               "title": "文件列表"
             }
           },
           {
-            "id": "5ab7cfc5a81adcbf",
+            "id": "13b876512b2b5b60",
             "type": "leaf",
             "state": {
               "type": "search",
@@ -79,7 +65,7 @@
             }
           },
           {
-            "id": "0a338c14ced5d14c",
+            "id": "7b446c65323d010c",
             "type": "leaf",
             "state": {
               "type": "bookmarks",
@@ -95,20 +81,20 @@
     "width": 300
   },
   "right": {
-    "id": "d9eb24448f3139cb",
+    "id": "4b68100f2e4d5105",
     "type": "split",
     "children": [
       {
-        "id": "ea57cfb634353437",
+        "id": "a533ef4510326f25",
         "type": "tabs",
         "children": [
           {
-            "id": "3c5a16da48c34cf2",
+            "id": "7fedf73876a5c27e",
             "type": "leaf",
             "state": {
               "type": "backlink",
               "state": {
-                "file": "映射.md",
+                "file": "specs/2026-05-13-oneness-ai-clone-design.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -118,25 +104,25 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "映射 的反向链接列表"
+              "title": "2026-05-13-oneness-ai-clone-design 的反向链接列表"
             }
           },
           {
-            "id": "61e60f1e44a84492",
+            "id": "32da5403058b281f",
             "type": "leaf",
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "映射.md",
+                "file": "specs/2026-05-13-oneness-ai-clone-design.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "映射 的出链列表"
+              "title": "2026-05-13-oneness-ai-clone-design 的出链列表"
             }
           },
           {
-            "id": "2b85510eb80752de",
+            "id": "f0b3c46dd58f366a",
             "type": "leaf",
             "state": {
               "type": "tag",
@@ -151,7 +137,7 @@
             }
           },
           {
-            "id": "a7ac3b198625ee29",
+            "id": "6b6ab51970c1dcd4",
             "type": "leaf",
             "state": {
               "type": "all-properties",
@@ -165,18 +151,18 @@
             }
           },
           {
-            "id": "4c0776a9f5e5fb46",
+            "id": "227524d0243b9884",
             "type": "leaf",
             "state": {
               "type": "outline",
               "state": {
-                "file": "映射.md",
+                "file": "specs/2026-05-13-oneness-ai-clone-design.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "映射 的大纲"
+              "title": "2026-05-13-oneness-ai-clone-design 的大纲"
             }
           }
         ]
@@ -197,10 +183,8 @@
       "bases:新建数据库": false
     }
   },
-  "active": "564bbfef315bd7e8",
+  "active": "cfc0bf407415ae1f",
   "lastOpenFiles": [
-    "2026-05-13-oneness-ai-clone-design.md",
-    "2026-05-14-backend-design.md",
-    "映射.md"
+    "specs/2026-05-14-backend-design.md"
   ]
 }
