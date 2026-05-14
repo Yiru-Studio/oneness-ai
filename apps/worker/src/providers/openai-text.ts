@@ -69,8 +69,9 @@ type ExtractedItem = { name: string };
 type ExtractedScene = { name: string };
 
 function safeParseAnalysis(raw: string): { summary: string; keyPoints: string[] } {
+  const cleaned = extractJsonObject(raw);
   try {
-    const obj = JSON.parse(raw) as { summary?: unknown; keyPoints?: unknown };
+    const obj = JSON.parse(cleaned) as { summary?: unknown; keyPoints?: unknown };
     return {
       summary: typeof obj.summary === 'string' ? obj.summary : '',
       keyPoints: Array.isArray(obj.keyPoints)
@@ -83,14 +84,36 @@ function safeParseAnalysis(raw: string): { summary: string; keyPoints: string[] 
 }
 
 function safeParseEntities<T>(raw: string, key: string): T[] {
+  const cleaned = extractJsonObject(raw);
   try {
-    const obj = JSON.parse(raw) as Record<string, unknown>;
+    const obj = JSON.parse(cleaned) as Record<string, unknown>;
     const arr = obj[key];
     if (!Array.isArray(arr)) return [];
     return arr.filter((x): x is T => typeof x === 'object' && x !== null);
   } catch {
     return [];
   }
+}
+
+/**
+ * Strip common LLM wrappers around JSON: markdown fences (```json…```),
+ * leading prose, trailing prose. We greedily take the substring from the
+ * first '{' to the last '}'. If neither is found, returns the original.
+ *
+ * Real-world failures this fixes:
+ *  - Claude sometimes prefixes 'Here is the JSON:\n```json\n{...}\n```'
+ *  - zenmux routing may drop the response_format hint so we can't rely on
+ *    raw being a pure JSON string.
+ */
+function extractJsonObject(raw: string): string {
+  const trimmed = raw.trim();
+  // Strip ```json … ``` fences if present.
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  const inner = fenced ? fenced[1]!.trim() : trimmed;
+  const first = inner.indexOf('{');
+  const last = inner.lastIndexOf('}');
+  if (first === -1 || last === -1 || last < first) return inner;
+  return inner.slice(first, last + 1);
 }
 
 export const openaiTextProvider: TextProvider = {
@@ -146,6 +169,12 @@ export const openaiTextProvider: TextProvider = {
           subjectType,
           raw,
         );
+        if (createdIds.length === 0) {
+          ctx.log.warn(
+            { provider: 'openai', op: 'extract', subjectType, rawPreview: raw.slice(0, 800) },
+            'entity extraction produced 0 rows',
+          );
+        }
 
         return {
           outputJson: {
