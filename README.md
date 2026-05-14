@@ -1,15 +1,17 @@
 # Oneness-AI
 
-Professional AI film/animation creation platform. Reverse-engineered UI from likeai.pro plus a real backend supporting full CRUD, MinIO-backed assets, and an extensible AI task pipeline.
+Professional AI film/animation creation platform. Reverse-engineered UI from likeai.pro with a real backend supporting full CRUD, MinIO-backed assets, and an extensible AI task pipeline.
 
 ## Stack
 
-- **Frontend**: Next.js 16 + React 19 + Tailwind v4 + TypeScript strict (in `apps/web/`)
-- **API**: Hono 4 on Node 22 (in `apps/api/`)
-- **Worker**: BullMQ + stub providers, ready to swap in real models (in `apps/worker/`)
-- **DB**: Postgres 16 via Prisma 5
-- **Object storage**: MinIO (S3-compatible)
-- **Queue**: Redis 7 + BullMQ
+| Layer | Tech |
+|-------|------|
+| Frontend | Next.js 16 · React 19 · Tailwind v4 · TypeScript strict |
+| API | Hono 4 on Node 22 |
+| Worker | BullMQ + stub providers (swap in real models) |
+| DB | Postgres 16 via Prisma 5 |
+| Object storage | MinIO (S3-compatible) |
+| Queue | Redis 7 + BullMQ |
 
 ## Quick start
 
@@ -18,222 +20,73 @@ corepack enable && corepack prepare pnpm@9.12.0 --activate
 pnpm install
 cp .env.example .env       # adjust if needed
 pnpm infra:up              # postgres + redis + minio + bucket init
-pnpm db:migrate            # creates tables
+pnpm db:migrate            # create tables
 pnpm db:seed               # 1 user / 2 projects / 9 chars / 16 scenes
 pnpm dev                   # api :4000 + worker + web :3000
 ```
 
-Open `http://localhost:3000`, log in with any email + code → you're the seed user.
+Open `http://localhost:3000` and log in with any email + code — you'll be acting as the seed user.
+
+### Useful URLs
+
+| Service | URL |
+|---------|-----|
+| Web | http://localhost:3000 |
+| API health | http://localhost:4000/api/_health |
+| MinIO console | http://localhost:9001 (oneness / oneness-secret) |
+| Prisma Studio | `pnpm db:studio` |
+
+## Daily commands
+
+```bash
+pnpm infra:up / infra:down   # start/stop docker services
+pnpm db:reset                # wipe db + re-run migrations + seed
+pnpm --filter api test       # API integration tests (needs infra up)
+pnpm dev:worker              # worker only
+```
+
+## Environment variables
+
+See `.env.example` for all variables. Key ones:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `DATABASE_URL` | `postgresql://oneness:oneness@localhost:5432/oneness` | Postgres connection |
+| `REDIS_URL` | `redis://localhost:6379` | BullMQ / queue |
+| `MINIO_ENDPOINT` | `http://localhost:9000` | Object storage |
+| `PROVIDER_IMAGE` | `stub` | Image generation provider |
+| `PROVIDER_VIDEO` | `stub` | Video generation provider |
+| `PROVIDER_TEXT` | `stub` | Text generation provider |
+| `STUB_FAIL_RATE` | `0.1` | Stub failure rate (set `0` for deterministic dev) |
+| `INTERNAL_SECRET` | — | Shared secret for `/api/internal/*` callbacks |
 
 ## Plugging in a real AI provider
 
-The worker exposes a clean port for image / video / text providers in `apps/worker/src/providers/`. Default is `stub`. To wire your own:
+Provider implementations live in `apps/worker/src/providers/`. The default is `stub`.
 
 1. Implement `ImageProvider | VideoProvider | TextProvider` from `@oneness/shared/providers`.
 2. Register it in `apps/worker/src/providers/registry.ts`.
-3. Set `PROVIDER_IMAGE=<name>` (or VIDEO/TEXT) in `.env`.
-4. Restart worker only — the API stays up.
+3. Set `PROVIDER_IMAGE=<name>` (or `VIDEO` / `TEXT`) in `.env`.
+4. Restart the worker — the API stays up.
 
-Tasks flow through Redis queues. Credits are reserved at enqueue and refunded automatically on failure or cancel. `Project.analytics` reflects this live.
+Credits are reserved at enqueue time and refunded automatically on `FAILED` or `CANCELLED`. `Project.analytics` reflects this in real time.
 
----
-# AI Website Cloner Template
+## API reference
 
-<a href="https://github.com/JCodesMore/ai-website-cloner-template/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" /></a> <a href="https://github.com/JCodesMore/ai-website-cloner-template/stargazers"><img src="https://img.shields.io/github/stars/JCodesMore/ai-website-cloner-template?style=flat" alt="Stars" /></a> <a href="https://discord.gg/hrTSX5yTpB"><img src="https://img.shields.io/discord/1400896964597383279?label=discord" alt="Discord" /></a>
-
-A reusable template for reverse-engineering any website into a clean, modern Next.js codebase using AI coding agents. 
-
-**Recommended: [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with Opus 4.7 for best results** — but works with a variety of AI coding agents.
-
-Point it at a URL, run `/clone-website`, and your AI agent will inspect the site, extract design tokens and assets, write component specs, and dispatch parallel builders to reconstruct every section.
-
-## Demo
-
-[![Watch the demo](docs/design-references/comparison.png)](https://youtu.be/O669pVZ_qr0)
-
-> Click the image above to watch the full demo on YouTube.
-
-## Quick Start
-
-1. **Clone this repository**
-   ```bash
-   git clone https://github.com/JCodesMore/ai-website-cloner-template.git my-clone
-   cd my-clone
-   ```
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-3. **Start your AI agent** — Claude Code recommended:
-   ```bash
-   claude --chrome
-   ```
-4. **Run the skill**:
-   ```
-   /clone-website <target-url1> [<target-url2> ...]
-   ```
-5. **Customize** (optional) — after the base clone is built, modify as needed
-
-> Using a different agent? Open `AGENTS.md` for project instructions — most agents pick it up automatically.
-
-## Supported Platforms
-
-| Agent                                                         | Status                     |
-| ------------------------------------------------------------- | -------------------------- |
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | **Recommended** — Opus 4.7 |
-| [Codex CLI](https://github.com/openai/codex)                  | Supported                  |
-| [OpenCode](https://opencode.ai/)                              | Supported                  |
-| [GitHub Copilot](https://github.com/features/copilot)         | Supported                  |
-| [Cursor](https://cursor.com/)                                 | Supported                  |
-| [Windsurf](https://codeium.com/windsurf)                      | Supported                  |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli)     | Supported                  |
-| [Cline](https://github.com/cline/cline)                       | Supported                  |
-| [Roo Code](https://github.com/RooCodeInc/Roo-Code)            | Supported                  |
-| [Continue](https://continue.dev/)                             | Supported                  |
-| [Amazon Q](https://aws.amazon.com/q/developer/)               | Supported                  |
-| [Augment Code](https://www.augmentcode.com/)                  | Supported                  |
-| [Aider](https://aider.chat/)                                  | Supported                  |
-
-## Prerequisites
-
-- [Node.js](https://nodejs.org/) 24+
-- An AI coding agent (see [Supported Platforms](#supported-platforms))
-
-## Tech Stack
-
-- **Next.js 16** — App Router, React 19, TypeScript strict
-- **shadcn/ui** — Radix primitives + Tailwind CSS v4
-- **Tailwind CSS v4** — oklch design tokens
-- **Lucide React** — default icons (replaced by extracted SVGs during cloning)
-
-## How It Works
-
-The `/clone-website` skill runs a multi-phase pipeline:
-
-1. **Reconnaissance** — screenshots, design token extraction, interaction sweep (scroll, click, hover, responsive)
-2. **Foundation** — updates fonts, colors, globals, downloads all assets
-3. **Component Specs** — writes detailed spec files (`docs/research/components/`) with exact computed CSS values, states, behaviors, and content
-4. **Parallel Build** — dispatches builder agents in git worktrees, one per section/component
-5. **Assembly & QA** — merges worktrees, wires up the page, runs visual diff against the original
-
-Each builder agent receives the full component specification inline — exact `getComputedStyle()` values, interaction models, multi-state content, responsive breakpoints, and asset paths. No guessing.
-
-## Use Cases
-
-- **Platform migration** — rebuild a site you own from WordPress/Webflow/Squarespace into a modern Next.js codebase
-- **Lost source code** — your site is live but the repo is gone, the developer left, or the stack is legacy. Get the code back in a modern format
-- **Learning** — deconstruct how production sites achieve specific layouts, animations, and responsive behavior by working with real code
-
-## Not Intended For
-
-- **Phishing or impersonation** — this project must not be used for deceptive purposes, impersonation, or any activity that breaks the law.
-- **Passing off someone's design as your own** — logos, brand assets, and original copy belong to their owners.
-- **Violating terms of service** — some sites explicitly prohibit scraping or reproduction. Check first.
-
-## Project Structure
+### Projects
 
 ```
-src/
-  app/              # Next.js routes
-  components/       # React components
-    ui/             # shadcn/ui primitives
-    icons.tsx       # Extracted SVG icons
-  lib/utils.ts      # cn() utility
-  types/            # TypeScript interfaces
-  hooks/            # Custom React hooks
-public/
-  images/           # Downloaded images from target
-  videos/           # Downloaded videos from target
-  seo/              # Favicons, OG images
-docs/
-  research/         # Extraction output & component specs
-  design-references/ # Screenshots
-scripts/
-  sync-agent-rules.sh  # Regenerate agent instruction files
-  sync-skills.mjs      # Regenerate /clone-website for all platforms
-AGENTS.md           # Agent instructions (single source of truth)
-CLAUDE.md           # Claude Code config (imports AGENTS.md)
-GEMINI.md           # Gemini CLI config (imports AGENTS.md)
-```
-
-## Commands
-
-```bash
-npm run dev    # Start dev server
-npm run build  # Production build
-npm run lint   # ESLint check
-npm run typecheck # TypeScript check
-npm run check  # Run lint + typecheck + build
-```
-
-### If using docker
-
-```bash
-docker compose up app --build # build and run the app
-docker compose up dev --build # run the app in dev mode on port 3001
-```
-
-## Updating for Other Platforms
-
-Two source-of-truth files power all platform support. Edit the source, then run the sync script:
-
-| What                   | Source of truth                         | Sync command                       |
-| ---------------------- | --------------------------------------- | ---------------------------------- |
-| Project instructions   | `AGENTS.md`                             | `bash scripts/sync-agent-rules.sh` |
-| `/clone-website` skill | `.claude/skills/clone-website/SKILL.md` | `node scripts/sync-skills.mjs`     |
-
-Each script regenerates the platform-specific copies automatically. Agents that read the source files natively need no regeneration.
-
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=JCodesMore/ai-website-cloner-template&type=Date)](https://star-history.com/#JCodesMore/ai-website-cloner-template&Date)
-
-## License
-
-MIT
-
----
-
-## Backend (Plan 1: Foundation)
-
-### Prerequisites
-- Node 22+ / Docker Desktop or compatible
-- `corepack enable && corepack prepare pnpm@9.12.0 --activate`
-
-### First run
-```bash
-pnpm install
-cp .env.example .env
-pnpm infra:up         # docker: postgres + redis + minio + bucket init
-pnpm db:migrate       # apply Prisma migrations
-pnpm db:seed          # seed user / projects / characters / scenes from mock data
-pnpm dev              # starts infra + api (4000) + web (3000)
-```
-
-Visit:
-- Web: http://localhost:3000
-- API health: http://localhost:4000/api/_health
-- MinIO console: http://localhost:9001 (oneness / oneness-secret)
-- Prisma Studio: `pnpm db:studio`
-
-### Daily commands
-- `pnpm infra:up` / `pnpm infra:down` — start/stop docker services
-- `pnpm db:reset` — wipe the database and re-run migrations + seed
-- `pnpm --filter api test` — run API integration tests (needs infra up)
-
-### Plan 2: Resource CRUD + Assets
-
-Backend now serves the full resource graph the frontend mock used to:
-
-```
-GET    /api/projects (paginated, ?search=)
+GET    /api/projects               paginated, ?search=
 POST   /api/projects
 GET    /api/projects/:id
 PATCH  /api/projects/:id
 DELETE /api/projects/:id
 GET    /api/projects/:id/analytics
+```
 
+### Characters & styles
+
+```
 GET    /api/projects/:id/characters
 POST   /api/projects/:id/characters
 GET    /api/characters/:id
@@ -243,7 +96,11 @@ DELETE /api/characters/:id
 POST   /api/characters/:id/styles
 PATCH  /api/character-styles/:id
 DELETE /api/character-styles/:id
+```
 
+### Items, scenes, episodes
+
+```
 GET    /api/projects/:id/items
 POST   /api/projects/:id/items
 PATCH  /api/items/:id
@@ -258,33 +115,43 @@ GET    /api/projects/:id/episodes
 POST   /api/projects/:id/episodes
 PATCH  /api/episodes/:id
 DELETE /api/episodes/:id
+```
 
-GET    /api/knowledge-docs (?type=CREATED|FAVORITED|COLLABORATED, paginated)
+### Knowledge docs
+
+```
+GET    /api/knowledge-docs         ?type=CREATED|FAVORITED|COLLABORATED, paginated
 POST   /api/knowledge-docs
 GET    /api/knowledge-docs/:id
 PATCH  /api/knowledge-docs/:id
 DELETE /api/knowledge-docs/:id
+```
 
-POST   /api/assets (multipart/form-data, file field)
+### Assets
+
+```
+POST   /api/assets                 multipart/form-data, file field
 DELETE /api/assets/:id
 ```
 
-All asset references (`avatar`, `image`, `styles[].image`) in responses are presigned MinIO GET URLs with 1-hour expiry. Pass any `Bearer <token>` in `Authorization` to act as the seed user.
+Asset URLs in responses are presigned MinIO GET URLs (1-hour expiry). Pass `Bearer <token>` in `Authorization` to act as the seed user.
 
-### Plan 3: Tasks + Worker
-
-AI task plumbing:
+### Tasks
 
 ```
-POST   /api/tasks                       # discriminated union on type
-GET    /api/tasks/:id                   # poll status
-GET    /api/tasks?type=&status=&cursor= # cursor-paginated list
-POST   /api/tasks/:id/cancel            # QUEUED refunds immediately, RUNNING defers
-PATCH  /api/internal/tasks/:id          # external workflow callback (X-Internal-Secret)
+POST   /api/tasks                         discriminated union on type
+GET    /api/tasks/:id                     poll status
+GET    /api/tasks?type=&status=&cursor=   cursor-paginated list
+POST   /api/tasks/:id/cancel
+PATCH  /api/internal/tasks/:id            external workflow callback (X-Internal-Secret)
 ```
 
-Three BullMQ queues (`ai-image`, `ai-video`, `ai-text`) consumed by `apps/worker`. Worker concurrency: image=4, video=1, text=4. Set `PROVIDER_IMAGE=...`/`PROVIDER_VIDEO=...`/`PROVIDER_TEXT=...` in `.env` to swap in real providers (stub is the default). Set `STUB_FAIL_RATE=0` to make stubs deterministic during development.
+Three BullMQ queues: `ai-image` (concurrency 4), `ai-video` (1), `ai-text` (4).
 
-Credits are reserved at enqueue time and refunded on FAILED or CANCELLED. `Project.analytics` reflects this in real time.
+## Docker (production-like)
 
-To run worker independently: `pnpm dev:worker`. To run both api + worker: `pnpm dev` (now spawns api, worker, and web concurrently).
+```bash
+docker compose -f docker/docker-compose.yml up --profile full --build
+```
+
+See `docker/docker-compose.yml` and `docker/api.Dockerfile` / `docker/worker.Dockerfile` for details.
