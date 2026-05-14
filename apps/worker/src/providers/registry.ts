@@ -2,6 +2,8 @@ import type { ProviderKind } from '@oneness/shared/providers';
 import { stubImageProvider } from './stub-image.js';
 import { stubVideoProvider } from './stub-video.js';
 import { stubTextProvider } from './stub-text.js';
+import { openaiImageProvider } from './openai-image.js';
+import { openaiTextProvider } from './openai-text.js';
 import { config } from '../config.js';
 
 /**
@@ -12,12 +14,14 @@ import { config } from '../config.js';
 const registry = {
   image: {
     stub: stubImageProvider,
+    openai: openaiImageProvider,
   },
   video: {
     stub: stubVideoProvider,
   },
   text: {
     stub: stubTextProvider,
+    openai: openaiTextProvider,
   },
 } as const;
 
