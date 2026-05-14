@@ -785,7 +785,7 @@ git commit -m "ci: GitHub Actions check workflow (postgres + redis + minio + tes
 **Files:**
 - Modify: `README.md` (replace early sections with Oneness-AI-specific intro; keep the AI-cloner template content below in a "Original template" section since the repo was forked from there)
 
-- [ ] **Step 8.1: Read the current README**
+- [x] **Step 8.1: Read the current README**
 
 ```bash
 head -60 README.md
@@ -793,7 +793,7 @@ head -60 README.md
 
 Note: the current README still has the AI-website-cloner template text at the top followed by the Plan 1/2/3 sections appended below. We'll insert a clear project intro before the cloner content.
 
-- [ ] **Step 8.2: Prepend a project intro to `README.md`**
+- [x] **Step 8.2: Prepend a project intro to `README.md`**
 
 This step puts a 30-line Oneness-AI-specific intro at the top of the README without losing existing content. Use a temp file:
 
@@ -846,7 +846,7 @@ cat README.md >> /tmp/new-readme.md
 mv /tmp/new-readme.md README.md
 ```
 
-- [ ] **Step 8.3: Verify the README starts with the new intro**
+- [x] **Step 8.3: Verify the README starts with the new intro**
 
 ```bash
 head -20 README.md
@@ -854,7 +854,7 @@ head -20 README.md
 
 Expected: starts with `# Oneness-AI`, then the stack list.
 
-- [ ] **Step 8.4: Commit**
+- [x] **Step 8.4: Commit**
 
 ```bash
 git add README.md

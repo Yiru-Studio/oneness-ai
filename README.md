@@ -1,3 +1,42 @@
+# Oneness-AI
+
+Professional AI film/animation creation platform. Reverse-engineered UI from likeai.pro plus a real backend supporting full CRUD, MinIO-backed assets, and an extensible AI task pipeline.
+
+## Stack
+
+- **Frontend**: Next.js 16 + React 19 + Tailwind v4 + TypeScript strict (in `apps/web/`)
+- **API**: Hono 4 on Node 22 (in `apps/api/`)
+- **Worker**: BullMQ + stub providers, ready to swap in real models (in `apps/worker/`)
+- **DB**: Postgres 16 via Prisma 5
+- **Object storage**: MinIO (S3-compatible)
+- **Queue**: Redis 7 + BullMQ
+
+## Quick start
+
+```bash
+corepack enable && corepack prepare pnpm@9.12.0 --activate
+pnpm install
+cp .env.example .env       # adjust if needed
+pnpm infra:up              # postgres + redis + minio + bucket init
+pnpm db:migrate            # creates tables
+pnpm db:seed               # 1 user / 2 projects / 9 chars / 16 scenes
+pnpm dev                   # api :4000 + worker + web :3000
+```
+
+Open `http://localhost:3000`, log in with any email + code → you're the seed user.
+
+## Plugging in a real AI provider
+
+The worker exposes a clean port for image / video / text providers in `apps/worker/src/providers/`. Default is `stub`. To wire your own:
+
+1. Implement `ImageProvider | VideoProvider | TextProvider` from `@oneness/shared/providers`.
+2. Register it in `apps/worker/src/providers/registry.ts`.
+3. Set `PROVIDER_IMAGE=<name>` (or VIDEO/TEXT) in `.env`.
+4. Restart worker only — the API stays up.
+
+Tasks flow through Redis queues. Credits are reserved at enqueue and refunded automatically on failure or cancel. `Project.analytics` reflects this live.
+
+---
 # AI Website Cloner Template
 
 <a href="https://github.com/JCodesMore/ai-website-cloner-template/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" /></a> <a href="https://github.com/JCodesMore/ai-website-cloner-template/stargazers"><img src="https://img.shields.io/github/stars/JCodesMore/ai-website-cloner-template?style=flat" alt="Stars" /></a> <a href="https://discord.gg/hrTSX5yTpB"><img src="https://img.shields.io/discord/1400896964597383279?label=discord" alt="Discord" /></a>
