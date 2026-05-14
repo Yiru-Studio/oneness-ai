@@ -77,10 +77,29 @@ export const ANALYSIS_MODEL_OPTIONS: AnalysisModelOption[] = [
   { modelId: 'anthropic/claude-opus-4.7', label: 'Claude Opus 4.7' },
 ];
 
+export const IMAGE_MODEL_OPTIONS: AnalysisModelOption[] = [
+  { modelId: 'openai/gpt-image-1', label: 'GPT Image 1' },
+  { modelId: 'stub/placeholder', label: 'Stub (开发用)' },
+];
+
+export const VIDEO_MODEL_OPTIONS: AnalysisModelOption[] = [
+  { modelId: 'doubao-seedance-2-0-260128', label: 'Seedance 2.0 Pro' },
+  { modelId: 'doubao-seedance-2-0-fast-260128', label: 'Seedance 2.0 Fast' },
+  { modelId: 'stub/placeholder', label: 'Stub (开发用)' },
+];
+
 export const DEFAULT_ANALYSIS_MODEL = 'anthropic/claude-sonnet-4.6';
-export const DEFAULT_IMAGE_MODEL = 'Seedream 4.5';
-export const DEFAULT_VIDEO_MODEL = 'Seedance Pro Fast';
+export const DEFAULT_IMAGE_MODEL = 'openai/gpt-image-1';
+export const DEFAULT_VIDEO_MODEL = 'doubao-seedance-2-0-fast-260128';
 
 export function analysisModelLabel(modelId: string): string {
   return ANALYSIS_MODEL_OPTIONS.find((m) => m.modelId === modelId)?.label ?? modelId;
+}
+
+export function imageModelLabel(modelId: string): string {
+  return IMAGE_MODEL_OPTIONS.find((m) => m.modelId === modelId)?.label ?? modelId;
+}
+
+export function videoModelLabel(modelId: string): string {
+  return VIDEO_MODEL_OPTIONS.find((m) => m.modelId === modelId)?.label ?? modelId;
 }

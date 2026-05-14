@@ -14,6 +14,7 @@ import {
   type CreateProjectPayload,
 } from '@/components/modals/CreateProjectModal';
 import {
+  DEFAULT_ANALYSIS_MODEL,
   DEFAULT_IMAGE_MODEL,
   DEFAULT_VIDEO_MODEL,
 } from '@/data/style-presets';
@@ -50,7 +51,7 @@ export default function ProjectsPage() {
       ratio: payload.ratio,
       style: payload.styleLabel,
       stylePrompt: payload.stylePrompt,
-      analysisModel: payload.analysisModel,
+      analysisModel: DEFAULT_ANALYSIS_MODEL,
       imageModel: DEFAULT_IMAGE_MODEL,
       videoModel: DEFAULT_VIDEO_MODEL,
       generalAnalysis: 'PENDING',

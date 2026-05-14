@@ -49,15 +49,17 @@ export default function ProjectDetailPage() {
   }, []);
 
   const refreshEntities = useCallback(async (id: string) => {
-    const [chars, itms, scns] = await Promise.all([
+    const [proj, chars, itms, scns] = await Promise.all([
+      getProject(id),
       getProjectCharacters(id),
       getProjectItems(id),
       getProjectScenes(id),
     ]);
+    if (proj) setProject(proj);
     setCharacters(chars);
     setItems(itms);
     setScenes(scns);
-    return { chars, itms, scns };
+    return { proj, chars, itms, scns };
   }, []);
 
   const startPolling = useCallback(
@@ -69,8 +71,9 @@ export default function ProjectDetailPage() {
           stopPolling();
           return;
         }
-        const { chars, itms, scns } = await refreshEntities(id);
-        if (chars.length > 0 && itms.length > 0 && scns.length > 0) {
+        const { proj } = await refreshEntities(id);
+        // Stop once analysis status both flipped to completed.
+        if (proj && proj.generalAnalysis === 'completed' && proj.basicAnalysis === 'completed') {
           stopPolling();
         }
       }, POLL_MS);
@@ -104,7 +107,11 @@ export default function ProjectDetailPage() {
       setEpisodes(eps);
       setAnalytics(anal);
       setIsLoading(false);
-      if (eps.length > 0 && (chars.length === 0 || itms.length === 0 || scns.length === 0)) {
+      const analysisIncomplete =
+        !proj ||
+        proj.generalAnalysis !== 'completed' ||
+        proj.basicAnalysis !== 'completed';
+      if (eps.length > 0 && analysisIncomplete) {
         startPolling(id);
       }
     });
@@ -146,6 +153,7 @@ export default function ProjectDetailPage() {
               project={project}
               episodes={episodes}
               onEpisodeUploaded={handleEpisodeUploaded}
+              onProjectUpdated={setProject}
             />
           )}
           {activeTab === 'characters' && <CharactersTabContent characters={characters} />}
