@@ -8,6 +8,7 @@ import { errorHandler } from './middleware/error-handler.js';
 import { authRoutes } from './routes/auth.js';
 import { meRoutes } from './routes/me.js';
 import { healthRoutes } from './routes/health.js';
+import { assetRoutes } from './routes/assets.js';
 import './types/hono-env.js';
 
 const app = new Hono();
@@ -19,6 +20,7 @@ app.onError(errorHandler);
 app.route('/api', healthRoutes);
 app.route('/api', authRoutes);
 app.route('/api', meRoutes);
+app.route('/api', assetRoutes);
 
 serve({ fetch: app.fetch, port: config.PORT }, (info) => {
   logger.info({ port: info.port }, 'API server started');

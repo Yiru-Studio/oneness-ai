@@ -192,7 +192,7 @@ Implement the MinIO proxy upload (`POST /api/assets`) and `DELETE /api/assets/:i
 
 **Limits:** 100 MB per file; `image/jpeg`, `image/png`, `image/webp`, `image/gif`, `video/mp4`, `video/webm`, `audio/mpeg`, `audio/wav` allowed. Width/height extracted via `sharp` for images. Video `durationMs` skipped (no ffmpeg in MVP — leave `null`).
 
-- [ ] **Step 2.1: Add `sharp` to apps/api**
+- [x] **Step 2.1: Add `sharp` to apps/api**
 
 Run:
 ```bash
@@ -201,7 +201,7 @@ pnpm --filter api add sharp
 
 Expected: lockfile updated, `sharp` listed in `apps/api/package.json` dependencies.
 
-- [ ] **Step 2.2: Write `packages/shared/src/schemas/assets.ts`**
+- [x] **Step 2.2: Write `packages/shared/src/schemas/assets.ts`**
 
 ```ts
 import { z } from 'zod';
@@ -235,14 +235,14 @@ export const UploadMetadataSchema = z.object({
 export type UploadMetadata = z.infer<typeof UploadMetadataSchema>;
 ```
 
-- [ ] **Step 2.3: Update `packages/shared/src/schemas/index.ts`**
+- [x] **Step 2.3: Update `packages/shared/src/schemas/index.ts`**
 
 ```ts
 export * from './common.js';
 export * from './assets.js';
 ```
 
-- [ ] **Step 2.4: Write `apps/api/src/routes/assets.ts`**
+- [x] **Step 2.4: Write `apps/api/src/routes/assets.ts`**
 
 ```ts
 import { Hono } from 'hono';
@@ -375,7 +375,7 @@ function extFromContentType(ct: string): string {
 }
 ```
 
-- [ ] **Step 2.5: Mount in `apps/api/src/index.ts`**
+- [x] **Step 2.5: Mount in `apps/api/src/index.ts`**
 
 Add the import:
 
@@ -389,7 +389,7 @@ And under the other `app.route('/api', ...)` lines, add:
 app.route('/api', assetRoutes);
 ```
 
-- [ ] **Step 2.6: Write `apps/api/tests/integration/assets.test.ts`**
+- [x] **Step 2.6: Write `apps/api/tests/integration/assets.test.ts`**
 
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -517,7 +517,7 @@ describe('POST /api/assets', () => {
 });
 ```
 
-- [ ] **Step 2.7: Run the test**
+- [x] **Step 2.7: Run the test**
 
 Run:
 ```bash
@@ -526,7 +526,7 @@ pnpm --filter api test
 
 Expected: 7 tests pass total (3 from Plan 1's health + 4 here). Exit 0.
 
-- [ ] **Step 2.8: Smoke-test the live server**
+- [x] **Step 2.8: Smoke-test the live server**
 
 Run:
 ```bash
@@ -560,7 +560,7 @@ Expected:
 - The presigned `url` field is a long signed MinIO URL.
 - DELETE returns `204`.
 
-- [ ] **Step 2.9: Commit**
+- [x] **Step 2.9: Commit**
 
 ```bash
 git add apps/api/package.json pnpm-lock.yaml packages/shared/src/schemas/assets.ts packages/shared/src/schemas/index.ts apps/api/src/routes/assets.ts apps/api/src/index.ts apps/api/tests/integration/assets.test.ts
