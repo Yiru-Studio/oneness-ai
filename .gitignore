@@ -47,11 +47,13 @@ next-env.d.ts
 
 # Local temp files
 temp/
+.playwright-mcp/
 
 # Workspace artifacts
 .env
 .env.local
 .env.docker
+.env.production
 *.tsbuildinfo
 dist/
 .turbo/

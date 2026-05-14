@@ -6,6 +6,11 @@ const ConfigSchema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
   MINIO_ENDPOINT: z.string().url(),
+  // Public-reachable base URL used to mint presigned GET/PUT URLs handed to
+  // browsers. Must be set in production whenever MINIO_ENDPOINT points to an
+  // internal hostname (e.g. http://minio:9000 inside Docker). Falls back to
+  // MINIO_ENDPOINT in dev.
+  MINIO_PUBLIC_ENDPOINT: z.string().url().optional(),
   MINIO_ACCESS_KEY: z.string().min(1),
   MINIO_SECRET_KEY: z.string().min(1),
   MINIO_BUCKET_USER_UPLOADS: z.string().default('user-uploads'),

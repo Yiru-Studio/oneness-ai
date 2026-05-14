@@ -1,4 +1,4 @@
-import { minioClient } from './minio.js';
+import { minioPublicClient } from './minio.js';
 import type { Asset } from '@oneness/shared/prisma';
 
 export type AssetDTO = {
@@ -14,7 +14,7 @@ export type AssetDTO = {
 const URL_EXPIRY_SECONDS = 60 * 60; // 1 hour
 
 export async function presignGet(bucket: string, key: string): Promise<string> {
-  return minioClient.presignedGetObject(bucket, key, URL_EXPIRY_SECONDS);
+  return minioPublicClient.presignedGetObject(bucket, key, URL_EXPIRY_SECONDS);
 }
 
 export async function serializeAsset(asset: Asset): Promise<AssetDTO> {

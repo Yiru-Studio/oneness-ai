@@ -1,0 +1,39 @@
+# Caddy v2 config for yirustudio.com.
+# Auto-issues + renews Let's Encrypt certs for each labeled host as long as
+# the DNS A record points at this server and ports 80/443 are reachable.
+{
+	email {$ACME_EMAIL}
+}
+
+# Web frontend (Next.js).
+yirustudio.com, www.yirustudio.com {
+	encode zstd gzip
+	reverse_proxy web:3000
+}
+
+# REST API (Hono).
+api.yirustudio.com {
+	encode zstd gzip
+	reverse_proxy api:4000
+}
+
+# MinIO console (admin UI).
+minio.yirustudio.com {
+	# Console uses websockets and large payloads; bump timeouts.
+	reverse_proxy minio:9001 {
+		flush_interval -1
+	}
+}
+
+# MinIO S3 API (used by browser-facing presigned URLs).
+# Host header is preserved by default — MinIO trusts it because
+# MINIO_SERVER_URL=https://s3.yirustudio.com.
+s3.yirustudio.com {
+	# Allow large uploads (e.g. video assets). 0 disables Caddy's limit.
+	request_body {
+		max_size 0
+	}
+	reverse_proxy minio:9000 {
+		flush_interval -1
+	}
+}
