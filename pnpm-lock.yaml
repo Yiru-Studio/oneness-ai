@@ -32,6 +32,9 @@ importers:
       '@paralleldrive/cuid2':
         specifier: ^2.2.2
         version: 2.3.1
+      '@prisma/client':
+        specifier: ^5.22.0
+        version: 5.22.0(prisma@5.22.0)
       bullmq:
         specifier: ^5.76.8
         version: 5.76.8

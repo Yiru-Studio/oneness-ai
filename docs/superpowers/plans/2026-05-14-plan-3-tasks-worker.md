@@ -387,7 +387,7 @@ git commit -m "feat(api): BullMQ Queue clients for image/video/text"
 - Create: `apps/api/src/routes/tasks.ts`
 - Modify: `apps/api/src/index.ts` (mount)
 
-- [ ] **Step 3.1: Write `apps/api/src/serializers/task.ts`**
+- [x] **Step 3.1: Write `apps/api/src/serializers/task.ts`**
 
 ```ts
 import type { Task, TaskAsset, Asset } from '@oneness/shared/prisma';
@@ -436,7 +436,7 @@ export async function serializeTask(t: TaskWithAssets): Promise<TaskDTO> {
 }
 ```
 
-- [ ] **Step 3.2: Write `apps/api/src/routes/tasks.ts`**
+- [x] **Step 3.2: Write `apps/api/src/routes/tasks.ts`**
 
 ```ts
 import { Hono } from 'hono';
@@ -564,11 +564,11 @@ taskRoutes.get(
 );
 ```
 
-- [ ] **Step 3.3: Mount in `apps/api/src/index.ts`**
+- [x] **Step 3.3: Mount in `apps/api/src/index.ts`**
 
 Add `import { taskRoutes } from './routes/tasks.js';` and `app.route('/api', taskRoutes);`.
 
-- [ ] **Step 3.4: Typecheck**
+- [x] **Step 3.4: Typecheck**
 
 ```bash
 pnpm --filter api typecheck
@@ -576,7 +576,7 @@ pnpm --filter api typecheck
 
 Expected: exits 0.
 
-- [ ] **Step 3.5: Commit**
+- [x] **Step 3.5: Commit**
 
 ```bash
 git add apps/api/src/serializers/task.ts apps/api/src/routes/tasks.ts apps/api/src/index.ts
