@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: oneness
+          POSTGRES_PASSWORD: oneness
+          POSTGRES_DB: oneness
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U oneness"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+      minio:
+        image: bitnami/minio:latest
+        env:
+          MINIO_ROOT_USER: oneness
+          MINIO_ROOT_PASSWORD: oneness-secret
+          MINIO_DEFAULT_BUCKETS: user-uploads,task-outputs
+        ports: ["9000:9000"]
+
+    env:
+      DATABASE_URL: postgresql://oneness:oneness@localhost:5432/oneness?schema=public
+      REDIS_URL: redis://localhost:6379
+      MINIO_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: oneness
+      MINIO_SECRET_KEY: oneness-secret
+      INTERNAL_SECRET: ci-internal-secret-change-me
+      WEB_ORIGINS: http://localhost:3000
+      LOG_LEVEL: warn
+      STUB_FAIL_RATE: '0'
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Wait for services to be healthy
+        run: sleep 5
+
+      - name: Prisma migrate + seed
+        run: |
+          pnpm --filter @oneness/shared exec prisma migrate deploy || \
+            pnpm db:migrate --name ci-init
+          pnpm db:seed
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: API tests
+        run: pnpm --filter api test

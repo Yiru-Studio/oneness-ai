@@ -687,7 +687,7 @@ Lean GitHub Actions config — pnpm install, docker compose infra, migrate + see
 **Files:**
 - Create: `.github/workflows/ci.yml`
 
-- [ ] **Step 7.1: Write `.github/workflows/ci.yml`**
+- [x] **Step 7.1: Write `.github/workflows/ci.yml`**
 
 ```yaml
 name: CI
@@ -771,7 +771,7 @@ jobs:
 
 > Note: `bitnami/minio` is used in CI because it auto-creates buckets via `MINIO_DEFAULT_BUCKETS`. The local docker-compose uses the official `minio/minio` image with a `minio-init` companion — different mechanisms, same outcome.
 
-- [ ] **Step 7.2: Commit**
+- [x] **Step 7.2: Commit**
 
 ```bash
 git add .github/workflows/ci.yml
