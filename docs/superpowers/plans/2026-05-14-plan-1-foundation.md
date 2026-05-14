@@ -1428,7 +1428,7 @@ git commit -m "feat(api): scaffold Hono server with config and hello route"
 - Create: `apps/api/src/lib/redis.ts`
 - Create: `apps/api/src/lib/minio.ts`
 
-- [ ] **Step 9.1: Write `apps/api/src/lib/prisma.ts`**
+- [x] **Step 9.1: Write `apps/api/src/lib/prisma.ts`**
 
 ```ts
 import { getPrismaClient } from '@oneness/shared/prisma';
@@ -1439,7 +1439,7 @@ export const prisma = getPrismaClient({
 });
 ```
 
-- [ ] **Step 9.2: Write `apps/api/src/lib/redis.ts`**
+- [x] **Step 9.2: Write `apps/api/src/lib/redis.ts`**
 
 ```ts
 import Redis from 'ioredis';
@@ -1456,7 +1456,7 @@ redis.on('error', (err) => {
 });
 ```
 
-- [ ] **Step 9.3: Write `apps/api/src/lib/minio.ts`**
+- [x] **Step 9.3: Write `apps/api/src/lib/minio.ts`**
 
 ```ts
 import { Client } from 'minio';
@@ -1478,7 +1478,7 @@ export const Buckets = {
 } as const;
 ```
 
-- [ ] **Step 9.4: Verify**
+- [x] **Step 9.4: Verify**
 
 Run:
 ```bash
@@ -1487,7 +1487,7 @@ pnpm --filter api typecheck
 
 Expected: exits 0.
 
-- [ ] **Step 9.5: Commit**
+- [x] **Step 9.5: Commit**
 
 ```bash
 git add apps/api/src/lib/
