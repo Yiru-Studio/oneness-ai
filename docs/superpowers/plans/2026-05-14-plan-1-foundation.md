@@ -1284,7 +1284,7 @@ git commit -m "feat(shared): pino logger with metrics hooks + AppError model"
 - Create: `apps/api/src/config.ts`
 - Create: `apps/api/src/index.ts` (minimal "hello" version; expanded in later tasks)
 
-- [ ] **Step 8.1: Create `apps/api/package.json`**
+- [x] **Step 8.1: Create `apps/api/package.json`**
 
 ```json
 {
@@ -1319,7 +1319,7 @@ git commit -m "feat(shared): pino logger with metrics hooks + AppError model"
 }
 ```
 
-- [ ] **Step 8.2: Create `apps/api/tsconfig.json`**
+- [x] **Step 8.2: Create `apps/api/tsconfig.json`**
 
 ```json
 {
@@ -1336,7 +1336,7 @@ git commit -m "feat(shared): pino logger with metrics hooks + AppError model"
 }
 ```
 
-- [ ] **Step 8.3: Create `apps/api/src/config.ts`**
+- [x] **Step 8.3: Create `apps/api/src/config.ts`**
 
 ```ts
 import { z } from 'zod';
@@ -1373,7 +1373,7 @@ function loadConfig(): Config {
 export const config = loadConfig();
 ```
 
-- [ ] **Step 8.4: Create a minimal `apps/api/src/index.ts`**
+- [x] **Step 8.4: Create a minimal `apps/api/src/index.ts`**
 
 This is the "Hello World" version. It will be replaced/expanded in later tasks — putting it here now lets us verify the wiring end-to-end before adding complexity.
 
@@ -1392,7 +1392,7 @@ serve({ fetch: app.fetch, port: config.PORT }, (info) => {
 });
 ```
 
-- [ ] **Step 8.5: Install and verify the app boots**
+- [x] **Step 8.5: Install and verify the app boots**
 
 Run:
 ```bash
@@ -1412,7 +1412,7 @@ kill %1 2>/dev/null
 
 Expected: `{"ok":true,"env":"development"}`
 
-- [ ] **Step 8.6: Commit**
+- [x] **Step 8.6: Commit**
 
 ```bash
 git add apps/api/ pnpm-lock.yaml
