@@ -11,9 +11,11 @@ import { queueForTaskType } from '@oneness/shared/queues';
 import {
   CreateTaskSchema,
   TaskListQuerySchema,
+  InternalUpdateTaskSchema,
   IdParamSchema,
 } from '@oneness/shared/schemas';
 import { TaskStatus } from '@oneness/shared/enums';
+import { config } from '../config.js';
 
 export const taskRoutes = new Hono();
 
@@ -213,6 +215,78 @@ taskRoutes.post(
         data: { status: TaskStatus.CANCELLED },
       });
     }
+
+    const fresh = await prisma.task.findUnique({
+      where: { id },
+      include: { assets: { include: { asset: true } } },
+    });
+    return c.json(await serializeTask(fresh!));
+  },
+);
+
+// PATCH /api/internal/tasks/:id — external workflow callback.
+// NOT user-scoped — auth is the X-Internal-Secret shared header only.
+// (The file-level taskRoutes.use('/tasks', ...) and '/tasks/*' middlewares only
+// match those prefixes, so this route does NOT inherit tryReadUser/requireUser.)
+taskRoutes.patch(
+  '/internal/tasks/:id',
+  zValidator('param', IdParamSchema),
+  async (c, next) => {
+    const sec = c.req.header('x-internal-secret');
+    if (!sec || sec !== config.INTERNAL_SECRET) {
+      throw AppError.forbidden('invalid internal secret');
+    }
+    await next();
+  },
+  zValidator('json', InternalUpdateTaskSchema),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    const body = c.req.valid('json');
+    const task = await prisma.task.findUnique({
+      where: { id },
+      select: { id: true, ownerId: true, costCredits: true, status: true },
+    });
+    if (!task) throw AppError.notFound(ErrorCodes.TASK_NOT_FOUND, 'task not found');
+
+    const data: Record<string, unknown> = {};
+    if (body.status) {
+      data.status = body.status;
+      if (
+        body.status === TaskStatus.SUCCEEDED ||
+        body.status === TaskStatus.FAILED ||
+        body.status === TaskStatus.CANCELLED
+      ) {
+        data.completedAt = new Date();
+      }
+    }
+    if (body.output !== undefined) data.output = body.output;
+    if (body.error !== undefined) data.error = body.error;
+    if (body.actualCostCredits !== undefined) data.costCredits = body.actualCostCredits;
+
+    // Refund if transitioning to FAILED or CANCELLED for the first time.
+    const isTerminalRefund =
+      (body.status === TaskStatus.FAILED || body.status === TaskStatus.CANCELLED) &&
+      task.status !== TaskStatus.FAILED &&
+      task.status !== TaskStatus.CANCELLED;
+
+    await prisma.$transaction(async (tx) => {
+      if (isTerminalRefund) {
+        await tx.user.update({
+          where: { id: task.ownerId },
+          data: { credits: { increment: task.costCredits } },
+        });
+      }
+      await tx.task.update({ where: { id }, data });
+      if (body.outputAssetIds) {
+        for (const aid of body.outputAssetIds) {
+          await tx.taskAsset.upsert({
+            where: { taskId_assetId_role: { taskId: id, assetId: aid, role: 'output' } },
+            create: { taskId: id, assetId: aid, role: 'output' },
+            update: {},
+          });
+        }
+      }
+    });
 
     const fresh = await prisma.task.findUnique({
       where: { id },
