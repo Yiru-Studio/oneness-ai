@@ -98,25 +98,40 @@ describe('projects CRUD', () => {
     expect(body.items.every((p) => p.name.includes('动画'))).toBe(true);
   });
 
-  it('GET /projects/:id/analytics returns zeros (no tasks yet)', async () => {
-    const seeded = await prisma.project.findFirst({
-      where: { name: '格斗动画' },
-      select: { id: true },
+  it('GET /projects/:id/analytics returns zeros for a fresh project', async () => {
+    // Use an ephemeral project so this assertion is isolated from any tasks
+    // created by tasks.test.ts (which targets seed projects).
+    const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });
+    if (!user) throw new Error('Seed user missing.');
+    const fresh = await prisma.project.create({
+      data: {
+        ownerId: user.id,
+        name: `analytics-isolation-${Date.now()}`,
+        ratio: '16:9',
+        style: 'test',
+        stylePrompt: '',
+        analysisModel: 'stub',
+        imageModel: 'stub',
+        videoModel: 'stub',
+      },
     });
-    if (!seeded) throw new Error('Seed project missing.');
-    const res = await app.request(`/api/projects/${seeded.id}/analytics`, { headers: auth });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as {
-      totalCredits: number;
-      imageCount: number;
-      videoCount: number;
-      textTaskCount: number;
-      updateTime: string;
-    };
-    expect(body.totalCredits).toBe(0);
-    expect(body.imageCount).toBe(0);
-    expect(body.videoCount).toBe(0);
-    expect(body.textTaskCount).toBe(0);
-    expect(typeof body.updateTime).toBe('string');
+    try {
+      const res = await app.request(`/api/projects/${fresh.id}/analytics`, { headers: auth });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        totalCredits: number;
+        imageCount: number;
+        videoCount: number;
+        textTaskCount: number;
+        updateTime: string;
+      };
+      expect(body.totalCredits).toBe(0);
+      expect(body.imageCount).toBe(0);
+      expect(body.videoCount).toBe(0);
+      expect(body.textTaskCount).toBe(0);
+      expect(typeof body.updateTime).toBe('string');
+    } finally {
+      await prisma.project.delete({ where: { id: fresh.id } });
+    }
   });
 });

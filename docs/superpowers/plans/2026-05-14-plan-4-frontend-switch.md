@@ -867,7 +867,7 @@ git commit -m "docs: README intro with project overview + provider plug-in guide
 
 **Files:** none.
 
-- [ ] **Step 9.1: Reset state cleanly**
+- [x] **Step 9.1: Reset state cleanly**
 
 ```bash
 pkill -f 'tsx watch' 2>/dev/null
@@ -879,7 +879,7 @@ pnpm db:reset
 pnpm db:seed
 ```
 
-- [ ] **Step 9.2: Full typecheck across all 4 packages**
+- [x] **Step 9.2: Full typecheck across all 4 packages**
 
 ```bash
 pnpm typecheck
@@ -887,7 +887,7 @@ pnpm typecheck
 
 Expected: 4 packages pass (web, api, worker, shared).
 
-- [ ] **Step 9.3: Full backend test suite**
+- [x] **Step 9.3: Full backend test suite**
 
 ```bash
 pnpm --filter api test
@@ -895,7 +895,7 @@ pnpm --filter api test
 
 Expected: 42 passed.
 
-- [ ] **Step 9.4: End-to-end through `pnpm dev`**
+- [x] **Step 9.4: End-to-end through `pnpm dev`**
 
 ```bash
 pnpm dev > /tmp/dev.log 2>&1 &
@@ -937,7 +937,7 @@ Expected:
 - worker started count: 3
 - Image task lands on SUCCEEDED within 5-7 seconds
 
-- [ ] **Step 9.5: Browser final smoke (manual)**
+- [x] **Step 9.5: Browser final smoke (manual)**
 
 Open `http://localhost:3000`. Verify:
 1. Home page loads
@@ -948,7 +948,7 @@ Open `http://localhost:3000`. Verify:
 
 If any of these fail, debug before declaring Plan 4 done.
 
-- [ ] **Step 9.6: No commit (verification only).**
+- [x] **Step 9.6: No commit (verification only).**
 
 ---
 

@@ -1493,7 +1493,7 @@ State machine:
 **Files:**
 - Modify: `apps/api/src/routes/tasks.ts` (add the cancel handler)
 
-- [ ] **Step 7.1: Append to `apps/api/src/routes/tasks.ts`**
+- [x] **Step 7.1: Append to `apps/api/src/routes/tasks.ts`**
 
 Add this handler after the `GET /tasks` route, before the closing of the file:
 
@@ -1565,7 +1565,7 @@ taskRoutes.post(
 );
 ```
 
-- [ ] **Step 7.2: Typecheck + commit**
+- [x] **Step 7.2: Typecheck + commit**
 
 ```bash
 pnpm --filter api typecheck
@@ -1582,7 +1582,7 @@ Future-proofing endpoint for non-Node workflows that produce results out-of-band
 **Files:**
 - Modify: `apps/api/src/routes/tasks.ts` (add the internal callback)
 
-- [ ] **Step 8.1: Add a separate sub-router for `/internal/tasks/*`**
+- [x] **Step 8.1: Add a separate sub-router for `/internal/tasks/*`**
 
 Open `apps/api/src/routes/tasks.ts`. Update the top-of-file import block to also pull `InternalUpdateTaskSchema` from shared:
 
@@ -1669,7 +1669,7 @@ taskRoutes.patch(
 );
 ```
 
-- [ ] **Step 8.2: Typecheck + commit**
+- [x] **Step 8.2: Typecheck + commit**
 
 ```bash
 pnpm --filter api typecheck
@@ -1694,7 +1694,7 @@ End-to-end tests that boot a Worker in-process so the full lifecycle runs synchr
 
 We can avoid spawning a separate worker process — BullMQ's Worker only needs a Redis connection, which is up.
 
-- [ ] **Step 9.1: Write `apps/api/tests/integration/tasks.test.ts`**
+- [x] **Step 9.1: Write `apps/api/tests/integration/tasks.test.ts`**
 
 ```ts
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
@@ -2004,7 +2004,7 @@ describe('tasks lifecycle', () => {
 
 > **Caveat on the failure test:** because BullMQ retries 3 times with exponential backoff (5s base), the test could take ~25-30 seconds. The test uses `timeoutMs: 30000` for `pollUntilTerminal` on this case. If your local CI is slower, bump to 60000.
 
-- [ ] **Step 9.2: Run the test**
+- [x] **Step 9.2: Run the test**
 
 Make sure infra is up and seed data is present:
 ```bash
@@ -2023,7 +2023,7 @@ Expected:
 
 If a failure test takes too long, check that the worker is actually processing (look at `/tmp/worker.log` if you have one open, or vitest's logs).
 
-- [ ] **Step 9.3: Commit**
+- [x] **Step 9.3: Commit**
 
 ```bash
 git add apps/api/tests/integration/tasks.test.ts
@@ -2037,14 +2037,14 @@ git commit -m "test(api): full task lifecycle (success, fail+refund, cancel, int
 **Files:**
 - Modify: `README.md` (append Plan 3 section)
 
-- [ ] **Step 10.1: Reset state**
+- [x] **Step 10.1: Reset state**
 
 ```bash
 pnpm db:reset
 pnpm db:seed
 ```
 
-- [ ] **Step 10.2: Bring up infra + api + worker**
+- [x] **Step 10.2: Bring up infra + api + worker**
 
 ```bash
 pkill -f 'tsx watch' 2>/dev/null
@@ -2058,7 +2058,7 @@ echo
 
 Expected: `_health` returns `status: ok`.
 
-- [ ] **Step 10.3: End-to-end smoke for all 3 task types**
+- [x] **Step 10.3: End-to-end smoke for all 3 task types**
 
 ```bash
 TOKEN="test_token"
@@ -2118,13 +2118,13 @@ Expected:
 - TEXT goes through and SUCCEEDED in ~3s with `output.kind === "stub-text"`
 - Analytics shows `imageCount >= 1, videoCount >= 1, textTaskCount >= 1, totalCredits >= 7` (1+5+1)
 
-- [ ] **Step 10.4: Tear down**
+- [x] **Step 10.4: Tear down**
 
 ```bash
 pkill -f 'tsx watch' 2>/dev/null
 ```
 
-- [ ] **Step 10.5: Append to `README.md`**
+- [x] **Step 10.5: Append to `README.md`**
 
 ```bash
 cat >> README.md <<'EOF'
@@ -2149,7 +2149,7 @@ To run worker independently: `pnpm dev:worker`. To run both api + worker: `pnpm 
 EOF
 ```
 
-- [ ] **Step 10.6: Final typecheck + commit**
+- [x] **Step 10.6: Final typecheck + commit**
 
 ```bash
 pnpm typecheck
@@ -2157,7 +2157,7 @@ git add README.md
 git commit -m "docs: README Plan 3 task system + worker"
 ```
 
-- [ ] **Step 10.7: Final test run**
+- [x] **Step 10.7: Final test run**
 
 ```bash
 pnpm --filter api test
