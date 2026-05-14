@@ -1476,7 +1476,7 @@ Items follow the same shape as the Item type in the frontend: `{ id, name, image
 - Modify: `apps/api/src/index.ts`
 - Create: `apps/api/tests/integration/items.test.ts`
 
-- [ ] **Step 6.1: Write `packages/shared/src/schemas/items.ts`**
+- [x] **Step 6.1: Write `packages/shared/src/schemas/items.ts`**
 
 ```ts
 import { z } from 'zod';
@@ -1493,9 +1493,9 @@ export type CreateItemInput = z.infer<typeof CreateItemSchema>;
 export type UpdateItemInput = z.infer<typeof UpdateItemSchema>;
 ```
 
-- [ ] **Step 6.2: Append to schemas barrel** — `export * from './items.js';`.
+- [x] **Step 6.2: Append to schemas barrel** — `export * from './items.js';`.
 
-- [ ] **Step 6.3: Write `apps/api/src/serializers/item.ts`**
+- [x] **Step 6.3: Write `apps/api/src/serializers/item.ts`**
 
 ```ts
 import type { Item, Asset } from '@oneness/shared/prisma';
@@ -1514,7 +1514,7 @@ export async function serializeItem(item: ItemWithAsset): Promise<ItemDTO> {
 }
 ```
 
-- [ ] **Step 6.4: Write `apps/api/src/routes/items.ts`**
+- [x] **Step 6.4: Write `apps/api/src/routes/items.ts`**
 
 ```ts
 import { Hono } from 'hono';
@@ -1633,9 +1633,9 @@ async function assertAssetOwned(assetId: string, userId: string) {
 }
 ```
 
-- [ ] **Step 6.5: Mount in `apps/api/src/index.ts`** — `import { itemRoutes } from './routes/items.js';` + `app.route('/api', itemRoutes);`
+- [x] **Step 6.5: Mount in `apps/api/src/index.ts`** — `import { itemRoutes } from './routes/items.js';` + `app.route('/api', itemRoutes);`
 
-- [ ] **Step 6.6: Write `apps/api/tests/integration/items.test.ts`**
+- [x] **Step 6.6: Write `apps/api/tests/integration/items.test.ts`**
 
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -1708,7 +1708,7 @@ describe('items CRUD', () => {
 });
 ```
 
-- [ ] **Step 6.7: Run tests + Commit**
+- [x] **Step 6.7: Run tests + Commit**
 
 ```bash
 pnpm --filter api test
