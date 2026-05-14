@@ -5,6 +5,8 @@ import { logger } from '@oneness/shared/logger';
 import { corsMiddleware } from './middleware/cors.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { authRoutes } from './routes/auth.js';
+import { meRoutes } from './routes/me.js';
 import './types/hono-env.js';
 
 const app = new Hono();
@@ -13,7 +15,8 @@ app.use('*', corsMiddleware);
 app.use('*', requestIdMiddleware);
 app.onError(errorHandler);
 
-app.get('/api/_hello', (c) => c.json({ ok: true, env: config.NODE_ENV }));
+app.route('/api', authRoutes);
+app.route('/api', meRoutes);
 
 serve({ fetch: app.fetch, port: config.PORT }, (info) => {
   logger.info({ port: info.port }, 'API server started');

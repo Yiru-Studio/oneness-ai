@@ -1744,7 +1744,7 @@ git commit -m "feat(api): optional auth middleware backed by seed user"
 - Create: `apps/api/src/lib/serialize.ts`
 - Modify: `apps/api/src/index.ts` (mount routes)
 
-- [ ] **Step 12.1: Write `apps/api/src/lib/serialize.ts`**
+- [x] **Step 12.1: Write `apps/api/src/lib/serialize.ts`**
 
 The DB column is `avatarKey`; the frontend expects `avatar`. Centralize the user-DTO mapping so every route returns the same shape.
 
@@ -1770,7 +1770,7 @@ export function serializeUser(u: User): UserDTO {
 }
 ```
 
-- [ ] **Step 12.2: Write `apps/api/src/routes/auth.ts`**
+- [x] **Step 12.2: Write `apps/api/src/routes/auth.ts`**
 
 ```ts
 import { Hono } from 'hono';
@@ -1800,7 +1800,7 @@ authRoutes.post('/auth/login', zValidator('json', LoginSchema), async (c) => {
 authRoutes.post('/auth/logout', (c) => c.body(null, 204));
 ```
 
-- [ ] **Step 12.3: Write `apps/api/src/routes/me.ts`**
+- [x] **Step 12.3: Write `apps/api/src/routes/me.ts`**
 
 ```ts
 import { Hono } from 'hono';
@@ -1833,7 +1833,7 @@ meRoutes.patch('/me', tryReadUser, requireUser, zValidator('json', UpdateMeSchem
 });
 ```
 
-- [ ] **Step 12.4: Mount routes in `apps/api/src/index.ts`**
+- [x] **Step 12.4: Mount routes in `apps/api/src/index.ts`**
 
 Replace the contents of `apps/api/src/index.ts` with:
 
@@ -1863,7 +1863,7 @@ serve({ fetch: app.fetch, port: config.PORT }, (info) => {
 });
 ```
 
-- [ ] **Step 12.5: Smoke test the auth + me flow**
+- [x] **Step 12.5: Smoke test the auth + me flow**
 
 Run:
 ```bash
@@ -1918,7 +1918,7 @@ Expected output, in order:
 - `HTTP/1.1 401 Unauthorized`
 - Final patch returns the user with name back to `"黄昱舟"`
 
-- [ ] **Step 12.6: Commit**
+- [x] **Step 12.6: Commit**
 
 ```bash
 git add apps/api/src/routes/ apps/api/src/lib/serialize.ts apps/api/src/index.ts
