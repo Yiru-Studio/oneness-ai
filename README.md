@@ -153,3 +153,32 @@ Each script regenerates the platform-specific copies automatically. Agents that 
 ## License
 
 MIT
+
+---
+
+## Backend (Plan 1: Foundation)
+
+### Prerequisites
+- Node 22+ / Docker Desktop or compatible
+- `corepack enable && corepack prepare pnpm@9.12.0 --activate`
+
+### First run
+```bash
+pnpm install
+cp .env.example .env
+pnpm infra:up         # docker: postgres + redis + minio + bucket init
+pnpm db:migrate       # apply Prisma migrations
+pnpm db:seed          # seed user / projects / characters / scenes from mock data
+pnpm dev              # starts infra + api (4000) + web (3000)
+```
+
+Visit:
+- Web: http://localhost:3000
+- API health: http://localhost:4000/api/_health
+- MinIO console: http://localhost:9001 (oneness / oneness-secret)
+- Prisma Studio: `pnpm db:studio`
+
+### Daily commands
+- `pnpm infra:up` / `pnpm infra:down` — start/stop docker services
+- `pnpm db:reset` — wipe the database and re-run migrations + seed
+- `pnpm --filter api test` — run API integration tests (needs infra up)
