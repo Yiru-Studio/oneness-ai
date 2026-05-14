@@ -912,7 +912,7 @@ docker exec oneness-ai-postgres-1 psql -U oneness -d oneness -c "\dt"
 
 Expected: lists `User, Project, Character, CharacterStyle, Item, Scene, StoryboardEpisode, KnowledgeDoc, Task, Asset, TaskAsset` (plus `_prisma_migrations`).
 
-- [ ] **Step 5.6: Quick type-check of the Prisma client export**
+- [x] **Step 5.6: Quick type-check of the Prisma client export**
 
 Run:
 ```bash
@@ -2055,7 +2055,7 @@ git commit -m "feat(api): _health/_ready/metrics endpoints"
 
 This task installs vitest, sets up an integration test that starts the Hono app against real Postgres/Redis/MinIO running in docker compose, and verifies the health endpoint returns 200. Establishes the testing pattern for later plans.
 
-- [ ] **Step 14.1: Write `apps/api/vitest.config.ts`**
+- [x] **Step 14.1: Write `apps/api/vitest.config.ts`**
 
 The integration test boots up the real `apps/api/src/lib/{prisma,redis,minio}.ts` modules, which load `config.ts` and require env vars like `DATABASE_URL` and `INTERNAL_SECRET`. We use `loadEnv` to pull them from the repo-root `.env` so `pnpm test` works without manual `dotenv` wrapping.
 
@@ -2078,7 +2078,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 14.2: Create `apps/api/tests/integration/health.test.ts`**
+- [x] **Step 14.2: Create `apps/api/tests/integration/health.test.ts`**
 
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -2129,7 +2129,7 @@ describe('GET /api/_health', () => {
 });
 ```
 
-- [ ] **Step 14.3: Make sure infra is running**
+- [x] **Step 14.3: Make sure infra is running**
 
 Run:
 ```bash
@@ -2139,7 +2139,7 @@ docker compose -f docker/docker-compose.yml ps
 
 Expected: postgres/redis/minio all `(healthy)`.
 
-- [ ] **Step 14.4: Run the test**
+- [x] **Step 14.4: Run the test**
 
 Run:
 ```bash
@@ -2150,7 +2150,7 @@ Expected:
 - 3 tests pass
 - Exit code 0
 
-- [ ] **Step 14.5: Commit**
+- [x] **Step 14.5: Commit**
 
 ```bash
 git add apps/api/vitest.config.ts apps/api/tests/
@@ -2163,7 +2163,7 @@ git commit -m "test(api): integration test for health endpoints"
 
 **Files:** none — verification of the full `pnpm dev` flow.
 
-- [ ] **Step 15.1: Stop any leftover dev servers and infra**
+- [x] **Step 15.1: Stop any leftover dev servers and infra**
 
 Run:
 ```bash
@@ -2172,7 +2172,7 @@ pkill -f 'next dev'  2>/dev/null
 pnpm infra:down
 ```
 
-- [ ] **Step 15.2: Start fresh via the one command**
+- [x] **Step 15.2: Start fresh via the one command**
 
 Run in a separate terminal or in background:
 ```bash
@@ -2184,7 +2184,7 @@ sleep 25
 
 The `dev` script runs `pnpm infra:up && concurrently pnpm dev:api pnpm dev:web`. We give it 25s to let containers go healthy, migrations be already applied, both servers start.
 
-- [ ] **Step 15.3: Verify all four endpoints work**
+- [x] **Step 15.3: Verify all four endpoints work**
 
 Run:
 ```bash
@@ -2212,7 +2212,7 @@ Expected:
 - `null`
 - `{"id":"...","email":"1280165525@qq.com","name":"黄昱舟",...}`
 
-- [ ] **Step 15.4: Tear down**
+- [x] **Step 15.4: Tear down**
 
 Run:
 ```bash
@@ -2222,7 +2222,7 @@ pkill -f 'next dev'  2>/dev/null
 pnpm infra:down
 ```
 
-- [ ] **Step 15.5: Update README with bootstrap instructions**
+- [x] **Step 15.5: Update README with bootstrap instructions**
 
 Append the following section to `README.md` (do not replace existing content):
 
@@ -2293,14 +2293,14 @@ Visit:
 EOF
 ```
 
-- [ ] **Step 15.6: Final commit**
+- [x] **Step 15.6: Final commit**
 
 ```bash
 git add README.md
 git commit -m "docs: README backend bootstrap section for Plan 1"
 ```
 
-- [ ] **Step 15.7: Final type-check across the whole workspace**
+- [x] **Step 15.7: Final type-check across the whole workspace**
 
 Run:
 ```bash
