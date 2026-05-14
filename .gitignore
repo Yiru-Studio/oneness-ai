@@ -47,3 +47,11 @@ next-env.d.ts
 
 # Local temp files
 temp/
+
+# Workspace artifacts
+.env
+.env.local
+.env.docker
+*.tsbuildinfo
+dist/
+.turbo/
