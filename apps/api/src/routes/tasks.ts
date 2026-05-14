@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { tryReadUser, requireUser } from '../middleware/auth.js';
-import { enqueueTaskJob } from '../lib/queues.js';
+import { enqueueTaskJob, removeTaskJob } from '../lib/queues.js';
 import { serializeTask } from '../serializers/task.js';
 import { AppError, ErrorCodes } from '@oneness/shared/errors';
 import { estimateCost } from '@oneness/shared/pricing';
@@ -119,5 +119,105 @@ taskRoutes.get(
       items: serialized,
       nextCursor: hasMore ? slice[slice.length - 1]?.id ?? null : null,
     });
+  },
+);
+
+// POST /api/tasks/:id/cancel
+taskRoutes.post(
+  '/tasks/:id/cancel',
+  zValidator('param', IdParamSchema),
+  async (c) => {
+    const user = c.var.user!;
+    const { id } = c.req.valid('param');
+
+    const loadTask = () =>
+      prisma.task.findFirst({
+        where: { id, ownerId: user.id },
+        select: {
+          id: true,
+          ownerId: true,
+          type: true,
+          status: true,
+          costCredits: true,
+        },
+      });
+
+    let task = await loadTask();
+    if (!task) {
+      throw AppError.notFound(ErrorCodes.TASK_NOT_FOUND, 'task not found');
+    }
+    if (
+      task.status === TaskStatus.SUCCEEDED ||
+      task.status === TaskStatus.FAILED ||
+      task.status === TaskStatus.CANCELLED
+    ) {
+      throw AppError.conflict(
+        ErrorCodes.TASK_NOT_CANCELLABLE,
+        `task is in terminal status ${task.status}`,
+      );
+    }
+
+    if (task.status === TaskStatus.QUEUED) {
+      // Race-safe: only refund + cancel if the row is STILL QUEUED at write time.
+      // If the worker has already claimed it (-> RUNNING) between our read and
+      // this transaction, updateMany.count will be 0 and we fall through to the
+      // RUNNING branch (no double refund — worker will refund on its next poll).
+      const [, updated] = await prisma.$transaction([
+        prisma.user.update({
+          where: { id: user.id },
+          data: { credits: { increment: task.costCredits } },
+        }),
+        prisma.task.updateMany({
+          where: { id, status: TaskStatus.QUEUED },
+          data: {
+            status: TaskStatus.CANCELLED,
+            completedAt: new Date(),
+          },
+        }),
+      ]);
+      if (updated.count === 0) {
+        // Worker beat us. Re-read and either fall through to RUNNING-cancel,
+        // or 409 if it has already reached a terminal state.
+        // First, revert the speculative refund we just applied.
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { credits: { decrement: task.costCredits } },
+        });
+        task = await loadTask();
+        if (!task) {
+          throw AppError.notFound(ErrorCodes.TASK_NOT_FOUND, 'task not found');
+        }
+        if (
+          task.status === TaskStatus.SUCCEEDED ||
+          task.status === TaskStatus.FAILED ||
+          task.status === TaskStatus.CANCELLED
+        ) {
+          throw AppError.conflict(
+            ErrorCodes.TASK_NOT_CANCELLABLE,
+            `task is in terminal status ${task.status}`,
+          );
+        }
+        // task.status is now RUNNING — fall into RUNNING-cancel handling.
+        await prisma.task.update({
+          where: { id },
+          data: { status: TaskStatus.CANCELLED },
+        });
+      } else {
+        // Successfully cancelled while still QUEUED — pull from BullMQ. Best-effort.
+        await removeTaskJob(queueForTaskType(task.type), id);
+      }
+    } else {
+      // RUNNING — set CANCELLED, worker will see it on its next poll and refund.
+      await prisma.task.update({
+        where: { id },
+        data: { status: TaskStatus.CANCELLED },
+      });
+    }
+
+    const fresh = await prisma.task.findUnique({
+      where: { id },
+      include: { assets: { include: { asset: true } } },
+    });
+    return c.json(await serializeTask(fresh!));
   },
 );
