@@ -1678,7 +1678,7 @@ The mock auth scheme:
 
 This preserves the existing frontend UX (logged-out state returns null user).
 
-- [ ] **Step 11.1: Write `apps/api/src/middleware/auth.ts`**
+- [x] **Step 11.1: Write `apps/api/src/middleware/auth.ts`**
 
 ```ts
 import { createMiddleware } from 'hono/factory';
@@ -1718,7 +1718,7 @@ export const requireUser = createMiddleware(async (c, next) => {
 });
 ```
 
-- [ ] **Step 11.2: Type-check**
+- [x] **Step 11.2: Type-check**
 
 Run:
 ```bash
@@ -1727,7 +1727,7 @@ pnpm --filter api typecheck
 
 Expected: exits 0.
 
-- [ ] **Step 11.3: Commit**
+- [x] **Step 11.3: Commit**
 
 ```bash
 git add apps/api/src/middleware/auth.ts
