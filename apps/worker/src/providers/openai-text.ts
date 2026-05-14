@@ -101,7 +101,7 @@ export const openaiTextProvider: TextProvider = {
     ctx: ProviderContext,
   ): Promise<ProviderResult> {
     const client = getOpenAIClient();
-    const model = config.OPENAI_TEXT_MODEL;
+    const model = input.model || config.OPENAI_TEXT_MODEL;
 
     const ep = await ctx.prisma.storyboardEpisode.findUnique({
       where: { id: input.episodeId },

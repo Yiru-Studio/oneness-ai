@@ -10,9 +10,18 @@ interface Props {
   onUploaded: (episode: StoryboardEpisode) => void;
 }
 
-// First scope: plain text only. docx/pdf will come in a follow-up PR with
-// server-side parsing.
-const ACCEPTED = '.txt,.md';
+const ACCEPTED = '.txt,.md,.docx';
+const MAX_SCRIPT_LENGTH = 100000;
+
+async function readScript(file: File): Promise<string> {
+  if (/\.docx$/i.test(file.name)) {
+    const mammoth = await import('mammoth/mammoth.browser');
+    const buf = await file.arrayBuffer();
+    const { value } = await mammoth.extractRawText({ arrayBuffer: buf });
+    return value;
+  }
+  return await file.text();
+}
 
 export function ScriptUploadCard({ projectId, onUploaded }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -28,7 +37,7 @@ export function ScriptUploadCard({ projectId, onUploaded }: Props) {
     setStatus('reading');
     let text: string;
     try {
-      text = await file.text();
+      text = await readScript(file);
     } catch (e) {
       setStatus('error');
       setError(e instanceof Error ? e.message : '读取文件失败');
@@ -41,9 +50,17 @@ export function ScriptUploadCard({ projectId, onUploaded }: Props) {
       return;
     }
 
+    if (text.length > MAX_SCRIPT_LENGTH) {
+      setStatus('error');
+      setError(
+        `剧本过长（${text.length.toLocaleString()} 字符），上限为 ${MAX_SCRIPT_LENGTH.toLocaleString()} 字符，请精简后重试`,
+      );
+      return;
+    }
+
     setStatus('uploading');
     try {
-      const title = file.name.replace(/\.(txt|md)$/i, '') || '第1集';
+      const title = file.name.replace(/\.(txt|md|docx)$/i, '') || '第1集';
       const episode = await createEpisode(projectId, {
         number: 1,
         title,
@@ -98,7 +115,7 @@ export function ScriptUploadCard({ projectId, onUploaded }: Props) {
         <Upload className="w-10 h-10 text-gray-400" />
         <p className="text-base font-medium text-[var(--color-text)]">{label}</p>
         <p className="text-xs text-[var(--color-text-secondary)]">
-          支持 .txt、.md 格式文件（docx、pdf 即将支持）
+          支持 .txt、.md、.docx 格式文件
         </p>
         {error && <p className="text-xs text-red-600">{error}</p>}
         <input

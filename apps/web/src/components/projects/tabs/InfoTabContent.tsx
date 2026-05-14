@@ -3,6 +3,7 @@
 import { Project, StoryboardEpisode } from '@/types';
 import { CheckCircle2, Pencil } from 'lucide-react';
 import { ScriptUploadCard } from '@/components/projects/ScriptUploadCard';
+import { analysisModelLabel } from '@/data/style-presets';
 
 interface Props {
   project: Project;
@@ -15,7 +16,7 @@ export function InfoTabContent({ project, episodes, onEpisodeUploaded }: Props) 
     { label: '分辨率', value: project.ratio },
     { label: '风格', value: project.style },
     { label: '创建时间', value: new Date(project.createdAt).toLocaleString('zh-CN') },
-    { label: '分析模型', value: project.analysisModel },
+    { label: '分析模型', value: analysisModelLabel(project.analysisModel) },
     { label: '图像模型', value: project.imageModel },
     { label: '视频模型', value: project.videoModel },
   ];

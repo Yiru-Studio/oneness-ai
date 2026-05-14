@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from '../middleware/validator';
 import { createId } from '@paralleldrive/cuid2';
 import sharp from 'sharp';
 import { prisma } from '../lib/prisma.js';

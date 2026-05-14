@@ -65,6 +65,22 @@ export const CUSTOM_STYLE_KEY = 'custom';
 
 // Defaults shown on the project detail panel — match likeai's defaults so the
 // UI labels read the same. The user can change them later from the panel.
-export const DEFAULT_ANALYSIS_MODEL = 'Doubao 2.0';
+export type AnalysisModelOption = {
+  /** model id sent to the OpenAI-compatible provider (zenmux). */
+  modelId: string;
+  /** human-readable label shown in dropdowns and the info panel. */
+  label: string;
+};
+
+export const ANALYSIS_MODEL_OPTIONS: AnalysisModelOption[] = [
+  { modelId: 'anthropic/claude-sonnet-4.6', label: 'Claude Sonnet 4.6' },
+  { modelId: 'anthropic/claude-opus-4.7', label: 'Claude Opus 4.7' },
+];
+
+export const DEFAULT_ANALYSIS_MODEL = 'anthropic/claude-sonnet-4.6';
 export const DEFAULT_IMAGE_MODEL = 'Seedream 4.5';
 export const DEFAULT_VIDEO_MODEL = 'Seedance Pro Fast';
+
+export function analysisModelLabel(modelId: string): string {
+  return ANALYSIS_MODEL_OPTIONS.find((m) => m.modelId === modelId)?.label ?? modelId;
+}

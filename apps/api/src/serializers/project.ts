@@ -14,7 +14,21 @@ export type ProjectDTO = {
   basicAnalysis: 'pending' | 'completed';
 };
 
-export function serializeProject(p: Project): ProjectDTO {
+export type AnalysisSummary = {
+  /** at least one TEXT_ANALYZE task exists for this project */
+  hasTasks: boolean;
+  /** every TEXT_ANALYZE task is in SUCCEEDED state */
+  allSucceeded: boolean;
+};
+
+/**
+ * Both generalAnalysis and basicAnalysis are derived from the same fan-out
+ * (characters + items + scenes TEXT_ANALYZE tasks). If a summary is provided,
+ * it overrides the stored enum on the Project row — the row's value is just an
+ * initial/fallback state set at create time.
+ */
+export function serializeProject(p: Project, summary?: AnalysisSummary): ProjectDTO {
+  const derived = summary && summary.hasTasks && summary.allSucceeded ? 'completed' : null;
   return {
     id: p.id,
     name: p.name,
@@ -25,7 +39,9 @@ export function serializeProject(p: Project): ProjectDTO {
     analysisModel: p.analysisModel,
     imageModel: p.imageModel,
     videoModel: p.videoModel,
-    generalAnalysis: p.generalAnalysis.toLowerCase() as 'pending' | 'completed',
-    basicAnalysis: p.basicAnalysis.toLowerCase() as 'pending' | 'completed',
+    generalAnalysis:
+      derived ?? (p.generalAnalysis.toLowerCase() as 'pending' | 'completed'),
+    basicAnalysis:
+      derived ?? (p.basicAnalysis.toLowerCase() as 'pending' | 'completed'),
   };
 }

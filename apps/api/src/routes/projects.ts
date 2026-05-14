@@ -1,9 +1,13 @@
 import { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from '../middleware/validator';
 import { prisma } from '../lib/prisma.js';
 import { tryReadUser, requireUser } from '../middleware/auth.js';
 import { serializeProject } from '../serializers/project.js';
 import { paginate, asPaged } from '../lib/pagination.js';
+import {
+  summarizeAnalysisForProject,
+  summarizeAnalysisForProjects,
+} from '../lib/analysis-summary.js';
 import { AppError, ErrorCodes } from '@oneness/shared/errors';
 import {
   CreateProjectSchema,
@@ -34,7 +38,14 @@ projectRoutes.get('/projects', zValidator('query', ProjectListQuerySchema), asyn
       ...paginate(q),
     }),
   ]);
-  return c.json(asPaged(rows.map(serializeProject), total, q));
+  const summaries = await summarizeAnalysisForProjects(rows.map((r) => r.id));
+  return c.json(
+    asPaged(
+      rows.map((r) => serializeProject(r, summaries.get(r.id))),
+      total,
+      q,
+    ),
+  );
 });
 
 projectRoutes.post('/projects', zValidator('json', CreateProjectSchema), async (c) => {
@@ -55,7 +66,8 @@ projectRoutes.get('/projects/:id', zValidator('param', IdParamSchema), async (c)
   if (!project) {
     throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
   }
-  return c.json(serializeProject(project));
+  const summary = await summarizeAnalysisForProject(project.id);
+  return c.json(serializeProject(project, summary));
 });
 
 projectRoutes.patch(
@@ -73,7 +85,8 @@ projectRoutes.patch(
       throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
     }
     const updated = await prisma.project.update({ where: { id }, data: body });
-    return c.json(serializeProject(updated));
+    const summary = await summarizeAnalysisForProject(updated.id);
+    return c.json(serializeProject(updated, summary));
   },
 );
 

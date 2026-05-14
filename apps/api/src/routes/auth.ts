@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from '../middleware/validator';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { serializeUser } from '../lib/serialize.js';

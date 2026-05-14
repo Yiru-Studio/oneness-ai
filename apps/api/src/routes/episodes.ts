@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from '../middleware/validator';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { tryReadUser, requireUser } from '../middleware/auth.js';
@@ -128,7 +128,7 @@ episodeRoutes.post('/projects/:id/episodes/:episodeId/analyze', async (c) => {
 
   const project = await prisma.project.findFirst({
     where: { id: projectId, ownerId: user.id },
-    select: { id: true },
+    select: { id: true, analysisModel: true },
   });
   if (!project) {
     throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
@@ -174,6 +174,7 @@ episodeRoutes.post('/projects/:id/episodes/:episodeId/analyze', async (c) => {
           input: {
             episodeId,
             subjectType,
+            model: project.analysisModel,
           } as Prisma.InputJsonValue,
           costCredits: perTaskCost,
         },

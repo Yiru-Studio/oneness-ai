@@ -89,10 +89,12 @@ export type TextInput =
   | {
       episodeId: string;
       analysisType: 'general' | 'basic';
+      model?: string;
     }
   | {
       episodeId: string;
       subjectType: 'characters' | 'items' | 'scenes';
+      model?: string;
     };
 
 /** Convenience union — used by worker's registry. */

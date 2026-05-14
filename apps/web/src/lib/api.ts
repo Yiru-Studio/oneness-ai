@@ -9,6 +9,7 @@ import {
   AnalyticsData,
 } from '@/types';
 import { apiFetch, setAuthToken, ApiError } from './api-client';
+import type { CreateProjectInput } from '@oneness/shared';
 
 // -- Types received from backend ----------------------------------------
 
@@ -75,9 +76,7 @@ export async function getProject(id: string): Promise<Project | null> {
   }
 }
 
-export async function createProject(
-  data: Omit<Project, 'id' | 'createdAt'>,
-): Promise<Project> {
+export async function createProject(data: CreateProjectInput): Promise<Project> {
   return await apiFetch<ProjectDTO>('/api/projects', { method: 'POST', body: data });
 }
 

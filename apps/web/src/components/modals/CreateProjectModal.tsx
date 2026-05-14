@@ -5,6 +5,8 @@ import { ArrowLeft, X, Plus } from 'lucide-react';
 import {
   STYLE_PRESETS,
   CUSTOM_STYLE_KEY,
+  ANALYSIS_MODEL_OPTIONS,
+  DEFAULT_ANALYSIS_MODEL,
 } from '@/data/style-presets';
 
 export type CreateProjectPayload = {
@@ -13,6 +15,7 @@ export type CreateProjectPayload = {
   styleKey: string;
   styleLabel: string;
   stylePrompt: string;
+  analysisModel: string;
 };
 
 interface Props {
@@ -29,6 +32,7 @@ export function CreateProjectModal({ isOpen, onClose, onCreate }: Props) {
   const [ratio, setRatio] = useState<(typeof RATIOS)[number]>('16:9');
   const [styleKey, setStyleKey] = useState<string>(STYLE_PRESETS[0]!.key);
   const [stylePrompt, setStylePrompt] = useState<string>(STYLE_PRESETS[0]!.prompt);
+  const [analysisModel, setAnalysisModel] = useState<string>(DEFAULT_ANALYSIS_MODEL);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +44,7 @@ export function CreateProjectModal({ isOpen, onClose, onCreate }: Props) {
     setRatio('16:9');
     setStyleKey(STYLE_PRESETS[0]!.key);
     setStylePrompt(STYLE_PRESETS[0]!.prompt);
+    setAnalysisModel(DEFAULT_ANALYSIS_MODEL);
     setSubmitting(false);
     setError(null);
   };
@@ -72,6 +77,7 @@ export function CreateProjectModal({ isOpen, onClose, onCreate }: Props) {
         styleKey,
         styleLabel,
         stylePrompt: stylePrompt.trim(),
+        analysisModel,
       });
       reset();
     } catch (e: unknown) {
@@ -197,6 +203,21 @@ export function CreateProjectModal({ isOpen, onClose, onCreate }: Props) {
                 rows={3}
                 className="w-full px-4 py-2.5 rounded-xl border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] outline-none transition-colors text-sm resize-none"
               />
+            </div>
+
+            <div>
+              <div className="text-sm font-medium mb-2">分析模型</div>
+              <select
+                value={analysisModel}
+                onChange={(e) => setAnalysisModel(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] outline-none transition-colors text-sm bg-white"
+              >
+                {ANALYSIS_MODEL_OPTIONS.map((m) => (
+                  <option key={m.modelId} value={m.modelId}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {error && (
