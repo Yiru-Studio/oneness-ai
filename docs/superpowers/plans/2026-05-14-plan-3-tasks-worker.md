@@ -597,7 +597,7 @@ Independent Node package that connects to the same Postgres + Redis + MinIO.
 - Create: `apps/worker/src/index.ts` (skeleton — workers wired in Task 5/7)
 - Modify: root `package.json` — add `dev:worker` script and chain it into `dev`
 
-- [ ] **Step 4.1: Write `apps/worker/package.json`**
+- [x] **Step 4.1: Write `apps/worker/package.json`**
 
 ```json
 {
@@ -629,7 +629,7 @@ Independent Node package that connects to the same Postgres + Redis + MinIO.
 }
 ```
 
-- [ ] **Step 4.2: Write `apps/worker/tsconfig.json`**
+- [x] **Step 4.2: Write `apps/worker/tsconfig.json`**
 
 ```json
 {
@@ -646,7 +646,7 @@ Independent Node package that connects to the same Postgres + Redis + MinIO.
 }
 ```
 
-- [ ] **Step 4.3: Write `apps/worker/src/config.ts`**
+- [x] **Step 4.3: Write `apps/worker/src/config.ts`**
 
 Mirror `apps/api/src/config.ts` but only the env vars worker uses (no INTERNAL_SECRET or CORS):
 
@@ -682,7 +682,7 @@ function loadConfig(): Config {
 export const config = loadConfig();
 ```
 
-- [ ] **Step 4.4: Write `apps/worker/src/lib/prisma.ts`**
+- [x] **Step 4.4: Write `apps/worker/src/lib/prisma.ts`**
 
 ```ts
 import { getPrismaClient } from '@oneness/shared/prisma';
@@ -693,7 +693,7 @@ export const prisma = getPrismaClient({
 });
 ```
 
-- [ ] **Step 4.5: Write `apps/worker/src/lib/redis.ts`**
+- [x] **Step 4.5: Write `apps/worker/src/lib/redis.ts`**
 
 ```ts
 import Redis from 'ioredis';
@@ -705,7 +705,7 @@ export const redis = new Redis(config.REDIS_URL, {
 });
 ```
 
-- [ ] **Step 4.6: Write `apps/worker/src/lib/minio.ts`**
+- [x] **Step 4.6: Write `apps/worker/src/lib/minio.ts`**
 
 ```ts
 import { Client } from 'minio';
@@ -724,7 +724,7 @@ export const minioClient = new Client({
 export const TaskOutputsBucket = config.MINIO_BUCKET_TASK_OUTPUTS;
 ```
 
-- [ ] **Step 4.7: Write a minimal `apps/worker/src/index.ts`**
+- [x] **Step 4.7: Write a minimal `apps/worker/src/index.ts`**
 
 This is a "hello, workers will be wired later" entry point. We expand it in Task 7.
 
@@ -745,7 +745,7 @@ logger.info(
 );
 ```
 
-- [ ] **Step 4.8: Patch root `package.json` to add `dev:worker`**
+- [x] **Step 4.8: Patch root `package.json` to add `dev:worker`**
 
 In the `scripts` block, add:
 
@@ -766,7 +766,7 @@ And change the existing `dev` script to spawn worker too:
 }
 ```
 
-- [ ] **Step 4.9: Install + boot smoke test**
+- [x] **Step 4.9: Install + boot smoke test**
 
 ```bash
 pnpm install
@@ -786,7 +786,7 @@ kill %1 2>/dev/null
 
 Expected: prints `WORKER OK`.
 
-- [ ] **Step 4.10: Commit**
+- [x] **Step 4.10: Commit**
 
 ```bash
 git add apps/worker/ package.json pnpm-lock.yaml
@@ -807,7 +807,7 @@ Each provider implements the shared interface. Stubs sleep, optionally fail with
 
 > **Note on stub video output:** The spec calls for a stand-in `mp4`. Producing real MP4 bytes without ffmpeg is awkward, and committing a binary placeholder file is repo-noise. The stub instead emits a colourful PNG (content-type `image/png`) and records `Task.output = { kind: "stub-video-poster", note: "real provider should emit mp4" }`. This is honest about the substitution and keeps the storage path / Asset record shape future-compatible — a real video provider simply emits `contentType: 'video/mp4'` instead.
 
-- [ ] **Step 5.1: Write `apps/worker/src/providers/stub-image.ts`**
+- [x] **Step 5.1: Write `apps/worker/src/providers/stub-image.ts`**
 
 ```ts
 import sharp from 'sharp';
@@ -885,7 +885,7 @@ export const stubImageProvider: ImageProvider = {
 };
 ```
 
-- [ ] **Step 5.2: Write `apps/worker/src/providers/stub-video.ts`**
+- [x] **Step 5.2: Write `apps/worker/src/providers/stub-video.ts`**
 
 ```ts
 import sharp from 'sharp';
@@ -956,7 +956,7 @@ export const stubVideoProvider: VideoProvider = {
 };
 ```
 
-- [ ] **Step 5.3: Write `apps/worker/src/providers/stub-text.ts`**
+- [x] **Step 5.3: Write `apps/worker/src/providers/stub-text.ts`**
 
 ```ts
 import type {
@@ -1009,7 +1009,7 @@ export const stubTextProvider: TextProvider = {
 };
 ```
 
-- [ ] **Step 5.4: Write `apps/worker/src/providers/registry.ts`**
+- [x] **Step 5.4: Write `apps/worker/src/providers/registry.ts`**
 
 ```ts
 import type { ProviderKind } from '@oneness/shared/providers';
@@ -1053,7 +1053,7 @@ export function defaultProviderName(kind: ProviderKind): string {
 }
 ```
 
-- [ ] **Step 5.5: Typecheck and commit**
+- [x] **Step 5.5: Typecheck and commit**
 
 ```bash
 pnpm --filter worker typecheck
@@ -1078,7 +1078,7 @@ This is the heart of the worker. For each job:
 - Create: `apps/worker/src/processor.ts`
 - Modify: `apps/worker/src/index.ts` (wire 3 BullMQ Worker instances)
 
-- [ ] **Step 6.1: Write `apps/worker/src/processor.ts`**
+- [x] **Step 6.1: Write `apps/worker/src/processor.ts`**
 
 ```ts
 import { createId } from '@paralleldrive/cuid2';
@@ -1336,7 +1336,7 @@ function extFromContentType(ct: string): string {
 }
 ```
 
-- [ ] **Step 6.2: Rewrite `apps/worker/src/index.ts`**
+- [x] **Step 6.2: Rewrite `apps/worker/src/index.ts`**
 
 ```ts
 import { Worker } from 'bullmq';
@@ -1389,7 +1389,7 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 ```
 
-- [ ] **Step 6.3: Typecheck**
+- [x] **Step 6.3: Typecheck**
 
 ```bash
 pnpm --filter worker typecheck
@@ -1399,7 +1399,7 @@ Expected: exits 0.
 
 > If you get a "Module @paralleldrive/cuid2 not found" error in worker, run `pnpm --filter worker add @paralleldrive/cuid2`.
 
-- [ ] **Step 6.4: Live smoke — kick off an image task and watch it land**
+- [x] **Step 6.4: Live smoke — kick off an image task and watch it land**
 
 Kill stale processes first:
 ```bash
@@ -1474,7 +1474,7 @@ Cleanup:
 pkill -f 'tsx watch' 2>/dev/null
 ```
 
-- [ ] **Step 6.5: Commit**
+- [x] **Step 6.5: Commit**
 
 ```bash
 git add apps/worker/src/processor.ts apps/worker/src/index.ts
