@@ -10,7 +10,8 @@
     "./enums": "./src/enums.ts",
     "./errors": "./src/errors.ts",
     "./logger": "./src/logger.ts",
-    "./prisma": "./src/prisma-client.ts"
+    "./prisma": "./src/prisma-client.ts",
+    "./schemas": "./src/schemas/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

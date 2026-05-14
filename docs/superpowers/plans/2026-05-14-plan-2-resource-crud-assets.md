@@ -37,7 +37,7 @@ Pagination, zod common helpers, and an asset-URL signing helper. These are used 
 - Create: `apps/api/src/lib/assets.ts` (presigned GET URL + asset DTO serializer)
 - Modify: `packages/shared/src/index.ts` (re-export schemas barrel)
 
-- [ ] **Step 1.1: Write `packages/shared/src/schemas/common.ts`**
+- [x] **Step 1.1: Write `packages/shared/src/schemas/common.ts`**
 
 ```ts
 import { z } from 'zod';
@@ -63,13 +63,13 @@ export type Paged<T> = {
 };
 ```
 
-- [ ] **Step 1.2: Write `packages/shared/src/schemas/index.ts`**
+- [x] **Step 1.2: Write `packages/shared/src/schemas/index.ts`**
 
 ```ts
 export * from './common.js';
 ```
 
-- [ ] **Step 1.3: Update `packages/shared/src/index.ts` to re-export schemas**
+- [x] **Step 1.3: Update `packages/shared/src/index.ts` to re-export schemas**
 
 Open `packages/shared/src/index.ts` and add the line `export * from './schemas/index.js';` after the existing re-exports. The file becomes:
 
@@ -81,7 +81,7 @@ export * from './prisma-client.js';
 export * from './schemas/index.js';
 ```
 
-- [ ] **Step 1.4: Add the schemas export path to `packages/shared/package.json`**
+- [x] **Step 1.4: Add the schemas export path to `packages/shared/package.json`**
 
 Open `packages/shared/package.json` and add a new entry under `exports`:
 
@@ -98,7 +98,7 @@ Open `packages/shared/package.json` and add a new entry under `exports`:
 }
 ```
 
-- [ ] **Step 1.5: Write `apps/api/src/lib/pagination.ts`**
+- [x] **Step 1.5: Write `apps/api/src/lib/pagination.ts`**
 
 ```ts
 import type { PageQuery, Paged } from '@oneness/shared/schemas';
@@ -112,7 +112,7 @@ export function asPaged<T>(items: T[], total: number, q: PageQuery): Paged<T> {
 }
 ```
 
-- [ ] **Step 1.6: Write `apps/api/src/lib/assets.ts`**
+- [x] **Step 1.6: Write `apps/api/src/lib/assets.ts`**
 
 ```ts
 import { minioClient } from './minio.js';
@@ -161,7 +161,7 @@ export async function presignKey(bucket: string, key: string | null): Promise<st
 }
 ```
 
-- [ ] **Step 1.7: Typecheck**
+- [x] **Step 1.7: Typecheck**
 
 Run:
 ```bash
@@ -171,7 +171,7 @@ pnpm --filter api typecheck
 
 Expected: both exit 0.
 
-- [ ] **Step 1.8: Commit**
+- [x] **Step 1.8: Commit**
 
 ```bash
 git add packages/shared/src/schemas/ packages/shared/src/index.ts packages/shared/package.json apps/api/src/lib/pagination.ts apps/api/src/lib/assets.ts
