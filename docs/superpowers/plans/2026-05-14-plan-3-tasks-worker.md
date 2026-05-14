@@ -42,7 +42,7 @@ Queue names, pricing, provider interface types, request schemas. All in `@onenes
 - Modify: `packages/shared/src/schemas/index.ts` (barrel)
 - Modify: `packages/shared/package.json` (add subpath exports)
 
-- [ ] **Step 1.1: Write `packages/shared/src/queues.ts`**
+- [x] **Step 1.1: Write `packages/shared/src/queues.ts`**
 
 ```ts
 import { TaskType } from './enums.js';
@@ -73,7 +73,7 @@ export const WorkerConcurrency = {
 export type TaskJobData = { taskId: string };
 ```
 
-- [ ] **Step 1.2: Write `packages/shared/src/pricing.ts`**
+- [x] **Step 1.2: Write `packages/shared/src/pricing.ts`**
 
 ```ts
 import { TaskType } from './enums.js';
@@ -94,7 +94,7 @@ export function estimateCost(type: TaskType): number {
 }
 ```
 
-- [ ] **Step 1.3: Write `packages/shared/src/providers/types.ts`**
+- [x] **Step 1.3: Write `packages/shared/src/providers/types.ts`**
 
 ```ts
 import type { PrismaClient } from '@prisma/client';
@@ -184,7 +184,7 @@ export function providerKindOf(type: TaskType): ProviderKind {
 }
 ```
 
-- [ ] **Step 1.4: Write `packages/shared/src/schemas/tasks.ts`**
+- [x] **Step 1.4: Write `packages/shared/src/schemas/tasks.ts`**
 
 ```ts
 import { z } from 'zod';
@@ -263,11 +263,11 @@ export type TaskListQuery = z.infer<typeof TaskListQuerySchema>;
 export type InternalUpdateTaskInput = z.infer<typeof InternalUpdateTaskSchema>;
 ```
 
-- [ ] **Step 1.5: Update `packages/shared/src/schemas/index.ts`**
+- [x] **Step 1.5: Update `packages/shared/src/schemas/index.ts`**
 
 Append the line `export * from './tasks.js';` to the existing barrel.
 
-- [ ] **Step 1.6: Update `packages/shared/src/index.ts`**
+- [x] **Step 1.6: Update `packages/shared/src/index.ts`**
 
 Append:
 
@@ -277,7 +277,7 @@ export * from './pricing.js';
 export * from './providers/types.js';
 ```
 
-- [ ] **Step 1.7: Update `packages/shared/package.json` exports map**
+- [x] **Step 1.7: Update `packages/shared/package.json` exports map**
 
 Add new subpaths:
 
@@ -297,7 +297,7 @@ Add new subpaths:
 }
 ```
 
-- [ ] **Step 1.8: Typecheck and commit**
+- [x] **Step 1.8: Typecheck and commit**
 
 Run:
 ```bash

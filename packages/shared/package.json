@@ -11,7 +11,10 @@
     "./errors": "./src/errors.ts",
     "./logger": "./src/logger.ts",
     "./prisma": "./src/prisma-client.ts",
-    "./schemas": "./src/schemas/index.ts"
+    "./schemas": "./src/schemas/index.ts",
+    "./queues": "./src/queues.ts",
+    "./pricing": "./src/pricing.ts",
+    "./providers": "./src/providers/types.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

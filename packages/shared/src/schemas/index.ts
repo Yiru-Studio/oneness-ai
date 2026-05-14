@@ -7,3 +7,4 @@ export * from './items.js';
 export * from './scenes.js';
 export * from './episodes.js';
 export * from './knowledge-docs.js';
+export * from './tasks.js';
