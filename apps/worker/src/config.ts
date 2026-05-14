@@ -23,6 +23,22 @@ const ConfigSchema = z.object({
   // For ZenMux-style proxies, set namespaced names (e.g. 'openai/gpt-4o-mini').
   OPENAI_TEXT_MODEL: z.string().default('gpt-4o-mini'),
   OPENAI_IMAGE_MODEL: z.string().default('gpt-image-1'),
+
+  // Volcengine Ark (Doubao Seedance) — used by seedance / seedance-fast.
+  // Key is required at call time, not at boot, so dev without a key still
+  // runs (only seedance routes will error if invoked).
+  ARK_API_KEY: z.string().optional(),
+  ARK_BASE_URL: z
+    .string()
+    .url()
+    .default('https://ark.cn-beijing.volces.com/api/v3'),
+
+  // Public-reachable base URL used to hand presigned asset URLs to external
+  // providers (Seedance pulls reference assets by URL, not byte upload).
+  // MUST be set in production. If unset, presigned URLs fall back to
+  // MINIO_ENDPOINT — fine only when MinIO is reachable from the provider's
+  // network (usually NOT the case for localhost MinIO in dev).
+  MINIO_PUBLIC_ENDPOINT: z.string().url().optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

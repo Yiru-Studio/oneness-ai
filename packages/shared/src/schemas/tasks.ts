@@ -19,11 +19,31 @@ const ImageInputSchema = z.object({
   n: z.number().int().min(1).max(8).default(1),
 });
 
+const VideoReferenceRoleSchema = z.enum([
+  'reference_image',
+  'reference_video',
+  'reference_audio',
+  'first_frame',
+  'last_frame',
+]);
+
+const VideoReferenceSchema = z.object({
+  assetId: CuidSchema,
+  role: VideoReferenceRoleSchema,
+});
+
 const VideoInputSchema = z.object({
   prompt: z.string().min(1).max(5000),
   model: z.string().min(1).max(80),
   duration: z.number().int().min(1).max(60),
   fromAssetId: CuidSchema.optional(),
+  ratio: z.string().min(1).max(20).optional(),
+  generateAudio: z.boolean().optional(),
+  watermark: z.boolean().optional(),
+  webSearch: z.boolean().optional(),
+  returnLastFrame: z.boolean().optional(),
+  // Provider-side enforces per-role counts (image ≤9, video ≤3, audio ≤3).
+  references: z.array(VideoReferenceSchema).max(15).optional(),
 });
 
 const TextInputSchema = z.object({

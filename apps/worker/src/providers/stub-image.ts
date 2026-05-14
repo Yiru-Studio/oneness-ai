@@ -5,6 +5,7 @@ import type {
   ProviderContext,
   ProviderResult,
 } from '@oneness/shared/providers';
+import { abortableSleep } from '../lib/sleep.js';
 
 /** Read STUB_FAIL_RATE from process.env at every call so tests can toggle it. */
 function currentFailRate(): number {
@@ -18,27 +19,12 @@ function pickColor(seed: string): { r: number; g: number; b: number } {
   return { r: h & 255, g: (h >> 8) & 255, b: (h >> 16) & 255 };
 }
 
-async function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    if (signal.aborted) return reject(new Error('aborted'));
-    const t = setTimeout(() => resolve(), ms);
-    signal.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(t);
-        reject(new Error('aborted'));
-      },
-      { once: true },
-    );
-  });
-}
-
 export const stubImageProvider: ImageProvider = {
   name: 'stub',
   async generate(input: ImageInput, ctx: ProviderContext): Promise<ProviderResult> {
     ctx.log.info({ prompt: input.prompt, model: input.model }, 'stub-image start');
     const delayMs = 3000 + Math.floor(Math.random() * 2000); // 3-5s
-    await sleep(delayMs, ctx.abortSignal);
+    await abortableSleep(delayMs, ctx.abortSignal);
 
     if (Math.random() < currentFailRate()) {
       throw new Error('stub-image: random failure (STUB_FAIL_RATE)');

@@ -4,13 +4,26 @@ import { stubVideoProvider } from './stub-video.js';
 import { stubTextProvider } from './stub-text.js';
 import { openaiImageProvider } from './openai-image.js';
 import { openaiTextProvider } from './openai-text.js';
+import { createSeedanceProvider } from './seedance.js';
 import { config } from '../config.js';
 
 /**
  * The registry holds one concrete provider per (kind, name).
  * Stub is registered as the default for every kind. Future real providers
  * (e.g. 'gemini-3-pro') are added here.
+ *
+ * 'seedance' and 'seedance-fast' share the same code path; they differ only
+ * in the default model they fall back to when input.model is not provided.
  */
+const seedance = createSeedanceProvider({
+  name: 'seedance',
+  pinnedModel: 'doubao-seedance-2-0-260128',
+});
+const seedanceFast = createSeedanceProvider({
+  name: 'seedance-fast',
+  pinnedModel: 'doubao-seedance-2-0-fast-260128',
+});
+
 const registry = {
   image: {
     stub: stubImageProvider,
@@ -18,6 +31,8 @@ const registry = {
   },
   video: {
     stub: stubVideoProvider,
+    seedance,
+    'seedance-fast': seedanceFast,
   },
   text: {
     stub: stubTextProvider,

@@ -60,11 +60,30 @@ export type ImageInput = {
   referenceAssetIds?: string[];
   n?: number;
 };
+export type VideoReferenceRole =
+  | 'reference_image'
+  | 'reference_video'
+  | 'reference_audio'
+  | 'first_frame'
+  | 'last_frame';
+
+export type VideoReference = {
+  assetId: string;
+  role: VideoReferenceRole;
+};
+
 export type VideoInput = {
   prompt: string;
   model: string;
   duration: number;
+  /** @deprecated kept for backward compat with stub flow; prefer `references`. */
   fromAssetId?: string;
+  ratio?: string;
+  generateAudio?: boolean;
+  watermark?: boolean;
+  webSearch?: boolean;
+  returnLastFrame?: boolean;
+  references?: VideoReference[];
 };
 export type TextInput = {
   episodeId: string;
