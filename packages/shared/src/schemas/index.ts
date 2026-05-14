@@ -5,3 +5,4 @@ export * from './characters.js';
 export * from './character-styles.js';
 export * from './items.js';
 export * from './scenes.js';
+export * from './episodes.js';

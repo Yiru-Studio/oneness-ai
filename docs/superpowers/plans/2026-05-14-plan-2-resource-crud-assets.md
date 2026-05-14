@@ -1987,7 +1987,7 @@ Episodes are different from items/scenes: they have `number` (Int, unique per pr
 - Modify: `apps/api/src/index.ts`
 - Create: `apps/api/tests/integration/episodes.test.ts`
 
-- [ ] **Step 8.1: Schema**
+- [x] **Step 8.1: Schema**
 
 ```ts
 // packages/shared/src/schemas/episodes.ts
@@ -2008,7 +2008,7 @@ export type UpdateEpisodeInput = z.infer<typeof UpdateEpisodeSchema>;
 
 Append to barrel: `export * from './episodes.js';`
 
-- [ ] **Step 8.2: Serializer**
+- [x] **Step 8.2: Serializer**
 
 ```ts
 // apps/api/src/serializers/episode.ts
@@ -2033,7 +2033,7 @@ export function serializeEpisode(e: StoryboardEpisode): EpisodeDTO {
 }
 ```
 
-- [ ] **Step 8.3: Routes**
+- [x] **Step 8.3: Routes**
 
 ```ts
 // apps/api/src/routes/episodes.ts
@@ -2163,7 +2163,7 @@ function isUniqueConstraint(err: unknown): boolean {
 }
 ```
 
-- [ ] **Step 8.4: Mount + Test**
+- [x] **Step 8.4: Mount + Test**
 
 Mount in `index.ts`. Write `apps/api/tests/integration/episodes.test.ts`:
 
@@ -2239,7 +2239,7 @@ describe('episodes CRUD', () => {
 });
 ```
 
-- [ ] **Step 8.5: Commit**
+- [x] **Step 8.5: Commit**
 
 ```bash
 pnpm --filter api test
