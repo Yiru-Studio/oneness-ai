@@ -1,99 +1,146 @@
-import { User, Project, KnowledgeDoc, ProjectTabContent, Character, Item, Scene, StoryboardEpisode, AnalyticsData } from '@/types';
-import { mockUser, mockProjects, mockKnowledgeDocs, mockCharacters, mockItems, mockScenes, mockStoryboardEpisodes, mockAnalytics } from '@/data/mock';
+import {
+  User,
+  Project,
+  KnowledgeDoc,
+  Character,
+  Item,
+  Scene,
+  StoryboardEpisode,
+  AnalyticsData,
+} from '@/types';
+import { apiFetch, setAuthToken, ApiError } from './api-client';
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+// -- Types received from backend ----------------------------------------
+
+type Paged<T> = { items: T[]; total: number; page: number; pageSize: number };
+type ProjectDTO = Project; // backend serializer matches the frontend Project shape
+type CharacterDTO = Character;
+type ItemDTO = Item;
+type SceneDTO = Scene;
+type EpisodeDTO = StoryboardEpisode;
+type KnowledgeDocDTO = KnowledgeDoc;
+type UserDTO = User;
+type AnalyticsDTO = AnalyticsData;
+
+// -- Auth ----------------------------------------------------------------
 
 export async function getCurrentUser(): Promise<User | null> {
-  await delay(300);
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-  return token ? { ...mockUser } : null;
+  try {
+    return await apiFetch<UserDTO | null>('/api/me');
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) return null;
+    throw err;
+  }
 }
 
-export async function login(email: string, _code: string): Promise<{ token: string }> {
-  await delay(500);
-  const token = 'mock_token_' + Date.now();
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('auth_token', token);
-  }
-  return { token };
+export async function login(email: string, code: string): Promise<{ token: string }> {
+  const res = await apiFetch<{ token: string; user: UserDTO }>('/api/auth/login', {
+    method: 'POST',
+    body: { email, code },
+  });
+  setAuthToken(res.token);
+  return { token: res.token };
 }
 
 export async function logout(): Promise<void> {
-  await delay(200);
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('auth_token');
+  try {
+    await apiFetch<void>('/api/auth/logout', { method: 'POST' });
+  } finally {
+    setAuthToken(null);
   }
 }
 
 export async function updateProfile(data: Partial<User>): Promise<User> {
-  await delay(300);
-  return { ...mockUser, ...data };
+  const payload: { name?: string; email?: string } = {};
+  if (data.name !== undefined) payload.name = data.name;
+  if (data.email !== undefined) payload.email = data.email;
+  return await apiFetch<UserDTO>('/api/me', { method: 'PATCH', body: payload });
 }
 
+// -- Projects -----------------------------------------------------------
+
 export async function getProjects(search?: string): Promise<Project[]> {
-  await delay(300);
-  let projects = [...mockProjects];
-  if (search) {
-    projects = projects.filter(p => p.name.includes(search));
-  }
-  return projects;
+  const res = await apiFetch<Paged<ProjectDTO>>('/api/projects', {
+    query: { search },
+  });
+  return res.items;
 }
 
 export async function getProject(id: string): Promise<Project | null> {
-  await delay(300);
-  return mockProjects.find(p => p.id === id) || null;
+  try {
+    return await apiFetch<ProjectDTO>(`/api/projects/${id}`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
 }
 
-export async function createProject(data: Omit<Project, 'id' | 'createdAt'>): Promise<Project> {
-  await delay(500);
-  return {
-    ...data,
-    id: 'proj_' + Date.now(),
-    createdAt: new Date().toISOString(),
-  };
+export async function createProject(
+  data: Omit<Project, 'id' | 'createdAt'>,
+): Promise<Project> {
+  return await apiFetch<ProjectDTO>('/api/projects', { method: 'POST', body: data });
 }
 
-export async function deleteProject(_id: string): Promise<void> {
-  await delay(300);
+export async function deleteProject(id: string): Promise<void> {
+  await apiFetch<void>(`/api/projects/${id}`, { method: 'DELETE' });
 }
 
-export async function getProjectTabContent(
-  _projectId: string,
-  tab: string
-): Promise<ProjectTabContent> {
-  await delay(400);
-  return {
-    tab: tab as ProjectTabContent['tab'],
-    content: '',
-  };
+// -- Project sub-resources ---------------------------------------------
+
+export async function getProjectCharacters(projectId: string): Promise<Character[]> {
+  return await apiFetch<CharacterDTO[]>(`/api/projects/${projectId}/characters`);
 }
 
-export async function getProjectCharacters(_projectId: string): Promise<Character[]> {
-  await delay(300);
-  return [...mockCharacters];
+export async function getProjectItems(projectId: string): Promise<Item[]> {
+  return await apiFetch<ItemDTO[]>(`/api/projects/${projectId}/items`);
 }
 
-export async function getProjectItems(_projectId: string): Promise<Item[]> {
-  await delay(300);
-  return [...mockItems];
+export async function getProjectScenes(projectId: string): Promise<Scene[]> {
+  return await apiFetch<SceneDTO[]>(`/api/projects/${projectId}/scenes`);
 }
 
-export async function getProjectScenes(_projectId: string): Promise<Scene[]> {
-  await delay(300);
-  return [...mockScenes];
+export async function getProjectStoryboard(
+  projectId: string,
+): Promise<StoryboardEpisode[]> {
+  return await apiFetch<EpisodeDTO[]>(`/api/projects/${projectId}/episodes`);
 }
 
-export async function getProjectStoryboard(_projectId: string): Promise<StoryboardEpisode[]> {
-  await delay(300);
-  return [...mockStoryboardEpisodes];
+export async function getProjectAnalytics(projectId: string): Promise<AnalyticsData> {
+  return await apiFetch<AnalyticsDTO>(`/api/projects/${projectId}/analytics`);
 }
 
-export async function getProjectAnalytics(_projectId: string): Promise<AnalyticsData> {
-  await delay(300);
-  return { ...mockAnalytics };
-}
+// -- Knowledge docs -----------------------------------------------------
 
 export async function getKnowledgeDocs(type: string): Promise<KnowledgeDoc[]> {
-  await delay(300);
-  return mockKnowledgeDocs.filter(d => d.type === type);
+  // Backend expects uppercase enum; current callers pass 'created'/'favorited'/'collaborated'
+  const upper = type.toUpperCase();
+  const res = await apiFetch<Paged<KnowledgeDocDTO>>('/api/knowledge-docs', {
+    query: { type: upper },
+  });
+  return res.items;
 }
+
+// -- Asset upload (helper for future avatar/style uploads) -------------
+
+export type AssetDTO = {
+  id: string;
+  url: string;
+  contentType: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+};
+
+export async function uploadAsset(file: File): Promise<AssetDTO> {
+  const fd = new FormData();
+  fd.append('file', file);
+  return await apiFetch<AssetDTO>('/api/assets', { method: 'POST', formData: fd });
+}
+
+export async function deleteAsset(id: string): Promise<void> {
+  await apiFetch<void>(`/api/assets/${id}`, { method: 'DELETE' });
+}
+
+// -- Re-export for callers that want to introspect errors -------------
+
+export { ApiError };

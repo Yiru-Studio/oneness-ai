@@ -138,7 +138,7 @@ pnpm --filter web typecheck
 
 Expected: exits 0.
 
-- [ ] **Step 1.3: Commit**
+- [x] **Step 1.3: Commit**
 
 ```bash
 git add apps/web/src/lib/api-client.ts
@@ -154,7 +154,7 @@ Map every existing function to a backend call. Keep public signatures unchanged 
 **Files:**
 - Modify (full rewrite): `apps/web/src/lib/api.ts`
 
-- [ ] **Step 2.1: Replace `apps/web/src/lib/api.ts` with the full implementation below**
+- [x] **Step 2.1: Replace `apps/web/src/lib/api.ts` with the full implementation below**
 
 ```ts
 import {
@@ -307,7 +307,7 @@ export { ApiError };
 
 > **Note on removed function**: `getProjectTabContent` from the old mock returned an empty `{ tab, content }` object and was a placeholder. It's not exported here. If any caller imports it, fix the caller (Task 4 covers this).
 
-- [ ] **Step 2.2: Typecheck**
+- [x] **Step 2.2: Typecheck**
 
 ```bash
 pnpm --filter web typecheck
