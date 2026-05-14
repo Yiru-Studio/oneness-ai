@@ -33,7 +33,7 @@
 
 Single source of truth for the `fetch` call. Handles base URL, auth header, error envelope.
 
-- [ ] **Step 1.1: Write `apps/web/src/lib/api-client.ts`**
+- [x] **Step 1.1: Write `apps/web/src/lib/api-client.ts`**
 
 ```ts
 const BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
@@ -130,7 +130,7 @@ export function setAuthToken(token: string | null) {
 }
 ```
 
-- [ ] **Step 1.2: Typecheck**
+- [x] **Step 1.2: Typecheck**
 
 ```bash
 pnpm --filter web typecheck
