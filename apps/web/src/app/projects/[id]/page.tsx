@@ -156,11 +156,37 @@ export default function ProjectDetailPage() {
               onProjectUpdated={setProject}
             />
           )}
-          {activeTab === 'characters' && <CharactersTabContent characters={characters} />}
-          {activeTab === 'items' && <ItemsTabContent items={items} />}
-          {activeTab === 'scenes' && <ScenesTabContent scenes={scenes} />}
+          {activeTab === 'characters' && (
+            <CharactersTabContent
+              characters={characters}
+              project={project}
+              scriptContent={episodes[0]?.content}
+              onChange={setCharacters}
+            />
+          )}
+          {activeTab === 'items' && (
+            <ItemsTabContent
+              items={items}
+              project={project}
+              onChange={setItems}
+            />
+          )}
+          {activeTab === 'scenes' && (
+            <ScenesTabContent
+              scenes={scenes}
+              project={project}
+              scriptContent={episodes[0]?.content}
+              onChange={setScenes}
+            />
+          )}
           {activeTab === 'workbench' && <WorkbenchTabContent />}
-          {activeTab === 'storyboard' && <StoryboardTabContent episodes={episodes} />}
+          {activeTab === 'storyboard' && (
+            <StoryboardTabContent
+              episodes={episodes}
+              project={project}
+              onChange={setEpisodes}
+            />
+          )}
           {activeTab === 'analytics' && analytics && <AnalyticsTabContent data={analytics} />}
         </div>
       </main>

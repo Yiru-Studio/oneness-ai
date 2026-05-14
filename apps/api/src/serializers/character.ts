@@ -1,23 +1,27 @@
 import type { Character, CharacterStyle, Asset } from '@oneness/shared/prisma';
-import { Buckets } from '../lib/minio.js';
-import { presignGet, presignKey } from '../lib/assets.js';
+import { presignGet } from '../lib/assets.js';
 
 export type CharacterStyleDTO = { id: string; name: string; image: string };
 export type CharacterDTO = {
   id: string;
   name: string;
   avatar: string;
+  avatarAssetId: string | null;
   description: string;
   bio: string;
   voice?: string;
+  markedBlank: boolean;
   styles: CharacterStyleDTO[];
 };
 
 type StyleWithAsset = CharacterStyle & { asset: Asset | null };
-type CharacterWithStyles = Character & { styles: StyleWithAsset[] };
+type CharacterWithStyles = Character & {
+  styles: StyleWithAsset[];
+  avatar?: Asset | null;
+};
 
 export async function serializeCharacter(c: CharacterWithStyles): Promise<CharacterDTO> {
-  const avatar = (await presignKey(Buckets.USER_UPLOADS, c.avatarKey)) ?? '';
+  const avatar = c.avatar ? await presignGet(c.avatar.bucket, c.avatar.key) : '';
   const styles = await Promise.all(
     c.styles.map(async (s) => ({
       id: s.id,
@@ -29,9 +33,11 @@ export async function serializeCharacter(c: CharacterWithStyles): Promise<Charac
     id: c.id,
     name: c.name,
     avatar,
+    avatarAssetId: c.avatarAssetId ?? null,
     description: c.description,
     bio: c.bio,
     voice: c.voice ?? '',
+    markedBlank: c.markedBlank ?? false,
     styles,
   };
 }

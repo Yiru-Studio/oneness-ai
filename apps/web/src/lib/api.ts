@@ -100,12 +100,158 @@ export async function getProjectCharacters(projectId: string): Promise<Character
   return await apiFetch<CharacterDTO[]>(`/api/projects/${projectId}/characters`);
 }
 
+export async function createCharacter(
+  projectId: string,
+  data: { name: string; description?: string; bio?: string; voice?: string | null; avatarAssetId?: string | null; markedBlank?: boolean },
+): Promise<Character> {
+  return await apiFetch<CharacterDTO>(`/api/projects/${projectId}/characters`, {
+    method: 'POST',
+    body: data,
+  });
+}
+
+export async function updateCharacter(
+  characterId: string,
+  data: Partial<{ name: string; description: string; bio: string; voice: string | null; avatarAssetId: string | null; markedBlank: boolean }>,
+): Promise<Character> {
+  return await apiFetch<CharacterDTO>(`/api/characters/${characterId}`, {
+    method: 'PATCH',
+    body: data,
+  });
+}
+
+export async function deleteCharacter(characterId: string): Promise<void> {
+  await apiFetch<void>(`/api/characters/${characterId}`, { method: 'DELETE' });
+}
+
+export async function createCharacterStyle(
+  characterId: string,
+  data: { name: string; assetId?: string | null },
+): Promise<{ id: string; name: string; image: string }> {
+  return await apiFetch(`/api/characters/${characterId}/styles`, {
+    method: 'POST',
+    body: data,
+  });
+}
+
+export async function updateCharacterStyle(
+  styleId: string,
+  data: Partial<{ name: string; assetId: string | null }>,
+): Promise<{ id: string; name: string; image: string }> {
+  return await apiFetch(`/api/character-styles/${styleId}`, {
+    method: 'PATCH',
+    body: data,
+  });
+}
+
+export async function deleteCharacterStyle(styleId: string): Promise<void> {
+  await apiFetch<void>(`/api/character-styles/${styleId}`, { method: 'DELETE' });
+}
+
 export async function getProjectItems(projectId: string): Promise<Item[]> {
   return await apiFetch<ItemDTO[]>(`/api/projects/${projectId}/items`);
 }
 
+export async function createItem(
+  projectId: string,
+  data: { name: string; assetId?: string | null },
+): Promise<Item> {
+  return await apiFetch<ItemDTO>(`/api/projects/${projectId}/items`, {
+    method: 'POST',
+    body: data,
+  });
+}
+
+export async function updateItem(
+  itemId: string,
+  data: Partial<{ name: string; assetId: string | null }>,
+): Promise<Item> {
+  return await apiFetch<ItemDTO>(`/api/items/${itemId}`, {
+    method: 'PATCH',
+    body: data,
+  });
+}
+
+export async function deleteItem(itemId: string): Promise<void> {
+  await apiFetch<void>(`/api/items/${itemId}`, { method: 'DELETE' });
+}
+
 export async function getProjectScenes(projectId: string): Promise<Scene[]> {
   return await apiFetch<SceneDTO[]>(`/api/projects/${projectId}/scenes`);
+}
+
+export async function createScene(
+  projectId: string,
+  data: { name: string; assetId?: string | null },
+): Promise<Scene> {
+  return await apiFetch<SceneDTO>(`/api/projects/${projectId}/scenes`, {
+    method: 'POST',
+    body: data,
+  });
+}
+
+export async function updateScene(
+  sceneId: string,
+  data: Partial<{ name: string; assetId: string | null }>,
+): Promise<Scene> {
+  return await apiFetch<SceneDTO>(`/api/scenes/${sceneId}`, {
+    method: 'PATCH',
+    body: data,
+  });
+}
+
+export async function deleteScene(sceneId: string): Promise<void> {
+  await apiFetch<void>(`/api/scenes/${sceneId}`, { method: 'DELETE' });
+}
+
+// -- Image-task helpers (chained: create task -> poll until done) ------
+
+type CreateImageTaskInput = {
+  prompt: string;
+  ratio: string;
+  model: string;
+  referenceAssetIds?: string[];
+  n?: number;
+};
+
+export type TaskDTO = {
+  id: string;
+  type: 'IMAGE' | 'VIDEO' | 'TEXT_ANALYZE';
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+  output?: Record<string, unknown> | null;
+  error?: string | null;
+  outputAssets?: Array<{ id: string; url: string; contentType: string; sizeBytes: number; width: number | null; height: number | null }>;
+};
+
+export async function createImageTask(
+  projectId: string,
+  input: CreateImageTaskInput,
+  provider: string = 'openai',
+): Promise<TaskDTO> {
+  return await apiFetch<TaskDTO>('/api/tasks', {
+    method: 'POST',
+    body: { type: 'IMAGE', projectId, provider, input },
+  });
+}
+
+export async function getTask(taskId: string): Promise<TaskDTO> {
+  return await apiFetch<TaskDTO>(`/api/tasks/${taskId}`);
+}
+
+export async function pollTaskUntilDone(
+  taskId: string,
+  opts: { intervalMs?: number; timeoutMs?: number; onTick?: (t: TaskDTO) => void } = {},
+): Promise<TaskDTO> {
+  const interval = opts.intervalMs ?? 1500;
+  const timeout = opts.timeoutMs ?? 5 * 60_000;
+  const start = Date.now();
+  while (true) {
+    const t = await getTask(taskId);
+    opts.onTick?.(t);
+    if (t.status === 'SUCCEEDED' || t.status === 'FAILED' || t.status === 'CANCELLED') return t;
+    if (Date.now() - start > timeout) throw new Error('task polling timeout');
+    await new Promise((r) => setTimeout(r, interval));
+  }
 }
 
 export async function getProjectStoryboard(
@@ -122,6 +268,20 @@ export async function createEpisode(
     method: 'POST',
     body: data,
   });
+}
+
+export async function updateEpisode(
+  episodeId: string,
+  data: Partial<{ number: number; title: string; content: string }>,
+): Promise<StoryboardEpisode> {
+  return await apiFetch<EpisodeDTO>(`/api/episodes/${episodeId}`, {
+    method: 'PATCH',
+    body: data,
+  });
+}
+
+export async function deleteEpisode(episodeId: string): Promise<void> {
+  await apiFetch<void>(`/api/episodes/${episodeId}`, { method: 'DELETE' });
 }
 
 export type TaskSummary = {

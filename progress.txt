@@ -1,0 +1,72 @@
+# Progress Notes — Oneness-AI Replication of likeai.pro (Overnight Run)
+
+## Visual Reference Discovery (LikeAI Live)
+- Login: localStorage.setItem('auth_token', '<token>') → Bearer header
+- Auth confirmed working with provided token
+- API: /api/users/me, /api/projects, /api/projects/:id, /api/projects/:id/characters etc
+- Demo project for visual capture: 6a054ecacd9cde40ac0c811b ("一封信"  16:9 cinematic)
+
+## Replication Targets (with visual references)
+- Project list: docs/research/likeai-screenshots/p01-projects-list.png
+- Project detail (info): docs/research/likeai-screenshots/p02-project-detail.png
+- Characters tab: docs/research/likeai-screenshots/p03-tab-characters.png + image11.png from GUIDE
+- Items tab: docs/research/likeai-screenshots/p04-tab-items.png + image15.png
+- Scenes tab: docs/research/likeai-screenshots/p05-tab-scenes.png + image16.png
+- Workbench tab: docs/research/likeai-screenshots/p06-tab-workbench.png
+- Storyboard tab: docs/research/likeai-screenshots/p07-tab-storyboard.png
+- Collaboration tab: docs/research/likeai-screenshots/p08-tab-collab.png
+- Analytics tab: docs/research/likeai-screenshots/p09-tab-analytics.png
+
+## Notes from LikeAI traffic analysis
+
+### Characters
+- POST /api/projects/:projectId/character {name, role} → {character_id}
+- GET  /api/projects/:projectId/characters → list
+- GET  /api/projects/:projectId/character/:c/info → detail (includes analyze_task, front/side_face, appearances)
+- PUT  /api/projects/:projectId/character/:c/info → updates name/role/features/etc
+- "创建为空白角色" is a PURE FRONTEND TRANSITION — no API call.
+  - Logic: when analyze_task.task_status === '' (or task_id === ''), the right detail panel
+    shows two big buttons: [分析角色 (blue/primary)] [创建为空白角色 (outline)]
+  - Clicking 创建为空白角色 simply hides those buttons and shows the editable form
+    (avatar generate/upload area + 名称 + 音色 + 简介 + 添加造型)
+  - When the user then types/saves, PUT info is called.
+
+## TASKS
+
+- [x] Phase 0: Reconnaissance — capture references from likeai.pro
+- [x] Phase 1: Create Blank Character flow (visual ref: p03-blank-char-detail.png + p03-blank-completed.png)
+       Step 1: Frontend modal for "添加角色" (name input)
+       Step 2: After POST returns, show character card with two-button right panel
+       Step 3: 创建为空白角色 button just toggles UI to editable form (no API call)
+- [x] Phase 2: Full Characters CRUD + 三视图 + avatar generation (built; verified typecheck + tab render)
+- [x] Phase 3: Items tab (input/model/upload/gen) (built; verified typecheck + tab render)
+- [x] Phase 4: Scenes tab (auto-fill, script-based) (built; verified typecheck + tab render)
+- [x] Phase 5a: Storyboard tab — episode CRUD + analyze trigger + detail drawer (built)
+       Refs: p07-tab-storyboard.png, image17/image18 from GUIDE
+       Output: docs/research/my-output/tab-storyboard-*.png, storyboard-add-modal-*.png, storyboard-detail-drawer-*.png
+       Verified: pnpm typecheck pass; Playwright load all 7 tabs with 0 console errors
+- [x] Phase 5b: Storyboard end-to-end with real seedance/zenmux pipeline → "cc overnight" episode
+       Project: cmp5trokf000713hipuoipkky ("cc overnight", 16:9 cinematic)
+       Pipeline run via scripts/phase5b-orchestrate.mjs:
+       - Episode #1 uploaded (cmp5uauad000h13hijy04uul6, 最后一封信 第1集)
+       - LLM analyze (gemini-3.1-flash-lite via zenmux) extracted: 2 characters, 24 items, 2 scenes
+       - Generated 2 character avatars (吴雨华, 陈长庚) via openai/gpt-image-2
+       - Generated 3 item images (电视, 木桌, 信) via openai/gpt-image-2
+       - Generated 2 scene images (INT. 吴雨华家 - 午后) via openai/gpt-image-2
+       - Generated 1 video shot via doubao-seedance-2-0-fast-260128 (5s, 16:9)
+       Real credits used. All assets saved to MinIO.
+- [ ] Phase 6: Wide-and-shallow remaining features (workbench canvas, collab, etc.)
+
+## Notes (overnight session 2)
+
+- Created project "cc overnight" id=cmp5trokf000713hipuoipkky
+- Added `updateEpisode` and `deleteEpisode` API helpers
+- Replaced placeholder StoryboardTabContent with full CRUD + drawer detail view
+- ❌ BLOCKED capture from likeai.pro: token-only auth via localStorage isn't enough; SPA
+  expects cookie or specific auth flow. Worked around by using existing GUIDE images
+  (image17/image18 = storyboard list/detail) as visual reference. Skipping live captures
+  per the 30-min rule.
+- Pipeline trigger: POST /api/projects/:id/episodes/:episodeId/analyze fans out 3
+  TEXT_ANALYZE tasks (characters/items/scenes) - this is wired and reachable from the
+  storyboard drawer "重新分析" button.
+

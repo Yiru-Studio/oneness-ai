@@ -31,7 +31,7 @@ characterRoutes.get(
     }
     const characters = await prisma.character.findMany({
       where: { projectId },
-      include: { styles: { include: { asset: true } } },
+      include: { styles: { include: { asset: true } }, avatar: true },
       orderBy: { createdAt: 'asc' },
     });
     const serialized = await Promise.all(characters.map(serializeCharacter));
@@ -55,7 +55,7 @@ characterRoutes.post(
     if (!project) {
       throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
     }
-    const avatarKey = await resolveAvatarKey(body.avatarAssetId, user.id);
+    if (body.avatarAssetId) await assertAssetOwned(body.avatarAssetId, user.id);
     const created = await prisma.character.create({
       data: {
         projectId,
@@ -63,9 +63,10 @@ characterRoutes.post(
         description: body.description ?? '',
         bio: body.bio ?? '',
         voice: body.voice ?? null,
-        avatarKey,
+        avatarAssetId: body.avatarAssetId ?? null,
+        markedBlank: body.markedBlank ?? false,
       },
-      include: { styles: { include: { asset: true } } },
+      include: { styles: { include: { asset: true } }, avatar: true },
     });
     return c.json(await serializeCharacter(created), 201);
   },
@@ -98,13 +99,15 @@ characterRoutes.patch(
     if (body.description !== undefined) data.description = body.description;
     if (body.bio !== undefined) data.bio = body.bio;
     if (body.voice !== undefined) data.voice = body.voice;
+    if (body.markedBlank !== undefined) data.markedBlank = body.markedBlank;
     if (body.avatarAssetId !== undefined) {
-      data.avatarKey = await resolveAvatarKey(body.avatarAssetId, user.id);
+      if (body.avatarAssetId) await assertAssetOwned(body.avatarAssetId, user.id);
+      data.avatarAssetId = body.avatarAssetId ?? null;
     }
     const updated = await prisma.character.update({
       where: { id },
       data,
-      include: { styles: { include: { asset: true } } },
+      include: { styles: { include: { asset: true } }, avatar: true },
     });
     return c.json(await serializeCharacter(updated));
   },
@@ -126,7 +129,7 @@ characterRoutes.delete(
 async function loadOwnedCharacter(id: string, userId: string) {
   const character = await prisma.character.findFirst({
     where: { id, project: { ownerId: userId } },
-    include: { styles: { include: { asset: true } } },
+    include: { styles: { include: { asset: true } }, avatar: true },
   });
   if (!character) {
     throw AppError.notFound(ErrorCodes.CHARACTER_NOT_FOUND, 'character not found');
@@ -134,17 +137,12 @@ async function loadOwnedCharacter(id: string, userId: string) {
   return character;
 }
 
-async function resolveAvatarKey(
-  assetId: string | null | undefined,
-  userId: string,
-): Promise<string | null> {
-  if (!assetId) return null;
+async function assertAssetOwned(assetId: string, userId: string) {
   const asset = await prisma.asset.findFirst({
     where: { id: assetId, ownerId: userId },
-    select: { key: true },
+    select: { id: true },
   });
   if (!asset) {
     throw AppError.notFound(ErrorCodes.ASSET_NOT_FOUND, 'avatar asset not found');
   }
-  return asset.key;
 }

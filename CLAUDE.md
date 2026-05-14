@@ -24,15 +24,25 @@ pnpm db:reset       # wipe + re-migrate + re-seed
 pnpm db:studio      # Prisma Studio UI
 
 # Tests (integration only — requires infra up)
-pnpm --filter api test           # run all API tests
-pnpm --filter api test:watch     # watch mode
+pnpm --filter api test                                  # run all API tests
+pnpm --filter api test:watch                            # watch mode
+pnpm --filter api exec vitest run tests/integration/tasks.test.ts   # single file
+pnpm --filter api exec vitest run -t "creates a task"   # single test by name
 
-# Type checking and linting (all packages)
-pnpm typecheck
-pnpm lint
+# Type checking and linting
+pnpm typecheck       # all packages (recursive `tsc --noEmit`)
+pnpm lint            # only apps/web defines `lint` (eslint); api/worker have none
+
+# Production-style builds
+pnpm --filter api build && pnpm --filter api start
+pnpm --filter worker build && pnpm --filter worker start
+pnpm --filter web build && pnpm --filter web start
+
+# Docker (production-like full stack)
+docker compose -f docker/docker-compose.yml --profile full up --build
 ```
 
-Tests live in `apps/api/tests/integration/`. There are no unit tests yet. The vitest config (`apps/api/vitest.config.ts`) auto-loads `.env` / `.env.local` from the repo root, so tests pick up `DATABASE_URL` etc. without manual dotenv wrapping. Test files follow the pattern `tests/integration/**/*.test.ts`; unit tests would use `src/**/*.unit.test.ts`.
+Tests live in `apps/api/tests/integration/`. There are no unit tests yet. The vitest config (`apps/api/vitest.config.ts`) auto-loads `.env` / `.env.local` from the repo root, so tests pick up `DATABASE_URL` etc. without manual dotenv wrapping. Test files follow the pattern `tests/integration/**/*.test.ts`; unit tests would use `src/**/*.unit.test.ts`. CI (`.github/workflows/ci.yml`) spins up postgres/redis/minio as services and runs `pnpm typecheck` + `pnpm --filter api test` against them.
 
 ## Architecture
 
@@ -99,3 +109,10 @@ Next.js App Router. All API calls go through `src/lib/api-client.ts` (`apiFetch`
 | `INTERNAL_SECRET` | shared secret for `/api/internal/*` callbacks |
 
 The `PATCH /api/internal/tasks/:id` endpoint authenticates via `X-Internal-Secret` header only — it is not user-scoped and intentionally bypasses the normal `tryReadUser`/`requireUser` middleware chain.
+
+## Conventions worth knowing
+
+- **Root scripts wrap with `dotenv-cli`.** `pnpm dev:api`, `dev:worker`, and all `db:*` scripts are invoked via `dotenv -e .env --` from `package.json`. Child packages (`apps/api`, `apps/worker`, `packages/shared`) therefore do **not** load `.env` themselves — running `pnpm --filter api dev` directly will start without env vars. Use the root scripts, or vitest (which has its own loader in `apps/api/vitest.config.ts`).
+- **`@oneness/shared` is consumed via TS source, not built artifacts.** Its `package.json` `exports` map points directly at `./src/*.ts`. Editing shared code is picked up immediately by `tsx watch` in api/worker; there is no `build` step for the shared package.
+- **Prisma client lives in shared.** Run `pnpm db:generate` (or any `db:migrate` / `db:reset`) after changing `packages/shared/prisma/schema.prisma` so the generated client updates.
+- **Web `lint` is eslint-only and scoped to `apps/web`.** `apps/api` and `apps/worker` rely on `pnpm typecheck` for static checks.

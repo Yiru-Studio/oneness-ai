@@ -79,12 +79,16 @@ model Character {
   description String   @db.Text
   bio         String   @db.Text
   voice       String?
-  avatarKey   String?
+  avatarAssetId String?
+  /// When true, the user clicked "创建为空白角色" instead of running 分析角色.
+  /// Frontend uses this to skip the analyze/blank-create choice screen.
+  markedBlank Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   project Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   styles  CharacterStyle[]
+  avatar  Asset?           @relation("CharacterAvatar", fields: [avatarAssetId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
 }
@@ -197,6 +201,7 @@ model Asset {
   createdAt   DateTime @default(now())
 
   owner           User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  characterAvatars Character[]     @relation("CharacterAvatar")
   characterStyles CharacterStyle[]
   items           Item[]
   scenes          Scene[]

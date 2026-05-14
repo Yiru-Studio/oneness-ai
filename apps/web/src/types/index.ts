@@ -31,10 +31,13 @@ export interface Character {
   id: string;
   name: string;
   avatar: string;
+  avatarAssetId?: string | null;
   description: string;
   bio: string;
   voice?: string;
+  markedBlank?: boolean;
   styles: Array<{
+    id?: string;
     name: string;
     image: string;
   }>;
