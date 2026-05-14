@@ -321,7 +321,7 @@ The API holds a `Queue` instance per queue name. Enqueue is fire-and-forget (`qu
 - Create: `apps/api/src/lib/queues.ts`
 - Modify: `apps/api/package.json` (add `bullmq`)
 
-- [ ] **Step 2.1: Install bullmq into apps/api**
+- [x] **Step 2.1: Install bullmq into apps/api**
 
 ```bash
 pnpm --filter api add bullmq
@@ -329,7 +329,7 @@ pnpm --filter api add bullmq
 
 Expected: `bullmq` lands in `apps/api/package.json` dependencies.
 
-- [ ] **Step 2.2: Write `apps/api/src/lib/queues.ts`**
+- [x] **Step 2.2: Write `apps/api/src/lib/queues.ts`**
 
 ```ts
 import { Queue } from 'bullmq';
@@ -370,7 +370,7 @@ export async function closeQueues() {
 
 > Note: `jobId: taskId` makes the BullMQ job idempotent — re-enqueueing the same taskId won't create duplicates. Cancel uses `getJob(taskId).remove()` to pull from QUEUED state.
 
-- [ ] **Step 2.3: Typecheck and commit**
+- [x] **Step 2.3: Typecheck and commit**
 
 ```bash
 pnpm --filter api typecheck

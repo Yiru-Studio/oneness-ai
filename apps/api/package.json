@@ -16,6 +16,7 @@
     "@hono/zod-validator": "^0.4.1",
     "@oneness/shared": "workspace:*",
     "@paralleldrive/cuid2": "^2.2.2",
+    "bullmq": "^5.76.8",
     "hono": "^4.6.12",
     "ioredis": "^5.4.1",
     "minio": "^8.0.2",
