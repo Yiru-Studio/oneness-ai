@@ -531,7 +531,7 @@ So the `--profile full` part of compose actually works.
 - Create: `docker/worker.Dockerfile`
 - Modify: `docker/docker-compose.yml` (uncomment / add the `api` + `worker` services under `profiles: ["full"]`)
 
-- [ ] **Step 6.1: Write `docker/api.Dockerfile`**
+- [x] **Step 6.1: Write `docker/api.Dockerfile`**
 
 ```dockerfile
 # syntax=docker/dockerfile:1.7
@@ -571,7 +571,7 @@ WORKDIR /workspace/apps/api
 CMD ["sh", "-c", "pnpm --filter @oneness/shared exec prisma migrate deploy && node dist/index.js"]
 ```
 
-- [ ] **Step 6.2: Write `docker/worker.Dockerfile`**
+- [x] **Step 6.2: Write `docker/worker.Dockerfile`**
 
 ```dockerfile
 # syntax=docker/dockerfile:1.7
@@ -607,7 +607,7 @@ WORKDIR /workspace/apps/worker
 CMD ["node", "dist/index.js"]
 ```
 
-- [ ] **Step 6.3: Update `docker/docker-compose.yml` — append `api` and `worker` services with `profiles: ["full"]`**
+- [x] **Step 6.3: Update `docker/docker-compose.yml` — append `api` and `worker` services with `profiles: ["full"]`**
 
 Append to the `services:` section of `docker/docker-compose.yml` (do NOT modify the existing services / volumes):
 
@@ -638,7 +638,7 @@ Append to the `services:` section of `docker/docker-compose.yml` (do NOT modify 
       - ../.env.docker
 ```
 
-- [ ] **Step 6.4: Build smoke**
+- [x] **Step 6.4: Build smoke**
 
 Make sure the regular infra is down first to free ports, then build the full profile (this will take 2-5 minutes the first time):
 
@@ -649,7 +649,7 @@ docker compose -f docker/docker-compose.yml --profile full build api worker
 
 Expected: builds succeed without errors. Final images are tagged `oneness-ai-api:latest` and `oneness-ai-worker:latest`.
 
-- [ ] **Step 6.5: Run the full profile end-to-end**
+- [x] **Step 6.5: Run the full profile end-to-end**
 
 ```bash
 # Make sure .env.docker exists (Plan 1 should have set up .env.docker.example — copy it)
@@ -665,13 +665,13 @@ echo
 
 Expected: `api` container `Up X seconds`, `_health` returns ok. **Note:** the `api` container will run `prisma migrate deploy` on first start; if migrations have already been applied to the postgres volume from prior `pnpm db:migrate`, the deploy is a no-op.
 
-- [ ] **Step 6.6: Tear down**
+- [x] **Step 6.6: Tear down**
 
 ```bash
 docker compose -f docker/docker-compose.yml --profile full down
 ```
 
-- [ ] **Step 6.7: Commit**
+- [x] **Step 6.7: Commit**
 
 ```bash
 git add docker/api.Dockerfile docker/worker.Dockerfile docker/docker-compose.yml

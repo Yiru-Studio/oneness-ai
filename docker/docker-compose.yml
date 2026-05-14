@@ -57,6 +57,31 @@ services:
         exit 0
       "
 
+  api:
+    profiles: ["full"]
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+      minio:    { condition: service_healthy }
+    ports:
+      - "4000:4000"
+    env_file:
+      - ../.env.docker
+
+  worker:
+    profiles: ["full"]
+    build:
+      context: ..
+      dockerfile: docker/worker.Dockerfile
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    env_file:
+      - ../.env.docker
+
 volumes:
   pg_data:
   minio_data:
