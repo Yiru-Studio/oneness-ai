@@ -231,3 +231,21 @@ DELETE /api/assets/:id
 ```
 
 All asset references (`avatar`, `image`, `styles[].image`) in responses are presigned MinIO GET URLs with 1-hour expiry. Pass any `Bearer <token>` in `Authorization` to act as the seed user.
+
+### Plan 3: Tasks + Worker
+
+AI task plumbing:
+
+```
+POST   /api/tasks                       # discriminated union on type
+GET    /api/tasks/:id                   # poll status
+GET    /api/tasks?type=&status=&cursor= # cursor-paginated list
+POST   /api/tasks/:id/cancel            # QUEUED refunds immediately, RUNNING defers
+PATCH  /api/internal/tasks/:id          # external workflow callback (X-Internal-Secret)
+```
+
+Three BullMQ queues (`ai-image`, `ai-video`, `ai-text`) consumed by `apps/worker`. Worker concurrency: image=4, video=1, text=4. Set `PROVIDER_IMAGE=...`/`PROVIDER_VIDEO=...`/`PROVIDER_TEXT=...` in `.env` to swap in real providers (stub is the default). Set `STUB_FAIL_RATE=0` to make stubs deterministic during development.
+
+Credits are reserved at enqueue time and refunded on FAILED or CANCELLED. `Project.analytics` reflects this in real time.
+
+To run worker independently: `pnpm dev:worker`. To run both api + worker: `pnpm dev` (now spawns api, worker, and web concurrently).
