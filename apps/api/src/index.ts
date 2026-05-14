@@ -11,6 +11,7 @@ import { healthRoutes } from './routes/health.js';
 import { assetRoutes } from './routes/assets.js';
 import { projectRoutes } from './routes/projects.js';
 import { characterRoutes } from './routes/characters.js';
+import { characterStyleRoutes } from './routes/character-styles.js';
 import './types/hono-env.js';
 
 const app = new Hono();
@@ -25,6 +26,7 @@ app.route('/api', meRoutes);
 app.route('/api', assetRoutes);
 app.route('/api', projectRoutes);
 app.route('/api', characterRoutes);
+app.route('/api', characterStyleRoutes);
 
 serve({ fetch: app.fetch, port: config.PORT }, (info) => {
   logger.info({ port: info.port }, 'API server started');

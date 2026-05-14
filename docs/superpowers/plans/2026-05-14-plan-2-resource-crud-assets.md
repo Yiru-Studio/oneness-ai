@@ -1243,7 +1243,7 @@ git commit -m "feat(api): characters CRUD with style+asset serialization"
 - Modify: `apps/api/src/index.ts`
 - Create: `apps/api/tests/integration/character-styles.test.ts`
 
-- [ ] **Step 5.1: Write `packages/shared/src/schemas/character-styles.ts`**
+- [x] **Step 5.1: Write `packages/shared/src/schemas/character-styles.ts`**
 
 ```ts
 import { z } from 'zod';
@@ -1260,11 +1260,11 @@ export type CreateCharacterStyleInput = z.infer<typeof CreateCharacterStyleSchem
 export type UpdateCharacterStyleInput = z.infer<typeof UpdateCharacterStyleSchema>;
 ```
 
-- [ ] **Step 5.2: Update `packages/shared/src/schemas/index.ts`**
+- [x] **Step 5.2: Update `packages/shared/src/schemas/index.ts`**
 
 Append `export * from './character-styles.js';`.
 
-- [ ] **Step 5.3: Write `apps/api/src/routes/character-styles.ts`**
+- [x] **Step 5.3: Write `apps/api/src/routes/character-styles.ts`**
 
 ```ts
 import { Hono } from 'hono';
@@ -1378,11 +1378,11 @@ async function assertAssetOwned(assetId: string, userId: string) {
 }
 ```
 
-- [ ] **Step 5.4: Mount in `apps/api/src/index.ts`**
+- [x] **Step 5.4: Mount in `apps/api/src/index.ts`**
 
 Add import + `app.route('/api', characterStyleRoutes);`.
 
-- [ ] **Step 5.5: Write `apps/api/tests/integration/character-styles.test.ts`**
+- [x] **Step 5.5: Write `apps/api/tests/integration/character-styles.test.ts`**
 
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -1454,9 +1454,9 @@ describe('character-styles CRUD', () => {
 });
 ```
 
-- [ ] **Step 5.6: Run tests** — `pnpm --filter api test`. Expect all pass.
+- [x] **Step 5.6: Run tests** — `pnpm --filter api test`. Expect all pass.
 
-- [ ] **Step 5.7: Commit**
+- [x] **Step 5.7: Commit**
 
 ```bash
 git add packages/shared/src/schemas/character-styles.ts packages/shared/src/schemas/index.ts apps/api/src/routes/character-styles.ts apps/api/src/index.ts apps/api/tests/integration/character-styles.test.ts
