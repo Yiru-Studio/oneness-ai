@@ -1504,7 +1504,7 @@ git commit -m "feat(api): prisma/redis/minio client singletons"
 - Create: `apps/api/src/middleware/error-handler.ts`
 - Create: `apps/api/src/types/hono-env.ts` (shared `ContextVariableMap` extension)
 
-- [ ] **Step 10.1: Write `apps/api/src/types/hono-env.ts`**
+- [x] **Step 10.1: Write `apps/api/src/types/hono-env.ts`**
 
 This centralizes the Hono `ContextVariableMap` augmentation so every middleware doesn't redeclare it.
 
@@ -1523,7 +1523,7 @@ declare module 'hono' {
 export {};
 ```
 
-- [ ] **Step 10.2: Write `apps/api/src/middleware/request-id.ts`**
+- [x] **Step 10.2: Write `apps/api/src/middleware/request-id.ts`**
 
 ```ts
 import { createMiddleware } from 'hono/factory';
@@ -1545,7 +1545,7 @@ export const requestIdMiddleware = createMiddleware(async (c, next) => {
 });
 ```
 
-- [ ] **Step 10.3: Write `apps/api/src/middleware/cors.ts`**
+- [x] **Step 10.3: Write `apps/api/src/middleware/cors.ts`**
 
 ```ts
 import { cors } from 'hono/cors';
@@ -1562,7 +1562,7 @@ export const corsMiddleware = cors({
 });
 ```
 
-- [ ] **Step 10.4: Write `apps/api/src/middleware/error-handler.ts`**
+- [x] **Step 10.4: Write `apps/api/src/middleware/error-handler.ts`**
 
 ```ts
 import type { ErrorHandler } from 'hono';
@@ -1604,7 +1604,7 @@ export const errorHandler: ErrorHandler = (err, c) => {
 };
 ```
 
-- [ ] **Step 10.5: Wire the middleware into `apps/api/src/index.ts`**
+- [x] **Step 10.5: Wire the middleware into `apps/api/src/index.ts`**
 
 Replace the contents of `apps/api/src/index.ts` with:
 
@@ -1636,7 +1636,7 @@ serve({ fetch: app.fetch, port: config.PORT }, (info) => {
 });
 ```
 
-- [ ] **Step 10.6: Smoke test the middleware**
+- [x] **Step 10.6: Smoke test the middleware**
 
 Run:
 ```bash
@@ -1654,11 +1654,11 @@ Expected:
 - `_hello` returns `HTTP/1.1 200` and an `X-Request-Id` header
 - `_boom` returns `HTTP/1.1 500` and body `{"error":{"code":"INTERNAL","message":"Internal server error"}}`
 
-- [ ] **Step 10.7: Remove the `_boom` test route**
+- [x] **Step 10.7: Remove the `_boom` test route**
 
 Delete the `/api/_boom` handler (the 3 lines starting with `app.get('/api/_boom', ...)`) from `apps/api/src/index.ts`.
 
-- [ ] **Step 10.8: Commit**
+- [x] **Step 10.8: Commit**
 
 ```bash
 git add apps/api/src/middleware/ apps/api/src/types/ apps/api/src/index.ts
