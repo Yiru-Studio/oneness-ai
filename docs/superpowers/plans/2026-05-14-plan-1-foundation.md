@@ -98,6 +98,8 @@ packages:
 
 - [x] **Step 1.3: Replace root `package.json`**
 
+> **Post-Group-B note:** `dotenv-cli` wraps every script that needs env vars. Without it, `pnpm --filter` switches cwd into the sub-package and Prisma / tsx no longer find the repo-root `.env`. Add `dotenv-cli` as a `devDependency` (installed via `pnpm add -D -w dotenv-cli`).
+
 ```json
 {
   "name": "oneness-ai",
@@ -110,19 +112,20 @@ packages:
     "infra:down": "docker compose -f docker/docker-compose.yml down",
     "infra:logs": "docker compose -f docker/docker-compose.yml logs -f",
     "dev:web": "pnpm --filter web dev",
-    "dev:api": "pnpm --filter api dev",
+    "dev:api": "dotenv -e .env -- pnpm --filter api dev",
     "dev": "pnpm infra:up && concurrently -k -n api,web -c blue,green \"pnpm dev:api\" \"pnpm dev:web\"",
-    "db:migrate": "pnpm --filter @oneness/shared exec prisma migrate dev",
-    "db:reset": "pnpm --filter @oneness/shared exec prisma migrate reset --force",
-    "db:seed": "pnpm --filter @oneness/shared exec tsx prisma/seed.ts",
-    "db:studio": "pnpm --filter @oneness/shared exec prisma studio",
-    "db:generate": "pnpm --filter @oneness/shared exec prisma generate",
+    "db:migrate": "dotenv -e .env -- pnpm --filter @oneness/shared exec prisma migrate dev",
+    "db:reset": "dotenv -e .env -- pnpm --filter @oneness/shared exec prisma migrate reset --force",
+    "db:seed": "dotenv -e .env -- pnpm --filter @oneness/shared exec tsx prisma/seed.ts",
+    "db:studio": "dotenv -e .env -- pnpm --filter @oneness/shared exec prisma studio",
+    "db:generate": "dotenv -e .env -- pnpm --filter @oneness/shared exec prisma generate",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
+    "dotenv-cli": "^11.0.0",
     "typescript": "^5.6.3"
   }
 }
