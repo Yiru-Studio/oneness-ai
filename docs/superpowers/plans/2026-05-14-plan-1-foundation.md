@@ -497,7 +497,7 @@ git commit -m "chore: docker compose infra (postgres + redis + minio) and env te
 - Create: `packages/shared/src/index.ts`
 - Create: `packages/shared/src/enums.ts`
 
-- [ ] **Step 4.1: Create `packages/shared/package.json`**
+- [x] **Step 4.1: Create `packages/shared/package.json`**
 
 ```json
 {
@@ -533,7 +533,7 @@ git commit -m "chore: docker compose infra (postgres + redis + minio) and env te
 }
 ```
 
-- [ ] **Step 4.2: Create `packages/shared/tsconfig.json`**
+- [x] **Step 4.2: Create `packages/shared/tsconfig.json`**
 
 ```json
 {
@@ -549,7 +549,7 @@ git commit -m "chore: docker compose infra (postgres + redis + minio) and env te
 }
 ```
 
-- [ ] **Step 4.3: Create `packages/shared/src/enums.ts`**
+- [x] **Step 4.3: Create `packages/shared/src/enums.ts`**
 
 ```ts
 export const AnalysisStatus = {
@@ -595,7 +595,7 @@ export const TaskAssetRole = {
 export type TaskAssetRole = typeof TaskAssetRole[keyof typeof TaskAssetRole];
 ```
 
-- [ ] **Step 4.4: Create `packages/shared/src/index.ts` (barrel — will grow over later plans)**
+- [x] **Step 4.4: Create `packages/shared/src/index.ts` (barrel — will grow over later plans)**
 
 ```ts
 export * from './enums.js';
@@ -606,7 +606,7 @@ export * from './prisma-client.js';
 
 > Note: `errors.ts`, `logger.ts`, `prisma-client.ts` are created in subsequent tasks. The barrel re-exports them now so import paths stay stable.
 
-- [ ] **Step 4.5: Install dependencies**
+- [x] **Step 4.5: Install dependencies**
 
 Run:
 ```bash
@@ -615,7 +615,7 @@ pnpm install
 
 Expected: `@oneness/shared` is now linked into the workspace. No type errors yet (next tasks fill the remaining files).
 
-- [ ] **Step 4.6: Commit**
+- [x] **Step 4.6: Commit**
 
 ```bash
 git add packages/shared/package.json packages/shared/tsconfig.json packages/shared/src/enums.ts packages/shared/src/index.ts pnpm-lock.yaml
@@ -631,7 +631,7 @@ git commit -m "feat(shared): scaffold @oneness/shared package with enum constant
 - Create: `packages/shared/src/prisma-client.ts`
 - Generated: `packages/shared/prisma/migrations/<timestamp>_init/migration.sql`
 
-- [ ] **Step 5.1: Create `packages/shared/prisma/schema.prisma`**
+- [x] **Step 5.1: Create `packages/shared/prisma/schema.prisma`**
 
 ```prisma
 generator client {
@@ -854,7 +854,7 @@ model TaskAsset {
 }
 ```
 
-- [ ] **Step 5.2: Create `packages/shared/src/prisma-client.ts`**
+- [x] **Step 5.2: Create `packages/shared/src/prisma-client.ts`**
 
 ```ts
 import { PrismaClient } from '@prisma/client';
@@ -878,7 +878,7 @@ export type {
 } from '@prisma/client';
 ```
 
-- [ ] **Step 5.3: Validate the schema**
+- [x] **Step 5.3: Validate the schema**
 
 Run:
 ```bash
@@ -888,7 +888,7 @@ pnpm --filter @oneness/shared exec prisma validate
 
 Expected: `The schema at prisma/schema.prisma is valid 🚀`
 
-- [ ] **Step 5.4: Generate the migration against the running Postgres**
+- [x] **Step 5.4: Generate the migration against the running Postgres**
 
 Make sure `pnpm infra:up` is still up. Then run:
 ```bash
@@ -900,7 +900,7 @@ Expected:
 - Prisma Client is generated.
 - Output ends with `✔ Generated Prisma Client (v5.x.x)`.
 
-- [ ] **Step 5.5: Verify tables in Postgres**
+- [x] **Step 5.5: Verify tables in Postgres**
 
 Run:
 ```bash
@@ -918,7 +918,7 @@ pnpm --filter @oneness/shared typecheck
 
 Expected: exits 0.
 
-- [ ] **Step 5.7: Commit**
+- [x] **Step 5.7: Commit**
 
 ```bash
 git add packages/shared/prisma/ packages/shared/src/prisma-client.ts
@@ -932,7 +932,7 @@ git commit -m "feat(shared): Prisma schema, initial migration, and PrismaClient 
 **Files:**
 - Create: `packages/shared/prisma/seed.ts`
 
-- [ ] **Step 6.1: Create `packages/shared/prisma/seed.ts`**
+- [x] **Step 6.1: Create `packages/shared/prisma/seed.ts`**
 
 ```ts
 import { PrismaClient } from '@prisma/client';
@@ -1123,7 +1123,7 @@ main()
   });
 ```
 
-- [ ] **Step 6.2: Run the seed**
+- [x] **Step 6.2: Run the seed**
 
 Run:
 ```bash
@@ -1132,7 +1132,7 @@ pnpm db:seed
 
 Expected output ends with `Seed complete.` and no errors.
 
-- [ ] **Step 6.3: Verify in the database**
+- [x] **Step 6.3: Verify in the database**
 
 Run:
 ```bash
@@ -1147,7 +1147,7 @@ Expected:
      1 |        2 |          9 |     16
 ```
 
-- [ ] **Step 6.4: Commit**
+- [x] **Step 6.4: Commit**
 
 ```bash
 git add packages/shared/prisma/seed.ts
