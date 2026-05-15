@@ -43,6 +43,8 @@ function extractionSystemPrompt(
       'You extract characters from a storyboard episode. Return JSON exactly:\n' +
       '{ "characters": [{ "name": string, "description": string, "bio": string }] }\n' +
       'Use the script\'s native language for the fields. ' +
+      'NEVER use double quote characters (") inside any field values — ' +
+      'use single quotes (\') or Chinese quotes（"..."）instead. ' +
       '`description` is one short sentence about their role. ' +
       '`bio` is 1–2 sentences on personality/background. ' +
       'No prose outside the JSON object.'
@@ -83,14 +85,18 @@ function safeParseAnalysis(raw: string): { summary: string; keyPoints: string[] 
   }
 }
 
-function safeParseEntities<T>(raw: string, key: string): T[] {
+function safeParseEntities<T>(raw: string, key: string, log?: { warn: (obj: Record<string, unknown>, msg: string) => void }): T[] {
   const cleaned = extractJsonObject(raw);
   try {
     const obj = JSON.parse(cleaned) as Record<string, unknown>;
     const arr = obj[key];
     if (!Array.isArray(arr)) return [];
     return arr.filter((x): x is T => typeof x === 'object' && x !== null);
-  } catch {
+  } catch (err) {
+    log?.warn(
+      { key, rawPreview: raw.slice(0, 500), error: (err as Error).message },
+      'safeParseEntities JSON.parse failed',
+    );
     return [];
   }
 }
@@ -107,13 +113,128 @@ function safeParseEntities<T>(raw: string, key: string): T[] {
  */
 function extractJsonObject(raw: string): string {
   const trimmed = raw.trim();
-  // Strip ```json … ``` fences if present.
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  const inner = fenced ? fenced[1]!.trim() : trimmed;
-  const first = inner.indexOf('{');
-  const last = inner.lastIndexOf('}');
-  if (first === -1 || last === -1 || last < first) return inner;
-  return inner.slice(first, last + 1);
+
+  // If the text starts with a markdown fence, strip the first and last
+  // fence lines.  Line-based stripping is more reliable than a single
+  // regex when the JSON payload itself may contain backticks.
+  if (trimmed.startsWith('```')) {
+    const lines = trimmed.split('\n');
+    const firstFence = lines[0].match(/^```(?:json)?\s*$/i);
+    const lastFence = lines[lines.length - 1].match(/^```\s*$/);
+    if (firstFence && lastFence) {
+      const inner = lines.slice(1, -1).join('\n').trim();
+      const first = inner.indexOf('{');
+      const last = inner.lastIndexOf('}');
+      if (first !== -1 && last !== -1 && last >= first) {
+        return inner.slice(first, last + 1);
+      }
+      return inner;
+    }
+  }
+
+  const first = trimmed.indexOf('{');
+  const last = trimmed.lastIndexOf('}');
+  if (first === -1 || last === -1 || last < first) return trimmed;
+  return trimmed.slice(first, last + 1);
+}
+
+// ── JSON Schemas for structured extraction (json_schema response_format) ──
+
+const EXTRACTION_SCHEMAS: Record<
+  'characters' | 'items' | 'scenes',
+  { name: string; strict: boolean; schema: Record<string, unknown> }
+> = {
+  characters: {
+    name: 'character_extraction',
+    strict: true,
+    schema: {
+      type: 'object',
+      properties: {
+        characters: {
+          type: 'array',
+          description: 'Characters extracted from the episode',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Character name' },
+              description: {
+                type: 'string',
+                description: 'One short sentence about their role',
+              },
+              bio: {
+                type: 'string',
+                description: '1-2 sentences on personality/background',
+              },
+            },
+            required: ['name', 'description', 'bio'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['characters'],
+      additionalProperties: false,
+    },
+  },
+  items: {
+    name: 'item_extraction',
+    strict: true,
+    schema: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          description: 'Notable physical items/props extracted from the episode',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Item name' },
+            },
+            required: ['name'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['items'],
+      additionalProperties: false,
+    },
+  },
+  scenes: {
+    name: 'scene_extraction',
+    strict: true,
+    schema: {
+      type: 'object',
+      properties: {
+        scenes: {
+          type: 'array',
+          description: 'Distinct scenes extracted from the episode',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Scene heading / name' },
+            },
+            required: ['name'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['scenes'],
+      additionalProperties: false,
+    },
+  },
+};
+
+function isSchemaUnsupportedError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { status?: number; message?: string; code?: string; type?: string };
+  if (e.status !== 400) return false;
+  const msg = (e.message ?? '').toLowerCase();
+  return (
+    msg.includes('json_schema') ||
+    msg.includes('output_config') ||
+    msg.includes('schema') ||
+    msg.includes('response_format') ||
+    msg.includes('extra inputs')
+  );
 }
 
 export const openaiTextProvider: TextProvider = {
@@ -150,17 +271,47 @@ export const openaiTextProvider: TextProvider = {
       );
 
       try {
-        const resp = await client.chat.completions.create(
-          {
-            model,
-            messages: [
-              { role: 'system', content: extractionSystemPrompt(subjectType) },
-              { role: 'user', content: userContent },
-            ],
-            response_format: { type: 'json_object' },
-          },
-          { signal: ctx.abortSignal },
-        );
+        const messages = [
+          { role: 'system' as const, content: extractionSystemPrompt(subjectType) },
+          { role: 'user' as const, content: userContent },
+        ];
+
+        // Try json_schema first for strict structured output.
+        // Fall back to json_object when the provider/model does not support
+        // json_schema (e.g. Claude Opus 4.7 through ZenMux's OpenAI path).
+        let resp;
+        let usedSchema = true;
+        try {
+          resp = await client.chat.completions.create(
+            {
+              model,
+              messages,
+              response_format: {
+                type: 'json_schema',
+                json_schema: EXTRACTION_SCHEMAS[subjectType],
+              },
+            },
+            { signal: ctx.abortSignal },
+          );
+        } catch (err) {
+          if (isSchemaUnsupportedError(err)) {
+            ctx.log.warn(
+              { provider: 'openai', model, subjectType, error: (err as Error).message },
+              'json_schema unsupported, falling back to json_object',
+            );
+            resp = await client.chat.completions.create(
+              {
+                model,
+                messages,
+                response_format: { type: 'json_object' },
+              },
+              { signal: ctx.abortSignal },
+            );
+            usedSchema = false;
+          } else {
+            throw err;
+          }
+        }
 
         const raw = resp.choices[0]?.message?.content ?? '{}';
         const createdIds = await persistExtractedEntities(
@@ -171,7 +322,7 @@ export const openaiTextProvider: TextProvider = {
         );
         if (createdIds.length === 0) {
           ctx.log.warn(
-            { provider: 'openai', op: 'extract', subjectType, rawPreview: raw.slice(0, 800) },
+            { provider: 'openai', op: 'extract', subjectType, usedSchema, rawPreview: raw.slice(0, 800) },
             'entity extraction produced 0 rows',
           );
         }
@@ -185,6 +336,7 @@ export const openaiTextProvider: TextProvider = {
             createdIds,
             generationId: resp.id ?? null,
             usage: resp.usage ?? null,
+            usedSchema,
           },
         };
       } catch (err) {
@@ -244,7 +396,7 @@ async function persistExtractedEntities(
   raw: string,
 ): Promise<string[]> {
   if (subjectType === 'characters') {
-    const chars = safeParseEntities<ExtractedCharacter>(raw, 'characters')
+    const chars = safeParseEntities<ExtractedCharacter>(raw, 'characters', ctx.log)
       .map((c) => ({
         name: String(c.name ?? '').trim(),
         description: String(c.description ?? '').trim(),
@@ -262,7 +414,7 @@ async function persistExtractedEntities(
     return rows.map((r) => r.id);
   }
   if (subjectType === 'items') {
-    const items = safeParseEntities<ExtractedItem>(raw, 'items')
+    const items = safeParseEntities<ExtractedItem>(raw, 'items', ctx.log)
       .map((i) => ({ name: String(i.name ?? '').trim() }))
       .filter((i) => i.name.length > 0);
     if (items.length === 0) return [];
@@ -271,7 +423,7 @@ async function persistExtractedEntities(
     );
     return rows.map((r) => r.id);
   }
-  const scenes = safeParseEntities<ExtractedScene>(raw, 'scenes')
+  const scenes = safeParseEntities<ExtractedScene>(raw, 'scenes', ctx.log)
     .map((s) => ({ name: String(s.name ?? '').trim() }))
     .filter((s) => s.name.length > 0);
   if (scenes.length === 0) return [];

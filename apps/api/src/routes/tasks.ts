@@ -39,6 +39,28 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
     }
   }
 
+  // If a characterId is provided, auto-inject its avatar as a reference image.
+  const input = { ...body.input } as Record<string, unknown>;
+  if (
+    body.type === 'IMAGE' &&
+    input.characterId &&
+    typeof input.characterId === 'string'
+  ) {
+    const character = await prisma.character.findFirst({
+      where: { id: input.characterId, project: { ownerId: user.id } },
+      select: { avatarAssetId: true },
+    });
+    if (character?.avatarAssetId) {
+      const existingRefs = Array.isArray(input.referenceAssetIds)
+        ? (input.referenceAssetIds as string[])
+        : [];
+      const refs = new Set([character.avatarAssetId, ...existingRefs]);
+      input.referenceAssetIds = Array.from(refs);
+    }
+    // Don't persist characterId into the task input — it's a routing hint only.
+    delete input.characterId;
+  }
+
   const task = await prisma.$transaction(async (tx) => {
     const u = await tx.user.findUnique({
       where: { id: user.id },
@@ -63,7 +85,7 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
         type: body.type,
         provider: body.provider,
         status: TaskStatus.QUEUED,
-        input: body.input as Prisma.InputJsonValue,
+        input: input as Prisma.InputJsonValue,
         costCredits: estimate,
       },
       include: { assets: { include: { asset: true } } },

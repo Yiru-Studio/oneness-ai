@@ -77,6 +77,15 @@ export async function processTask(taskId: string) {
   try {
     const kind = providerKindOf(task.type as TaskType);
     const provider = selectProvider(kind, task.provider);
+    const providerInput =
+      kind === 'image' &&
+      task.input &&
+      typeof task.input === 'object' &&
+      Array.isArray((task.input as Record<string, unknown>).referenceAssetIds) &&
+      ((task.input as Record<string, unknown>).referenceAssetIds as string[]).length > 0
+        ? injectFaceReferencePrompt(task.input as { prompt: string })
+        : task.input;
+
     if (kind === 'text') {
       // TextProvider has an `analyze` method instead of `generate`.
       result = await (
@@ -89,7 +98,7 @@ export async function processTask(taskId: string) {
         provider as {
           generate: (i: unknown, c: ProviderContext) => Promise<ProviderResult>;
         }
-      ).generate(task.input as never, ctx);
+      ).generate(providerInput as never, ctx);
     }
   } catch (err) {
     providerError = err as Error;
@@ -266,4 +275,15 @@ function extFromContentType(ct: string): string {
     'audio/wav': 'wav',
   };
   return map[ct] ?? 'bin';
+}
+
+/**
+ * When a image-generation task carries reference images (e.g. a character
+ * avatar), prefix the user prompt with a lightweight instruction that tells
+ * the model the face must stay consistent with the reference.
+ */
+function injectFaceReferencePrompt<T extends { prompt: string }>(input: T): T {
+  const prefix =
+    '以下图片为该角色的参考图，新图中该人物的面部轮廓、五官、发型、肤色等长相特征必须与参考图中的人物完全一致。请按以下描述生成：\n\n';
+  return { ...input, prompt: prefix + input.prompt };
 }

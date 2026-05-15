@@ -116,7 +116,6 @@ export function EditableField({ label, value, options, onSave, multiline }: Prop
             </div>
           )}
         </div>
-        {saving && <div className="text-xs text-gray-400 mt-1">保存中…</div>}
         {error && <div className="text-xs text-red-600 mt-1">{error}</div>}
       </div>
     );
@@ -143,7 +142,6 @@ export function EditableField({ label, value, options, onSave, multiline }: Prop
           disabled={saving}
           className="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 focus:border-[var(--color-primary)] focus:bg-white outline-none text-sm resize-none transition-colors"
         />
-        {saving && <div className="text-xs text-gray-400 mt-1">保存中…</div>}
         {error && <div className="text-xs text-red-600 mt-1">{error}</div>}
       </div>
     );

@@ -17,6 +17,7 @@ const ImageInputSchema = z.object({
   model: z.string().min(1).max(80),
   referenceAssetIds: z.array(CuidSchema).max(8).optional(),
   n: z.number().int().min(1).max(8).default(1),
+  characterId: CuidSchema.optional(),
 });
 
 const VideoReferenceRoleSchema = z.enum([

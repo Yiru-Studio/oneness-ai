@@ -55,6 +55,9 @@ interface Props {
   /** Entity being edited. Always provides an `id`; image may be empty. */
   entity: EntityDetailData;
   project: Project;
+  /** When provided, the character's avatar is sent as a reference image
+   *  during generation to maintain visual consistency. */
+  characterId?: string;
   /** Build the default auto-fill prompt for this entity. Called when the user
    *  hits "自动填充". Implementations typically pull lines from the script and
    *  combine with project style guidance. */
@@ -100,6 +103,7 @@ export function EntityDetailDrawer({
   kind,
   entity,
   project,
+  characterId,
   buildAutoPrompt,
   onSave,
   onDelete,
@@ -192,6 +196,7 @@ export function EntityDetailDrawer({
           ratio,
           model: model || project.imageModel,
           n: 1,
+          ...(characterId ? { characterId } : {}),
         },
         imageProviderForModel(model || project.imageModel),
       );

@@ -124,6 +124,12 @@ export async function deleteCharacter(characterId: string): Promise<void> {
   await apiFetch<void>(`/api/characters/${characterId}`, { method: 'DELETE' });
 }
 
+export async function analyzeCharacter(characterId: string): Promise<Character> {
+  return await apiFetch<CharacterDTO>(`/api/characters/${characterId}/analyze`, {
+    method: 'POST',
+  });
+}
+
 export async function createCharacterStyle(
   characterId: string,
   data: {
@@ -268,6 +274,7 @@ type CreateImageTaskInput = {
   model: string;
   referenceAssetIds?: string[];
   n?: number;
+  characterId?: string;
 };
 
 export type TaskDTO = {

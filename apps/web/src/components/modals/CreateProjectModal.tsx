@@ -112,19 +112,32 @@ export function CreateProjectModal({ isOpen, onClose, onCreate }: Props) {
             </div>
 
             <div className="flex gap-3">
-              {RATIOS.map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setRatio(r)}
-                  className={`flex-1 py-3 rounded-xl border transition-colors ${
-                    ratio === r
-                      ? 'border-[var(--color-primary)] bg-blue-50 text-[var(--color-primary)]'
-                      : 'border-[var(--color-border)] hover:border-gray-300'
-                  }`}
-                >
-                  <span className="text-sm font-medium">{r}</span>
-                </button>
-              ))}
+              {RATIOS.map((r) => {
+                const isVertical = r === '9:16';
+                const active = ratio === r;
+                return (
+                  <button
+                    key={r}
+                    onClick={() => setRatio(r)}
+                    className={`flex-1 flex flex-col items-center gap-3 py-5 rounded-xl border transition-colors ${
+                      active
+                        ? 'border-[var(--color-primary)] bg-blue-50'
+                        : 'border-[var(--color-border)] bg-gray-50 hover:border-gray-300'
+                    }`}
+                  >
+                    <div
+                      className="rounded-lg bg-gray-200"
+                      style={{
+                        width: isVertical ? 56 : 96,
+                        height: isVertical ? 96 : 56,
+                      }}
+                    />
+                    <span className={`text-sm font-medium ${active ? 'text-[var(--color-primary)]' : 'text-[var(--color-text)]'}`}>
+                      {r}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             <button

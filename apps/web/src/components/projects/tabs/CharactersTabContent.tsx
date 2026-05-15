@@ -14,6 +14,7 @@ import {
   createImageTask,
   pollTaskUntilDone,
   getProjectCharacters,
+  analyzeCharacter,
 } from '@/lib/api';
 import { AddCharacterModal } from '@/components/modals/AddCharacterModal';
 import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
@@ -169,22 +170,21 @@ interface DetailProps {
 }
 
 function CharacterDetail({ character, project, onUpdated, onStyleChanged }: DetailProps) {
-  // Whether this character is in the "fresh, unanalysed" state
-  // (no description AND not yet markedBlank).
-  const isFresh = !character.markedBlank && !character.description.trim();
+  // Whether this character is in the "fresh, unanalysed" state.
+  // Characters created by episode analysis have a short description but no
+  // styles yet — they should also see the analyze/blank choice.
+  const isFresh = !character.markedBlank && character.styles.length === 0;
 
   const [analyzing, setAnalyzing] = useState(false);
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
     try {
-      // Step 1 placeholder: trigger an analysis task on the backend.
-      // For now we just mark description as a placeholder; real LLM call later.
-      const updated = await updateCharacter(character.id, {
-        description: `${character.name} - 自动分析占位（待接入分析任务）`,
-        bio: '',
-      });
+      const updated = await analyzeCharacter(character.id);
       onUpdated(updated);
+    } catch (e) {
+      // Keep the character in fresh state so the user can retry.
+      throw e;
     } finally {
       setAnalyzing(false);
     }
@@ -199,15 +199,16 @@ function CharacterDetail({ character, project, onUpdated, onStyleChanged }: Deta
     return (
       <div className="flex flex-col h-full">
         <div className="flex-1 flex flex-col items-center justify-center gap-6 p-8">
-          {/* Placeholder avatar / "点击生成" */}
-          <div className="w-48 h-48 rounded-xl bg-gray-100 flex flex-col items-center justify-center text-gray-400">
-            <Sparkles className="w-10 h-10" />
-            <span className="text-sm mt-2">点击生成</span>
+          {/* Placeholder avatar */}
+          <div className="w-48 h-48 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400">
+            <User className="w-16 h-16" />
           </div>
 
-          <div className="text-center">
+          <div className="text-center max-w-md">
             <div className="font-semibold text-lg">{character.name}</div>
-            <div className="text-sm text-[var(--color-text-secondary)] mt-1">暂无描述</div>
+            <div className="text-sm text-[var(--color-text-secondary)] mt-1">
+              {character.description.trim() || '暂无描述'}
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -299,28 +300,29 @@ function CharacterEditableDetail({
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-start gap-5">
-        <div className="relative w-44 h-44 rounded-xl bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-          {character.avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={character.avatar} alt={character.name} className="w-full h-full object-cover" />
-          ) : (
-            <div className="flex flex-col items-center text-gray-400">
-              <Sparkles className="w-8 h-8" />
-              <span className="text-xs mt-1">点击生成</span>
-            </div>
-          )}
-          {(avatarBusy || genBusy) && (
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-              <Loader2 className="w-6 h-6 text-white animate-spin" />
-            </div>
-          )}
-          <div className="absolute bottom-1 right-1 flex gap-1">
+      <div className="flex items-stretch gap-5">
+        <div className="relative w-40 rounded-2xl overflow-hidden flex-shrink-0 self-stretch">
+          <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+            {character.avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={character.avatar} alt={character.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="flex items-center justify-center text-gray-400">
+                <User className="w-16 h-16" />
+              </div>
+            )}
+            {(avatarBusy || genBusy) && (
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 text-white animate-spin" />
+              </div>
+            )}
+          </div>
+          <div className="absolute bottom-2 right-2 flex gap-1">
             <button
               type="button"
               onClick={() => avatarFileRef.current?.click()}
               disabled={avatarBusy || genBusy}
-              className="w-7 h-7 rounded-md bg-white/90 text-gray-700 hover:text-[var(--color-primary)] flex items-center justify-center"
+              className="w-7 h-7 rounded-md bg-white shadow-sm text-gray-700 hover:text-[var(--color-primary)] flex items-center justify-center"
               title="上传头像"
             >
               <Upload className="w-3.5 h-3.5" />
@@ -329,7 +331,7 @@ function CharacterEditableDetail({
               type="button"
               onClick={handleGenerateAvatar}
               disabled={avatarBusy || genBusy}
-              className="w-7 h-7 rounded-md bg-white/90 text-gray-700 hover:text-[var(--color-primary)] flex items-center justify-center"
+              className="w-7 h-7 rounded-md bg-white shadow-sm text-gray-700 hover:text-[var(--color-primary)] flex items-center justify-center"
               title="AI 生成头像"
             >
               <Sparkles className="w-3.5 h-3.5" />
@@ -422,7 +424,7 @@ function InlineText({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
-            rows={2}
+            rows={3}
             disabled={saving}
             placeholder={placeholder}
             className="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 focus:border-[var(--color-primary)] focus:bg-white outline-none text-sm resize-none transition-colors"
@@ -441,7 +443,6 @@ function InlineText({
             className="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 focus:border-[var(--color-primary)] focus:bg-white outline-none text-sm transition-colors"
           />
         )}
-        {saving && <div className="text-xs text-gray-400 mt-1">保存中…</div>}
         {error && <div className="text-xs text-red-600 mt-1">{error}</div>}
       </div>
     </div>
@@ -574,14 +575,14 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-6 gap-3">
         {character.styles.map((style, idx) => (
           <div
             key={style.id ?? idx}
             className="group relative rounded-xl overflow-hidden bg-gray-100 cursor-pointer hover:shadow-md transition-shadow"
             onClick={() => style.id && setOpenStyleId(style.id)}
           >
-            <div className="aspect-[9/16] flex items-center justify-center">
+            <div className="aspect-video flex items-center justify-center">
               {style.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={style.image} alt={style.name} className="w-full h-full object-cover" />
@@ -613,7 +614,7 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
         <button
           onClick={handleAddBlankStyle}
           disabled={!!genBusy || uploadBusy}
-          className="aspect-[9/16] rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
+          className="aspect-video rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
         >
           <Plus className="w-5 h-5" />
           <span className="text-xs">添加造型</span>
