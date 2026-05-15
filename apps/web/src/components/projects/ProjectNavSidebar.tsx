@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { ProjectTab } from '@/types';
 import {
   ArrowLeft, List, Users, Package, Image, Workflow, Film, BarChart3
@@ -28,9 +28,23 @@ const NAV_ITEMS: Array<{
   { tab: 'analytics', icon: BarChart3, label: '数据分析' },
 ];
 
+const FLASH_DURATION = 400;
+
 export function ProjectNavSidebar({ activeTab, onTabChange, scriptUploaded }: Props) {
   const router = useRouter();
   const [hoveredTab, setHoveredTab] = useState<ProjectTab | null>(null);
+  const [flashTab, setFlashTab] = useState<ProjectTab | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleClick = (tab: ProjectTab, disabled: boolean) => {
+    if (disabled) return;
+
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setFlashTab(tab);
+    timerRef.current = setTimeout(() => setFlashTab(null), FLASH_DURATION);
+
+    onTabChange(tab);
+  };
 
   return (
     <div className="fixed left-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-50">
@@ -44,18 +58,20 @@ export function ProjectNavSidebar({ activeTab, onTabChange, scriptUploaded }: Pr
       {NAV_ITEMS.map(({ tab, icon: Icon, label }) => {
         const isActive = activeTab === tab;
         const isHovered = hoveredTab === tab;
+        const isFlashed = flashTab === tab;
+        const showTooltip = isHovered || isFlashed;
         const disabled = !scriptUploaded && tab !== 'info' && tab !== 'analytics';
 
         return (
           <div key={tab} className="relative">
-            {(isActive || isHovered) && (
+            {showTooltip && (
               <span className="absolute left-12 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs px-3 py-1.5 rounded-lg whitespace-nowrap z-50">
                 {label}
                 {disabled && <span className="ml-1 opacity-70">（上传剧本后可用）</span>}
               </span>
             )}
             <button
-              onClick={() => !disabled && onTabChange(tab)}
+              onClick={() => handleClick(tab, disabled)}
               disabled={disabled}
               aria-label={label}
               onMouseEnter={() => setHoveredTab(tab)}
