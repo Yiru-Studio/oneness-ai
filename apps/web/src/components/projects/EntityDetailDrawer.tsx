@@ -4,11 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import {
   X,
   Sparkles,
-  Upload,
   Loader2,
-  Trash2,
   ImagePlus,
-  Save,
   Wand2,
 } from 'lucide-react';
 import { Project } from '@/types';
@@ -125,10 +122,8 @@ export function EntityDetailDrawer({
     entity.ratio || (kind === 'scene' ? project.ratio : DEFAULT_RATIO_BY_KIND[kind]),
   );
   const [image, setImage] = useState(entity.image || '');
-  const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -157,27 +152,7 @@ export function EntityDetailDrawer({
     model !== (entity.model || project.imageModel) ||
     ratio !== (entity.ratio || (kind === 'scene' ? project.ratio : DEFAULT_RATIO_BY_KIND[kind]));
 
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      const fresh = await onSave({
-        name: name.trim() || entity.name,
-        description,
-        prompt: composedPrompt,
-        model,
-        ratio,
-      });
-      setImage(fresh.image || '');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '保存失败');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const isStyle = kind === 'style';
-
   const handleAutoFill = () => {
     if (isStyle) {
       setThreeView(true);
@@ -253,20 +228,6 @@ export function EntityDetailDrawer({
     }
   };
 
-  const handleDelete = async () => {
-    if (!onDelete) return;
-    if (!confirm(`确认删除该${KIND_LABEL[kind]}？此操作不可撤销。`)) return;
-    setDeleting(true);
-    setError(null);
-    try {
-      await onDelete();
-      onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '删除失败');
-      setDeleting(false);
-    }
-  };
-
   const aspectClass =
     ratio === '16:9'
       ? 'aspect-video'
@@ -298,33 +259,6 @@ export function EntityDetailDrawer({
           </div>
 
           <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-            {onDelete && (
-              <button
-                onClick={handleDelete}
-                disabled={deleting || saving || generating || uploading}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-                title={`删除${KIND_LABEL[kind]}`}
-              >
-                {deleting ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="w-3.5 h-3.5" />
-                )}
-                删除
-              </button>
-            )}
-            <button
-              onClick={handleSave}
-              disabled={!dirty || saving}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
-            >
-              {saving ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Save className="w-3.5 h-3.5" />
-              )}
-              保存
-            </button>
             <button
               onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-50"
@@ -337,15 +271,17 @@ export function EntityDetailDrawer({
         <div className="px-6 py-5 space-y-5">
           {/* Image preview */}
           <div
-            className={`${aspectClass} w-full max-h-[60vh] rounded-xl overflow-hidden bg-gray-100 relative flex items-center justify-center`}
+            className={`${aspectClass} w-full max-h-[40vh] rounded-xl overflow-hidden bg-gray-100 relative flex items-center justify-center`}
           >
             {image ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={image} alt={name} className="w-full h-full object-cover" />
             ) : (
-              <div className="flex flex-col items-center text-gray-400">
+              <div
+                className="flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-200 transition-colors w-full h-full"
+                onClick={() => fileRef.current?.click()}
+              >
                 <ImagePlus className="w-12 h-12" />
-                <span className="text-xs mt-2">尚未生成图片</span>
               </div>
             )}
             {(generating || uploading) && (
@@ -362,7 +298,7 @@ export function EntityDetailDrawer({
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleGenerate}
-              disabled={generating || uploading || saving}
+              disabled={generating || uploading}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
             >
               {generating ? (
@@ -371,14 +307,6 @@ export function EntityDetailDrawer({
                 <Sparkles className="w-4 h-4" />
               )}
               {image ? '重新生成' : '生成图片'}
-            </button>
-            <button
-              onClick={() => fileRef.current?.click()}
-              disabled={generating || uploading || saving}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--color-border)] text-sm hover:bg-gray-50 disabled:opacity-50"
-            >
-              <Upload className="w-4 h-4" />
-              上传本地图片
             </button>
             <input
               ref={fileRef}
@@ -431,7 +359,7 @@ export function EntityDetailDrawer({
                 </div>
               )}
               <textarea
-                rows={8}
+                rows={5}
                 value={promptBody}
                 onChange={(e) => setPromptBody(e.target.value)}
                 placeholder={
@@ -442,20 +370,6 @@ export function EntityDetailDrawer({
                 className="w-full px-3 py-2 outline-none text-sm resize-none font-mono leading-relaxed bg-transparent"
               />
             </div>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="text-xs font-medium text-[var(--color-text-secondary)]">
-              备注 / 描述
-            </label>
-            <textarea
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={`${KIND_LABEL[kind]}的中文描述（仅自己可见，不参与生成）`}
-              className="mt-1.5 w-full px-3 py-2 rounded-lg border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] outline-none text-sm resize-none"
-            />
           </div>
 
           {/* Model + ratio */}
