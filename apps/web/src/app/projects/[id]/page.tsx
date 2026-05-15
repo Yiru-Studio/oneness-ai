@@ -139,7 +139,7 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <TopBar />
+      <TopBar project={project} onProjectUpdated={setProject} />
       <ProjectNavSidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}

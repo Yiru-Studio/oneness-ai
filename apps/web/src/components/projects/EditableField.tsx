@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Pencil, Check } from 'lucide-react';
+import { Pencil, Check, ChevronDown } from 'lucide-react';
 
 type Option = { value: string; label: string };
 
@@ -19,7 +19,9 @@ export function EditableField({ label, value, options, onSave, multiline }: Prop
   const [draft, setDraft] = useState(value);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement | HTMLSelectElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setDraft(value);
@@ -28,6 +30,18 @@ export function EditableField({ label, value, options, onSave, multiline }: Prop
   useEffect(() => {
     if (editing && inputRef.current) inputRef.current.focus();
   }, [editing]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [dropdownOpen]);
 
   const labelFor = (v: string) => options?.find((o) => o.value === v)?.label ?? v;
 
@@ -48,11 +62,65 @@ export function EditableField({ label, value, options, onSave, multiline }: Prop
     }
   };
 
+  const commitOption = async (nextValue: string) => {
+    setDropdownOpen(false);
+    if (nextValue === value) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(nextValue);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const cancel = () => {
     setDraft(value);
     setError(null);
     setEditing(false);
   };
+
+  // When options are provided, render an always-visible dropdown (like likeai.pro)
+  if (options) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs text-[var(--color-text-secondary)]">{label}</span>
+        </div>
+        <div className="relative" ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={() => setDropdownOpen((prev) => !prev)}
+            disabled={saving}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 text-sm text-[var(--color-text)] transition-colors"
+          >
+            <span className="font-medium">{value ? labelFor(value) : '请选择'}</span>
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {dropdownOpen && (
+            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+              {options.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  onClick={() => commitOption(o.value)}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition-colors ${
+                    o.value === value ? 'text-blue-600 bg-blue-50 font-medium' : 'text-[var(--color-text)]'
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {saving && <div className="text-xs text-gray-400 mt-1">保存中…</div>}
+        {error && <div className="text-xs text-red-600 mt-1">{error}</div>}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -74,27 +142,7 @@ export function EditableField({ label, value, options, onSave, multiline }: Prop
           {value ? labelFor(value) : <span className="text-gray-400">暂无</span>}
         </div>
       )}
-      {editing && options && (
-        <div className="flex items-center gap-2">
-          <select
-            ref={(el) => {
-              inputRef.current = el;
-            }}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            disabled={saving}
-            className="flex-1 px-2 py-1.5 rounded-lg border border-[var(--color-border)] focus:border-[var(--color-primary)] outline-none text-sm bg-white"
-          >
-            {options.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-      {editing && !options && (
+      {editing && (
         <div className="flex flex-col gap-1">
           <textarea
             ref={(el) => {
