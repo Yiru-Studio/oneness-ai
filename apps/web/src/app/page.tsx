@@ -15,13 +15,8 @@ export default function HomePage() {
 
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-8 py-5 z-10">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-[var(--color-dark)] flex items-center justify-center">
-            <span className="text-white text-xs font-bold">O</span>
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-lg font-semibold">Oneness-AI</span>
-            <span className="text-xs text-[var(--color-text-secondary)] bg-gray-100 px-1 py-0.5 rounded">.ai</span>
-          </div>
+          <img src="/yiru_logo_bw.png" alt="一如创影" width={28} height={28} className="object-contain" />
+          <span className="text-lg font-semibold">一如创影</span>
         </div>
         <button
           onClick={() => setShowLogin(true)}
@@ -33,10 +28,7 @@ export default function HomePage() {
 
       <div className="relative z-10 text-center">
         <h1 className="text-5xl font-bold tracking-tight mb-3">
-          Oneness-AI
-          <span className="ml-2 text-sm font-normal text-[var(--color-text-secondary)] bg-gray-100 px-2 py-1 rounded align-middle">
-            .ai
-          </span>
+          一如创影
         </h1>
         <p className="text-lg text-[var(--color-text-secondary)] mb-8">
           专业 AI 影视创作

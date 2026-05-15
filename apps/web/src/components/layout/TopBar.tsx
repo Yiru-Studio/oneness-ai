@@ -17,12 +17,15 @@ interface Props {
   onProjectUpdated?: (project: Project) => void;
 }
 
-function LikeAILogo() {
+function YiruLogo() {
   return (
-    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="18" cy="10" r="8" fill="currentColor" />
-      <circle cx="8" cy="20" r="6" fill="currentColor" />
-    </svg>
+    <img
+      src="/yiru_logo_bw.png"
+      alt="一如创影"
+      width={32}
+      height={32}
+      className="object-contain"
+    />
   );
 }
 
@@ -91,7 +94,7 @@ export function TopBar({ project, onProjectUpdated }: Props) {
           className="flex items-center justify-center text-black hover:opacity-70 transition-opacity"
           title="回到项目列表"
         >
-          <LikeAILogo />
+          <YiruLogo />
         </button>
 
         {project ? (
@@ -138,10 +141,7 @@ export function TopBar({ project, onProjectUpdated }: Props) {
             )}
           </div>
         ) : (
-          <div className="flex items-baseline gap-1">
-            <span className="text-lg font-semibold tracking-tight">LikeAI</span>
-            <span className="text-xs text-[var(--color-text-secondary)] bg-gray-100 px-1 py-0.5 rounded">.pro</span>
-          </div>
+          <span className="text-lg font-semibold tracking-tight">一如创影</span>
         )}
       </div>
 

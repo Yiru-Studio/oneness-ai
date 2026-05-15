@@ -10,8 +10,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Oneness-AI — 专业 AI 影视创作",
-  description: "Oneness-AI 专业 AI 影视创作平台",
+  title: "一如创影 — 专业 AI 影视创作",
+  description: "一如创影 专业 AI 影视创作平台",
 };
 
 export default function RootLayout({

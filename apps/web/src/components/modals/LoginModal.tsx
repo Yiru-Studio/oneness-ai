@@ -44,7 +44,7 @@ export function LoginModal({ isOpen, onClose }: Props) {
           <X className="w-5 h-5" />
         </button>
 
-        <h2 className="text-xl font-semibold text-center mb-2">欢迎来到 Oneness-AI</h2>
+        <h2 className="text-xl font-semibold text-center mb-2">欢迎来到 一如创影</h2>
         <p className="text-sm text-[var(--color-text-secondary)] text-center mb-6">
           使用邮箱继续
         </p>

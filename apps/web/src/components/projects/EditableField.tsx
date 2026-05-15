@@ -122,6 +122,33 @@ export function EditableField({ label, value, options, onSave, multiline }: Prop
     );
   }
 
+  // When multiline, render an always-visible textarea (like likeai.pro)
+  if (multiline) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs text-[var(--color-text-secondary)]">{label}</span>
+        </div>
+        <textarea
+          ref={(el) => {
+            inputRef.current = el;
+          }}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') cancel();
+          }}
+          rows={3}
+          disabled={saving}
+          className="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 focus:border-[var(--color-primary)] focus:bg-white outline-none text-sm resize-none transition-colors"
+        />
+        {saving && <div className="text-xs text-gray-400 mt-1">保存中…</div>}
+        {error && <div className="text-xs text-red-600 mt-1">{error}</div>}
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
@@ -153,12 +180,12 @@ export function EditableField({ label, value, options, onSave, multiline }: Prop
             onBlur={commit}
             onKeyDown={(e) => {
               if (e.key === 'Escape') cancel();
-              if (e.key === 'Enter' && !multiline && !e.shiftKey) {
+              if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 void commit();
               }
             }}
-            rows={multiline ? 3 : 1}
+            rows={1}
             disabled={saving}
             className="px-2 py-1.5 rounded-lg border border-[var(--color-border)] focus:border-[var(--color-primary)] outline-none text-sm resize-none"
           />
