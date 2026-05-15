@@ -77,14 +77,25 @@ export async function processTask(taskId: string) {
   try {
     const kind = providerKindOf(task.type as TaskType);
     const provider = selectProvider(kind, task.provider);
-    const providerInput =
+    let providerInput = task.input;
+    if (
       kind === 'image' &&
-      task.input &&
-      typeof task.input === 'object' &&
-      Array.isArray((task.input as Record<string, unknown>).referenceAssetIds) &&
-      ((task.input as Record<string, unknown>).referenceAssetIds as string[]).length > 0
-        ? injectFaceReferencePrompt(task.input as { prompt: string })
-        : task.input;
+      providerInput &&
+      typeof providerInput === 'object' &&
+      typeof (providerInput as Record<string, unknown>).prompt === 'string'
+    ) {
+      const inputObj = providerInput as { prompt: string; referenceAssetIds?: string[] };
+      // Expand @三视图 marker into a canonical three-view layout prompt.
+      if (inputObj.prompt.trimStart().startsWith(THREE_VIEW_MARKER)) {
+        providerInput = expandThreeViewPrompt(inputObj);
+      }
+      if (
+        Array.isArray(inputObj.referenceAssetIds) &&
+        inputObj.referenceAssetIds.length > 0
+      ) {
+        providerInput = injectFaceReferencePrompt(providerInput as { prompt: string });
+      }
+    }
 
     if (kind === 'text') {
       // TextProvider has an `analyze` method instead of `generate`.
@@ -286,4 +297,51 @@ function injectFaceReferencePrompt<T extends { prompt: string }>(input: T): T {
   const prefix =
     '以下图片为该角色的参考图，新图中该人物的面部轮廓、五官、发型、肤色等长相特征必须与参考图中的人物完全一致。请按以下描述生成：\n\n';
   return { ...input, prompt: prefix + input.prompt };
+}
+
+const THREE_VIEW_MARKER = '@三视图';
+const THREE_VIEW_RATIO = '16:9';
+
+/**
+ * Canonical three-view character reference sheet, tuned against the
+ * references in `assets/Face-and-three-view-style/` and validated end-to-end
+ * via ZenMux Nano Banana (google/gemini-2.5-flash-image). The layout: a
+ * face-filling close-up portrait on the left half, and three equal-width
+ * full-body panels on the right half — front, 3/4 turned (NOT 90° profile),
+ * and back. Same studio backdrop, outfit, and identity across all 4 panels.
+ */
+const THREE_VIEW_LAYOUT_PROMPT = [
+  '请生成一张写实角色参考图，单张横向 16:9 图像，画面从左到右分为 4 个等高画面：',
+  '',
+  '【画面 1】（占整图 50% 宽度）：角色脸部大特写，正面 frontal portrait，头肩特写，五官清晰，肤质真实，神情自然平静。',
+  '',
+  '【画面 2 / 3 / 4】（平分整图右侧 50% 宽度）：同一个角色的全身像（从头顶到脚尖完整入镜，鞋子完整），三个角度并排：',
+  '  • 画面 2 = 全身正视图（front view）：身体与镜头完全正对，双臂自然垂在体侧。',
+  '  • 画面 3 = 全身 3/4 微侧身视图（three-quarter view，**约 30 度侧身、绝非 90 度侧面**）：身体仅轻微转向一侧，观众仍能清楚看到两只眼睛、整张脸的正面、整个胸腹的正面，只是稍微带一点角度。绝对禁止画成 profile / 全侧面剪影 / 只能看到一只眼睛的纯侧视图。',
+  '  • 画面 4 = 全身背视图（back view）：身体完全背对镜头，观众只能看到后脑勺和后背。',
+  '',
+  '强制约束：',
+  '- 4 个画面共用完全一致的中性灰白色摄影棚背景、同样均匀柔和的影棚布光、同一套服装、同一个发型、同样的体型、年龄、肤色、人物身份。',
+  '- 全身像必须站立、双脚着地、双臂自然下垂、放松站姿；不做任何动作、不带道具。',
+  '- 严格写实摄影风格；禁止任何文字、标签、字幕、水印、logo、画框、白色分隔条、网格。',
+  '',
+].join('\n');
+
+/**
+ * Replaces a leading `@三视图` marker in the prompt with the canonical
+ * three-view layout prompt. The marker may optionally be followed by
+ * additional user description (clothing, mood, etc.) which is appended
+ * under a "补充描述：" header. The aspect ratio is forced to 16:9 because
+ * the 4-panel layout requires a wide canvas to read correctly.
+ */
+function expandThreeViewPrompt<T extends { prompt: string; ratio?: string }>(
+  input: T,
+): T {
+  const trimmed = input.prompt.trimStart();
+  const without = trimmed.slice(THREE_VIEW_MARKER.length).replace(/^\s*\n?/, '');
+  const body = without.trim();
+  const expanded = body
+    ? `${THREE_VIEW_LAYOUT_PROMPT}补充描述：\n${body}`
+    : THREE_VIEW_LAYOUT_PROMPT;
+  return { ...input, prompt: expanded, ratio: THREE_VIEW_RATIO };
 }

@@ -25,17 +25,12 @@ import {
 /**
  * Generic secondary-detail drawer used by Items, Scenes, and CharacterStyles.
  *
- * Mirrors the "secondary page" pattern from likeai.pro: clicking a card opens
- * a side drawer with:
- *  - large image preview
- *  - editable name / description
- *  - editable prompt textarea (auto-filled by an "auto-fill" button)
- *  - model picker (image model)
- *  - ratio picker
- *  - "生成"/"重新生成" + "上传本地图片" buttons
- *
- * The parent provides callbacks for save, generate-success, and upload.
+ * For `kind === 'style'`, the prompt area exposes a 三视图 chip that prepends
+ * an `@三视图` marker to the prompt; the worker expands the marker into a
+ * canonical three-view layout prompt before calling the image model.
  */
+
+export const THREE_VIEW_MARKER = '@三视图';
 
 export type EntityKind = 'item' | 'scene' | 'style' | 'character-avatar';
 
@@ -76,6 +71,17 @@ interface Props {
   onClose: () => void;
 }
 
+function parseThreeViewPrompt(raw: string): { threeView: boolean; body: string } {
+  const re = new RegExp(`^${THREE_VIEW_MARKER}\\s*\\n?`);
+  if (re.test(raw)) return { threeView: true, body: raw.replace(re, '') };
+  return { threeView: false, body: raw };
+}
+
+function composeThreeViewPrompt(threeView: boolean, body: string): string {
+  if (!threeView) return body;
+  return body ? `${THREE_VIEW_MARKER}\n${body}` : THREE_VIEW_MARKER;
+}
+
 const RATIO_OPTIONS = [
   { value: '1:1', label: '1:1 方形' },
   { value: '16:9', label: '16:9 横屏' },
@@ -111,7 +117,9 @@ export function EntityDetailDrawer({
 }: Props) {
   const [name, setName] = useState(entity.name);
   const [description, setDescription] = useState(entity.description ?? '');
-  const [prompt, setPrompt] = useState(entity.prompt ?? '');
+  const initialParsed = parseThreeViewPrompt(entity.prompt ?? '');
+  const [promptBody, setPromptBody] = useState(initialParsed.body);
+  const [threeView, setThreeView] = useState(initialParsed.threeView);
   const [model, setModel] = useState(entity.model || project.imageModel);
   const [ratio, setRatio] = useState(
     entity.ratio || (kind === 'scene' ? project.ratio : DEFAULT_RATIO_BY_KIND[kind]),
@@ -128,7 +136,9 @@ export function EntityDetailDrawer({
   useEffect(() => {
     setName(entity.name);
     setDescription(entity.description ?? '');
-    setPrompt(entity.prompt ?? '');
+    const parsed = parseThreeViewPrompt(entity.prompt ?? '');
+    setPromptBody(parsed.body);
+    setThreeView(parsed.threeView);
     setModel(entity.model || project.imageModel);
     setRatio(
       entity.ratio || (kind === 'scene' ? project.ratio : DEFAULT_RATIO_BY_KIND[kind]),
@@ -139,10 +149,11 @@ export function EntityDetailDrawer({
 
   if (!open) return null;
 
+  const composedPrompt = composeThreeViewPrompt(threeView, promptBody);
   const dirty =
     name !== entity.name ||
     description !== (entity.description ?? '') ||
-    prompt !== (entity.prompt ?? '') ||
+    composedPrompt !== (entity.prompt ?? '') ||
     model !== (entity.model || project.imageModel) ||
     ratio !== (entity.ratio || (kind === 'scene' ? project.ratio : DEFAULT_RATIO_BY_KIND[kind]));
 
@@ -153,7 +164,7 @@ export function EntityDetailDrawer({
       const fresh = await onSave({
         name: name.trim() || entity.name,
         description,
-        prompt,
+        prompt: composedPrompt,
         model,
         ratio,
       });
@@ -165,13 +176,28 @@ export function EntityDetailDrawer({
     }
   };
 
+  const isStyle = kind === 'style';
+
   const handleAutoFill = () => {
+    if (isStyle) {
+      setThreeView(true);
+      return;
+    }
     const auto = buildAutoPrompt();
-    setPrompt(auto);
+    const parsed = parseThreeViewPrompt(auto);
+    setThreeView(parsed.threeView);
+    setPromptBody(parsed.body);
   };
 
   const handleGenerate = async () => {
-    const effectivePrompt = prompt.trim() || buildAutoPrompt();
+    let effectivePromptBody = promptBody.trim();
+    let effectiveThreeView = threeView;
+    if (!effectivePromptBody && !effectiveThreeView) {
+      const parsed = parseThreeViewPrompt(buildAutoPrompt());
+      effectivePromptBody = parsed.body;
+      effectiveThreeView = parsed.threeView;
+    }
+    const effectivePrompt = composeThreeViewPrompt(effectiveThreeView, effectivePromptBody);
     if (!effectivePrompt) {
       setError('请先填写提示词');
       return;
@@ -180,7 +206,7 @@ export function EntityDetailDrawer({
     setError(null);
     try {
       // First, persist any dirty fields including the prompt.
-      if (dirty || prompt !== (entity.prompt ?? '')) {
+      if (dirty || effectivePrompt !== (entity.prompt ?? '')) {
         await onSave({
           name: name.trim() || entity.name,
           description,
@@ -376,19 +402,46 @@ export function EntityDetailDrawer({
               <button
                 onClick={handleAutoFill}
                 className="text-xs text-[var(--color-primary)] hover:underline inline-flex items-center gap-1"
-                title="基于剧本 / 项目自动生成提示词"
+                title={
+                  isStyle
+                    ? '生成该角色的三视图（正/侧/背 + 大头）'
+                    : '基于剧本 / 项目自动生成提示词'
+                }
               >
                 <Wand2 className="w-3 h-3" />
-                自动填充
+                {isStyle ? '三视图' : '自动填充'}
               </button>
             </div>
-            <textarea
-              rows={8}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="描述你希望生成的画面。也可以点击右上「自动填充」由剧本上下文+项目风格自动生成。"
-              className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] outline-none text-sm resize-none font-mono leading-relaxed"
-            />
+            <div className="rounded-lg border border-[var(--color-border)] focus-within:border-[var(--color-primary)] focus-within:ring-1 focus-within:ring-[var(--color-primary)] overflow-hidden">
+              {threeView && (
+                <div className="flex items-center gap-1 px-3 pt-2">
+                  <span
+                    className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-medium"
+                    title="生成时将自动渲染为三视图（正视图 + 3/4 侧视图 + 背视图 + 大头特写）"
+                  >
+                    {THREE_VIEW_MARKER}
+                    <button
+                      onClick={() => setThreeView(false)}
+                      className="w-4 h-4 inline-flex items-center justify-center rounded hover:bg-[var(--color-primary)]/15"
+                      aria-label="移除三视图标签"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                </div>
+              )}
+              <textarea
+                rows={8}
+                value={promptBody}
+                onChange={(e) => setPromptBody(e.target.value)}
+                placeholder={
+                  isStyle
+                    ? '描述这个造型。点击右上「三视图」可让模型输出标准三视图。'
+                    : '描述你希望生成的画面。也可以点击右上「自动填充」由剧本上下文+项目风格自动生成。'
+                }
+                className="w-full px-3 py-2 outline-none text-sm resize-none font-mono leading-relaxed bg-transparent"
+              />
+            </div>
           </div>
 
           {/* Description */}
