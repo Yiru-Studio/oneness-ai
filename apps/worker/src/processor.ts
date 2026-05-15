@@ -10,6 +10,7 @@ import {
   type ProviderResult,
 } from '@oneness/shared/providers';
 import { selectProvider } from './providers/registry.js';
+import { distillForThreeView } from './lib/three-view-distill.js';
 
 const CANCEL_POLL_MS = 1000;
 
@@ -87,7 +88,7 @@ export async function processTask(taskId: string) {
       const inputObj = providerInput as { prompt: string; referenceAssetIds?: string[] };
       // Expand @三视图 marker into a canonical three-view layout prompt.
       if (inputObj.prompt.trimStart().startsWith(THREE_VIEW_MARKER)) {
-        providerInput = expandThreeViewPrompt(inputObj);
+        providerInput = await expandThreeViewPrompt(inputObj, taskLog);
       }
       if (
         Array.isArray(inputObj.referenceAssetIds) &&
@@ -330,18 +331,63 @@ const THREE_VIEW_LAYOUT_PROMPT = [
 /**
  * Replaces a leading `@三视图` marker in the prompt with the canonical
  * three-view layout prompt. The marker may optionally be followed by
- * additional user description (clothing, mood, etc.) which is appended
- * under a "补充描述：" header. The aspect ratio is forced to 16:9 because
- * the 4-panel layout requires a wide canvas to read correctly.
+ * additional user description (the verbose "dirty" prompt produced by the
+ * Analyze Character pipeline, which mixes identity + pose + scene + film
+ * grain). We first distill the body via gpt-4o-mini to identity + wardrobe
+ * only (cached in Redis by sha256(body)), then append it under a
+ * "补充描述：" header. The aspect ratio is forced to 16:9 because the
+ * 4-panel layout requires a wide canvas to read correctly.
+ *
+ * The final composed prompt is logged at info level so operators can
+ * inspect exactly what the image model received.
  */
-function expandThreeViewPrompt<T extends { prompt: string; ratio?: string }>(
-  input: T,
-): T {
+async function expandThreeViewPrompt<
+  T extends { prompt: string; ratio?: string },
+>(input: T, log: import('@oneness/shared/logger').Logger): Promise<T> {
   const trimmed = input.prompt.trimStart();
   const without = trimmed.slice(THREE_VIEW_MARKER.length).replace(/^\s*\n?/, '');
-  const body = without.trim();
-  const expanded = body
-    ? `${THREE_VIEW_LAYOUT_PROMPT}补充描述：\n${body}`
+  const rawBody = without.trim();
+
+  let cleansedBody = '';
+  if (rawBody.length > 0) {
+    try {
+      const { cleansed, cacheHit } = await distillForThreeView(rawBody, log);
+      cleansedBody = cleansed;
+      log.info(
+        {
+          op: 'three-view-expand',
+          cacheHit,
+          rawBodyBytes: rawBody.length,
+          cleansedBytes: cleansedBody.length,
+        },
+        'three-view body distilled',
+      );
+    } catch (err) {
+      // Distillation is best-effort: if the LLM call fails we fall back to
+      // the raw body rather than failing the whole image task. The layout
+      // prompt still enforces neutral pose/background, so even a dirty
+      // body usually produces a workable turnaround.
+      log.warn(
+        { op: 'three-view-expand', err: (err as Error).message },
+        'three-view distillation failed, falling back to raw body',
+      );
+      cleansedBody = rawBody;
+    }
+  }
+
+  const expanded = cleansedBody
+    ? `${THREE_VIEW_LAYOUT_PROMPT}补充描述：\n${cleansedBody}`
     : THREE_VIEW_LAYOUT_PROMPT;
+
+  log.info(
+    {
+      op: 'three-view-expand',
+      ratio: THREE_VIEW_RATIO,
+      finalPromptBytes: expanded.length,
+      finalPrompt: expanded,
+    },
+    'three-view final prompt composed',
+  );
+
   return { ...input, prompt: expanded, ratio: THREE_VIEW_RATIO };
 }

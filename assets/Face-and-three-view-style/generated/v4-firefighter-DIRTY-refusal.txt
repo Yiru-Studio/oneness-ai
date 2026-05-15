@@ -1,0 +1,17 @@
+When the same layout prompt is fed the DIRTY firefighter body (pose + scene
++ film grain + style tags intact), google/gemini-2.5-flash-image refused to
+render any image and returned text only. Verbatim model reply (translated
+intent: "your dirty body contradicts the layout's neutral-studio /
+neutral-pose constraints, which one do you want?"):
+
+请问您是希望生成一张包含所有描述的图片，还是根据"强制约束"和"补充描述"这两部分分别生成图片呢？
+
+如果您希望生成一张**包含所有描述的图片**，那么画面中将无法严格满足"四个画面共用完全一致的中性灰白色摄影棚背景、同样均匀柔和的影棚布光"的要求，因为在补充描述中提到了"背景为模糊的消防队院落"、"明亮的自然午后阳光"。此外，补充描述中"将右臂自然搭在旁边少年肩膀上，用左手食指指着对方的脸，姿态轻松戏谑"的姿态也与"全身像必须站立、双脚着地、双臂自然下垂、放松站姿；不做任何动作、不带道具"相矛盾。
+
+如果您希望**分别生成图片**，请明确告知，我会根据您的要求进行操作。
+
+**在此，我将根据您提供的"强制约束"和"补充描述"的混合内容，生成一张图片。请注意，由于描述中存在一些矛盾之处（例如背景和人物姿态），最终生成的图片可能会优先考虑更具体的细节描述。**
+
+This is independent confirmation that the gpt-4o-mini distillation step in
+apps/worker/src/lib/three-view-distill.ts is load-bearing, not cosmetic —
+without it the model will sometimes refuse the task entirely.
