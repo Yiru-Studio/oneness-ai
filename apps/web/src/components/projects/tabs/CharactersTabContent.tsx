@@ -19,6 +19,7 @@ import {
 import { AddCharacterModal } from '@/components/modals/AddCharacterModal';
 import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
 import { imageProviderForModel } from '@/data/style-presets';
+import { useGeneration } from '@/contexts/GenerationContext';
 
 interface Props {
   characters: Character[];
@@ -41,6 +42,7 @@ export function CharactersTabContent({ characters, project, onChange }: Props) {
   const [showAdd, setShowAdd] = useState(false);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const { isGenerating } = useGeneration();
 
   const reload = async () => {
     const fresh = await getProjectCharacters(project.id);
@@ -90,12 +92,17 @@ export function CharactersTabContent({ characters, project, onChange }: Props) {
                     : 'hover:bg-gray-50 border border-transparent'
                 }`}
               >
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                <div className="relative w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {char.avatar ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={char.avatar} alt={char.name} className="w-full h-full object-cover" />
                   ) : (
                     <User className="w-5 h-5 text-gray-400" />
+                  )}
+                  {isGenerating('character-avatar', char.id) && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                    </div>
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -243,8 +250,10 @@ function CharacterEditableDetail({
 }: DetailProps) {
   const avatarFileRef = useRef<HTMLInputElement>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
-  const [genBusy, setGenBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { isGenerating, getError, clearError, runGeneration } = useGeneration();
+  const genBusy = isGenerating('character-avatar', character.id);
+  const remoteError = getError('character-avatar', character.id);
 
   const handleAvatarUpload = async (file: File) => {
     setAvatarBusy(true);
@@ -261,35 +270,35 @@ function CharacterEditableDetail({
   };
 
   const handleGenerateAvatar = async () => {
-    setGenBusy(true);
     setError(null);
+    clearError('character-avatar', character.id);
     try {
-      const prompt = [
-        `角色：${character.name}`,
-        character.description ? `描述：${character.description}` : '',
-        character.bio ? `背景：${character.bio}` : '',
-        '输出：单人头像，半身像，正面，正常表情，光线自然',
-        project.stylePrompt ? `风格指引：${project.stylePrompt}` : '',
-      ]
-        .filter(Boolean)
-        .join('\n');
-      const task = await createImageTask(
-        project.id,
-        { prompt, ratio: '1:1', model: project.imageModel, n: 1 },
-        imageProviderForModel(project.imageModel),
-      );
-      const final = await pollTaskUntilDone(task.id, { intervalMs: 2000 });
-      if (final.status !== 'SUCCEEDED' || !final.outputAssets?.[0]) {
-        throw new Error(final.error || '生成失败');
-      }
-      const updated = await updateCharacter(character.id, {
-        avatarAssetId: final.outputAssets[0].id,
+      await runGeneration('character-avatar', character.id, async () => {
+        const prompt = [
+          `角色：${character.name}`,
+          character.description ? `描述：${character.description}` : '',
+          character.bio ? `背景：${character.bio}` : '',
+          '输出：单人头像，半身像，正面，正常表情，光线自然',
+          project.stylePrompt ? `风格指引：${project.stylePrompt}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        const task = await createImageTask(
+          project.id,
+          { prompt, ratio: '1:1', model: project.imageModel, n: 1 },
+          imageProviderForModel(project.imageModel),
+        );
+        const final = await pollTaskUntilDone(task.id, { intervalMs: 2000 });
+        if (final.status !== 'SUCCEEDED' || !final.outputAssets?.[0]) {
+          throw new Error(final.error || '生成失败');
+        }
+        const updated = await updateCharacter(character.id, {
+          avatarAssetId: final.outputAssets[0].id,
+        });
+        onUpdated(updated);
       });
-      onUpdated(updated);
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成失败');
-    } finally {
-      setGenBusy(false);
     }
   };
 
@@ -368,7 +377,9 @@ function CharacterEditableDetail({
         </div>
       </div>
 
-      {error && <div className="text-sm text-red-600">{error}</div>}
+      {(error || remoteError) && (
+        <div className="text-sm text-red-600">{error || remoteError}</div>
+      )}
 
       <div className="border-t border-[var(--color-border)] pt-6">
         <div className="flex items-center justify-between mb-4">
@@ -455,6 +466,7 @@ interface StylesProps {
 function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
   const [error, setError] = useState<string | null>(null);
   const [openStyleId, setOpenStyleId] = useState<string | null>(null);
+  const { isGenerating } = useGeneration();
 
   const handleAddBlankStyle = async () => {
     setError(null);
@@ -507,7 +519,7 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
             className="group relative rounded-xl overflow-hidden bg-gray-100 cursor-pointer hover:shadow-md transition-shadow"
             onClick={() => style.id && setOpenStyleId(style.id)}
           >
-            <div className="aspect-video flex items-center justify-center">
+            <div className="relative aspect-video flex items-center justify-center">
               {style.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={style.image} alt={style.name} className="w-full h-full object-cover" />
@@ -515,6 +527,11 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
                 <div className="flex flex-col items-center text-gray-400">
                   <ImagePlus className="w-8 h-8" />
                   <span className="text-[11px] mt-1">点击编辑</span>
+                </div>
+              )}
+              {style.id && isGenerating('style', style.id) && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 text-white animate-spin" />
                 </div>
               )}
             </div>

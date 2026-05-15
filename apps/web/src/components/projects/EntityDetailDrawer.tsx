@@ -18,6 +18,7 @@ import {
   IMAGE_MODEL_OPTIONS,
   imageProviderForModel,
 } from '@/data/style-presets';
+import { useGeneration } from '@/contexts/GenerationContext';
 
 /**
  * Generic secondary-detail drawer used by Items, Scenes, and CharacterStyles.
@@ -122,7 +123,9 @@ export function EntityDetailDrawer({
     entity.ratio || (kind === 'scene' ? project.ratio : DEFAULT_RATIO_BY_KIND[kind]),
   );
   const [image, setImage] = useState(entity.image || '');
-  const [generating, setGenerating] = useState(false);
+  const { isGenerating, getError, clearError, runGeneration } = useGeneration();
+  const generating = isGenerating(kind, entity.id);
+  const remoteError = getError(kind, entity.id);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -177,40 +180,40 @@ export function EntityDetailDrawer({
       setError('请先填写提示词');
       return;
     }
-    setGenerating(true);
     setError(null);
+    clearError(kind, entity.id);
     try {
-      // First, persist any dirty fields including the prompt.
-      if (dirty || effectivePrompt !== (entity.prompt ?? '')) {
-        await onSave({
-          name: name.trim() || entity.name,
-          description,
-          prompt: effectivePrompt,
-          model,
-          ratio,
-        });
-      }
-      const task = await createImageTask(
-        project.id,
-        {
-          prompt: effectivePrompt,
-          ratio,
-          model: model || project.imageModel,
-          n: 1,
-          ...(characterId ? { characterId } : {}),
-        },
-        imageProviderForModel(model || project.imageModel),
-      );
-      const final = await pollTaskUntilDone(task.id, { intervalMs: 2000 });
-      if (final.status !== 'SUCCEEDED' || !final.outputAssets?.[0]) {
-        throw new Error(final.error || '生成失败');
-      }
-      const fresh = await onSave({ assetId: final.outputAssets[0].id });
-      setImage(fresh.image || '');
+      await runGeneration(kind, entity.id, async () => {
+        // First, persist any dirty fields including the prompt.
+        if (dirty || effectivePrompt !== (entity.prompt ?? '')) {
+          await onSave({
+            name: name.trim() || entity.name,
+            description,
+            prompt: effectivePrompt,
+            model,
+            ratio,
+          });
+        }
+        const task = await createImageTask(
+          project.id,
+          {
+            prompt: effectivePrompt,
+            ratio,
+            model: model || project.imageModel,
+            n: 1,
+            ...(characterId ? { characterId } : {}),
+          },
+          imageProviderForModel(model || project.imageModel),
+        );
+        const final = await pollTaskUntilDone(task.id, { intervalMs: 2000 });
+        if (final.status !== 'SUCCEEDED' || !final.outputAssets?.[0]) {
+          throw new Error(final.error || '生成失败');
+        }
+        const fresh = await onSave({ assetId: final.outputAssets[0].id });
+        setImage(fresh.image || '');
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成失败');
-    } finally {
-      setGenerating(false);
     }
   };
 
@@ -408,7 +411,9 @@ export function EntityDetailDrawer({
             </div>
           </div>
 
-          {error && <div className="text-sm text-red-600">{error}</div>}
+          {(error || remoteError) && (
+            <div className="text-sm text-red-600">{error || remoteError}</div>
+          )}
         </div>
       </div>
     </div>

@@ -14,6 +14,7 @@ import {
 } from '@/lib/api';
 import { TopBar } from '@/components/layout/TopBar';
 import { ProjectNavSidebar } from '@/components/projects/ProjectNavSidebar';
+import { GenerationProvider } from '@/contexts/GenerationContext';
 import { InfoTabContent } from '@/components/projects/tabs/InfoTabContent';
 import { CharactersTabContent } from '@/components/projects/tabs/CharactersTabContent';
 import { ItemsTabContent } from '@/components/projects/tabs/ItemsTabContent';
@@ -138,6 +139,7 @@ export default function ProjectDetailPage() {
   const scriptUploaded = episodes.length > 0;
 
   return (
+    <GenerationProvider>
     <div className="min-h-screen bg-white">
       <TopBar project={project} onProjectUpdated={setProject} />
       <ProjectNavSidebar
@@ -192,5 +194,6 @@ export default function ProjectDetailPage() {
         </div>
       </main>
     </div>
+    </GenerationProvider>
   );
 }

@@ -10,6 +10,7 @@ import {
   getProjectScenes,
 } from '@/lib/api';
 import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
+import { useGeneration } from '@/contexts/GenerationContext';
 
 interface Props {
   scenes: Scene[];
@@ -27,6 +28,7 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { isGenerating } = useGeneration();
 
   const aspect =
     project.ratio === '16:9'
@@ -115,6 +117,11 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
                 <div className="flex flex-col items-center text-gray-400">
                   <ImagePlus className="w-8 h-8" />
                   <span className="text-xs mt-1">点击编辑</span>
+                </div>
+              )}
+              {isGenerating('scene', scene.id) && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                  <Loader2 className="w-6 h-6 text-white animate-spin" />
                 </div>
               )}
             </div>
