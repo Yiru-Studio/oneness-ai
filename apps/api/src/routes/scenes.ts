@@ -43,7 +43,7 @@ sceneRoutes.post(
   async (c) => {
     const user = c.var.user!;
     const { id: projectId } = c.req.valid('param');
-    const { name, assetId } = c.req.valid('json');
+    const body = c.req.valid('json');
     const project = await prisma.project.findFirst({
       where: { id: projectId, ownerId: user.id },
       select: { id: true },
@@ -51,9 +51,17 @@ sceneRoutes.post(
     if (!project) {
       throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
     }
-    if (assetId) await assertAssetOwned(assetId, user.id);
+    if (body.assetId) await assertAssetOwned(body.assetId, user.id);
     const created = await prisma.scene.create({
-      data: { projectId, name, assetId: assetId ?? null },
+      data: {
+        projectId,
+        name: body.name,
+        description: body.description ?? '',
+        prompt: body.prompt ?? '',
+        model: body.model ?? null,
+        ratio: body.ratio ?? null,
+        assetId: body.assetId ?? null,
+      },
       include: { asset: true },
     });
     return c.json(await serializeScene(created), 201);
@@ -74,6 +82,10 @@ sceneRoutes.patch(
     }
     const data: Record<string, unknown> = {};
     if (body.name !== undefined) data.name = body.name;
+    if (body.description !== undefined) data.description = body.description;
+    if (body.prompt !== undefined) data.prompt = body.prompt;
+    if (body.model !== undefined) data.model = body.model;
+    if (body.ratio !== undefined) data.ratio = body.ratio;
     if (body.assetId !== undefined) data.assetId = body.assetId;
     const updated = await prisma.scene.update({
       where: { id: existing.id },

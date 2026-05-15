@@ -1,50 +1,52 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Item, Project } from '@/types';
-import { Plus, Trash2, ImagePlus, Loader2, Sparkles, Upload, X } from 'lucide-react';
+import { Plus, Trash2, Loader2, ImagePlus, X } from 'lucide-react';
 import {
   createItem,
   deleteItem,
   updateItem,
-  uploadAsset,
-  createImageTask,
-  pollTaskUntilDone,
   getProjectItems,
 } from '@/lib/api';
+import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
 
 interface Props {
   items: Item[];
   project: Project;
+  scriptContent?: string;
   onChange: (next: Item[]) => void;
 }
 
 /**
- * Reference: docs/research/likeai-screenshots/p04-tab-items.png
+ * Items tab — grid of cards. Clicking a card opens the secondary detail
+ * drawer (matches likeai.pro). Inline hover controls reduced to delete only.
  *
- * Layout: grid of cards. First card is "+ 添加物品" placeholder.
- * Each item card: square image area + name label at bottom.
- * Hover over a card reveals delete + regenerate controls.
- *
- * Click "添加物品" opens small modal with name input + 取消/确认 buttons.
+ * Reference:
+ *  - docs/research/likeai-screenshots/p04-tab-items.png
+ *  - docs/research/likeai-screenshots/p04-item-detail.png
  */
-export function ItemsTabContent({ items, project, onChange }: Props) {
+export function ItemsTabContent({ items, project, scriptContent, onChange }: Props) {
   const [showAdd, setShowAdd] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const reload = async () => {
     const fresh = await getProjectItems(project.id);
     onChange(fresh);
+    return fresh;
   };
 
-  const handleCreate = async (data: { name: string; assetId?: string | null }) => {
+  const handleCreate = async (data: { name: string }) => {
     setError(null);
     try {
-      await createItem(project.id, data);
-      await reload();
+      const created = await createItem(project.id, data);
+      const fresh = await reload();
+      // Open the detail drawer on the newly created entity
+      setOpenId(created.id ?? fresh[fresh.length - 1]?.id ?? null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '保存失败');
+      setError(e instanceof Error ? e.message : '创建失败');
       throw e;
     }
   };
@@ -55,6 +57,7 @@ export function ItemsTabContent({ items, project, onChange }: Props) {
     try {
       await deleteItem(id);
       onChange(items.filter((i) => i.id !== id));
+      if (openId === id) setOpenId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除失败');
     } finally {
@@ -62,10 +65,31 @@ export function ItemsTabContent({ items, project, onChange }: Props) {
     }
   };
 
+  const opened = openId ? items.find((i) => i.id === openId) ?? null : null;
+
+  const buildAutoPrompt = (item: Item): string => {
+    const ctxLines = scriptContent
+      ? scriptContent
+          .split(/\n+/)
+          .filter((l) => l.trim().length > 0)
+          .filter((l) => l.includes(item.name))
+          .slice(0, 6)
+          .join('\n')
+      : '';
+    return [
+      `物品：${item.name}`,
+      item.description ? `描述：${item.description}` : '',
+      ctxLines ? `剧本节选：\n${ctxLines}` : '',
+      '输出：单个物品特写，纯色背景，光线柔和，构图居中',
+      project.stylePrompt ? `风格：${project.stylePrompt}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  };
+
   return (
     <div className="p-6 h-full overflow-y-auto">
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-4">
-        {/* "+ 添加物品" placeholder card (first slot, like LikeAI) */}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-4">
         <button
           onClick={() => setShowAdd(true)}
           className="aspect-square rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors bg-[var(--color-bg-card)]"
@@ -75,153 +99,70 @@ export function ItemsTabContent({ items, project, onChange }: Props) {
         </button>
 
         {items.map((item) => (
-          <ItemCard
+          <div
             key={item.id}
-            item={item}
-            project={project}
-            busy={busy === `del-${item.id}`}
-            onDelete={() => handleDelete(item.id)}
-            onUpdated={async () => reload()}
-          />
+            className="group relative rounded-xl overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setOpenId(item.id)}
+          >
+            <div className="aspect-square flex items-center justify-center relative">
+              {item.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="flex flex-col items-center text-gray-400">
+                  <ImagePlus className="w-8 h-8" />
+                  <span className="text-xs mt-1">点击编辑</span>
+                </div>
+              )}
+            </div>
+            <div className="px-3 py-2 bg-gray-700 text-white text-xs text-center truncate" title={item.name}>
+              {item.name}
+            </div>
+
+            <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void handleDelete(item.id);
+                }}
+                disabled={busy === `del-${item.id}`}
+                className="w-7 h-7 rounded-md bg-white/95 text-gray-600 hover:text-red-500 flex items-center justify-center shadow-sm"
+                title="删除"
+              >
+                {busy === `del-${item.id}` ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </div>
+          </div>
         ))}
       </div>
 
       {error && <div className="text-sm text-red-600 mt-4">{error}</div>}
 
-      <AddItemModal
-        isOpen={showAdd}
-        onClose={() => setShowAdd(false)}
-        onCreate={handleCreate}
-      />
-    </div>
-  );
-}
+      <AddItemModal isOpen={showAdd} onClose={() => setShowAdd(false)} onCreate={handleCreate} />
 
-function ItemCard({
-  item,
-  project,
-  busy,
-  onDelete,
-  onUpdated,
-}: {
-  item: Item;
-  project: Project;
-  busy: boolean;
-  onDelete: () => void;
-  onUpdated: () => Promise<void>;
-}) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [genBusy, setGenBusy] = useState(false);
-  const [uploadBusy, setUploadBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const regenerate = async () => {
-    setGenBusy(true);
-    setError(null);
-    try {
-      const prompt = [
-        `物品：${item.name}`,
-        '输出：单个物品特写，纯色背景，光线柔和',
-        project.stylePrompt ? `风格：${project.stylePrompt}` : '',
-      ]
-        .filter(Boolean)
-        .join('\n');
-      const task = await createImageTask(
-        project.id,
-        { prompt, ratio: '1:1', model: project.imageModel, n: 1 },
-        'openai',
-      );
-      const final = await pollTaskUntilDone(task.id);
-      if (final.status !== 'SUCCEEDED' || !final.outputAssets?.[0]) {
-        throw new Error(final.error || '生成失败');
-      }
-      await updateItem(item.id, { assetId: final.outputAssets[0].id });
-      await onUpdated();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '生成失败');
-    } finally {
-      setGenBusy(false);
-    }
-  };
-
-  const upload = async (file: File) => {
-    setUploadBusy(true);
-    setError(null);
-    try {
-      const a = await uploadAsset(file);
-      await updateItem(item.id, { assetId: a.id });
-      await onUpdated();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '上传失败');
-    } finally {
-      setUploadBusy(false);
-    }
-  };
-
-  return (
-    <div className="group relative rounded-xl overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)]">
-      <div className="aspect-square flex items-center justify-center relative">
-        {item.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-        ) : (
-          <div className="flex flex-col items-center text-gray-400 cursor-pointer" onClick={regenerate}>
-            <Sparkles className="w-8 h-8" />
-            <span className="text-xs mt-1">点击生成</span>
-          </div>
-        )}
-        {(genBusy || uploadBusy) && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-            <Loader2 className="w-6 h-6 text-white animate-spin" />
-          </div>
-        )}
-      </div>
-      <div className="px-3 py-2 bg-gray-700 text-white text-xs text-center truncate">
-        {item.name}
-      </div>
-
-      <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={regenerate}
-          disabled={genBusy || uploadBusy}
-          className="w-7 h-7 rounded-md bg-white/90 text-gray-700 hover:text-[var(--color-primary)] flex items-center justify-center"
-          aria-label="重新生成"
-          title="AI 重新生成"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={genBusy || uploadBusy}
-          className="w-7 h-7 rounded-md bg-white/90 text-gray-700 hover:text-[var(--color-primary)] flex items-center justify-center"
-          aria-label="上传图片"
-          title="上传本地图片"
-        >
-          <Upload className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={onDelete}
-          disabled={busy}
-          className="w-7 h-7 rounded-md bg-white/90 text-gray-600 hover:text-red-500 flex items-center justify-center"
-          aria-label="删除"
-        >
-          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-        </button>
-      </div>
-
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void upload(f);
-          e.target.value = '';
-        }}
-      />
-
-      {error && <div className="text-xs text-red-600 px-3 py-1 bg-red-50">{error}</div>}
+      {opened && (
+        <EntityDetailDrawer
+          open
+          kind="item"
+          entity={opened}
+          project={project}
+          buildAutoPrompt={() => buildAutoPrompt(opened)}
+          onSave={async (patch) => {
+            const fresh = await updateItem(opened.id, patch);
+            onChange(items.map((i) => (i.id === fresh.id ? fresh : i)));
+            return fresh;
+          }}
+          onDelete={async () => {
+            await deleteItem(opened.id);
+            onChange(items.filter((i) => i.id !== opened.id));
+          }}
+          onClose={() => setOpenId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -293,6 +234,9 @@ function AddItemModal({
               placeholder="请输入物品名称"
               className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] outline-none transition-colors text-sm"
             />
+            <div className="text-xs text-gray-400 mt-1">
+              创建后可在右侧详情面板编辑提示词、模型、比例并生成图片
+            </div>
           </div>
 
           {error && <div className="text-sm text-red-600">{error}</div>}

@@ -1,0 +1,186 @@
+// GET https://likeai.pro/api/projects/6a054ecacd9cde40ac0c811b/characters → 200
+{
+  "data": [
+    {
+      "analyze_task": {
+        "task_error": "",
+        "task_id": "empty",
+        "task_status": "completed"
+      },
+      "appearances": [],
+      "created_at": 1778732813,
+      "features": "",
+      "front_face": "",
+      "front_face_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "id": "6a054f0dd60971d44e4df2e8",
+      "name": "吴雨华",
+      "role": "女主角，七十岁左右的老人，陈启明与陈长庚的母亲",
+      "sort": 1778732813317
+    },
+    {
+      "analyze_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "appearances": [],
+      "created_at": 1778732814,
+      "features": "",
+      "front_face": "",
+      "front_face_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "id": "6a054f0dd60971d44e4df2e9",
+      "name": "陈长庚",
+      "role": "吴雨华的小儿子，四十出头，负责接母亲撤离",
+      "sort": 1778732813318
+    },
+    {
+      "analyze_task": {
+        "task_error": "",
+        "task_id": "empty",
+        "task_status": "completed"
+      },
+      "appearances": [],
+      "created_at": 1778732815,
+      "features": "",
+      "front_face": "",
+      "front_face_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "id": "6a054f0dd60971d44e4df2ea",
+      "name": "老张",
+      "role": "吴雨华的老朋友，退休邮递员，一直帮吴雨华“送信”",
+      "sort": 1778732813319
+    },
+    {
+      "analyze_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "appearances": [],
+      "created_at": 1778732816,
+      "features": "",
+      "front_face": "",
+      "front_face_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "id": "6a054f0dd60971d44e4df2eb",
+      "name": "陈启明",
+      "role": "吴雨华的大儿子，已故消防员，出现在照片和母亲的回忆/读信中",
+      "sort": 1778732813320
+    },
+    {
+      "analyze_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "appearances": [],
+      "created_at": 1778732817,
+      "features": "",
+      "front_face": "",
+      "front_face_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "id": "6a054f0dd60971d44e4df2ec",
+      "name": "电视播报",
+      "role": "剧本开头的旁白声音，负责播报撤离通知",
+      "sort": 1778732813321
+    },
+    {
+      "analyze_task": {
+        "task_error": "",
+        "task_id": "empty",
+        "task_status": "completed"
+      },
+      "appearances": [],
+      "created_at": 1778780554,
+      "features": "",
+      "front_face": "",
+      "front_face_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "id": "6a06098a0dd70b66eec123a1",
+      "name": "cc overnight blank A",
+      "role": "",
+      "sort": 1778732813322
+    },
+    {
+      "analyze_task": {
+        "task_error": "",
+        "task_id": "empty",
+        "task_status": "completed"
+      },
+      "appearances": [],
+      "created_at": 1778780789,
+      "features": "",
+      "front_face": "",
+      "front_face_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "id": "6a060a75cd9cde40ac0cb9e1",
+      "name": "cc overnight B",
+      "role": "",
+      "sort": 1778732813323
+    },
+    {
+      "analyze_task": {
+        "task_error": "",
+        "task_id": "empty",
+        "task_status": "completed"
+      },
+      "appearances": [],
+      "created_at": 1778780952,
+      "features": "",
+      "front_face": "",
+      "front_face_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "id": "6a060b18f444938078fb6e06",
+      "name": "",
+      "role": "",
+      "sort": 1778732813324
+    },
+    {
+      "analyze_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "appearances": [],
+      "created_at": 1778781029,
+      "features": "",
+      "front_face": "",
+      "front_face_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "id": "6a060b65d60971d44e4e2e0b",
+      "name": "cc overnight D",
+      "role": "",
+      "sort": 1778732813325
+    }
+  ],
+  "success": true
+}

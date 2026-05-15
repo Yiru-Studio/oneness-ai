@@ -8,6 +8,7 @@ import {
   updateCharacter,
   deleteCharacter,
   createCharacterStyle,
+  updateCharacterStyle,
   deleteCharacterStyle,
   uploadAsset,
   createImageTask,
@@ -15,6 +16,8 @@ import {
   getProjectCharacters,
 } from '@/lib/api';
 import { AddCharacterModal } from '@/components/modals/AddCharacterModal';
+import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
+import { imageProviderForModel } from '@/data/style-presets';
 
 interface Props {
   characters: Character[];
@@ -272,7 +275,7 @@ function CharacterEditableDetail({
       const task = await createImageTask(
         project.id,
         { prompt, ratio: '1:1', model: project.imageModel, n: 1 },
-        'openai',
+        imageProviderForModel(project.imageModel),
       );
       const final = await pollTaskUntilDone(task.id, { intervalMs: 2000 });
       if (final.status !== 'SUCCEEDED' || !final.outputAssets?.[0]) {
@@ -467,13 +470,14 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
   const [genBusy, setGenBusy] = useState<string | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openStyleId, setOpenStyleId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleGenerateThreeViews = async () => {
     const have = new Set(character.styles.map((s) => s.name));
     const remaining = DEFAULT_VIEW_NAMES.filter((v) => !have.has(v));
     if (remaining.length === 0) {
-      setError('三视图已齐全。如需重生成，请先删除已有造型。');
+      setError('三视图已齐全。如需重生成，请先删除已有造型，或点击单张造型进入详情重新生成。');
       return;
     }
     setError(null);
@@ -483,6 +487,7 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
         const prompt = [
           `角色：${character.name}`,
           character.description ? `描述：${character.description}` : '',
+          character.bio ? `背景：${character.bio}` : '',
           `视角：${view}`,
           '输出：全身造型图，单人，纯色背景，光线自然，比例标准',
           project.stylePrompt ? `风格指引：${project.stylePrompt}` : '',
@@ -492,7 +497,7 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
         const task = await createImageTask(
           project.id,
           { prompt, ratio: '9:16', model: project.imageModel, n: 1 },
-          'openai',
+          imageProviderForModel(project.imageModel),
         );
         const final = await pollTaskUntilDone(task.id, { intervalMs: 2000 });
         if (final.status !== 'SUCCEEDED' || !final.outputAssets?.[0]) {
@@ -501,6 +506,9 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
         await createCharacterStyle(character.id, {
           name: view,
           assetId: final.outputAssets[0].id,
+          prompt,
+          model: project.imageModel,
+          ratio: '9:16',
         });
       } catch (e) {
         setError(e instanceof Error ? e.message : '生成造型失败');
@@ -512,13 +520,35 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
     onChanged();
   };
 
+  const handleAddBlankStyle = async () => {
+    setError(null);
+    try {
+      const styleName = `造型${character.styles.length + 1}`;
+      const created = await createCharacterStyle(character.id, {
+        name: styleName,
+        prompt: '',
+        model: project.imageModel,
+        ratio: '9:16',
+      });
+      await onChanged();
+      setOpenStyleId(created.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '创建造型失败');
+    }
+  };
+
   const handleUploadStyle = async (file: File) => {
     setUploadBusy(true);
     setError(null);
     try {
       const asset = await uploadAsset(file);
       const styleName = `造型${character.styles.length + 1}`;
-      await createCharacterStyle(character.id, { name: styleName, assetId: asset.id });
+      await createCharacterStyle(character.id, {
+        name: styleName,
+        assetId: asset.id,
+        model: project.imageModel,
+        ratio: '9:16',
+      });
       onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : '上传失败');
@@ -537,17 +567,39 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
     }
   };
 
+  const opened = openStyleId ? character.styles.find((s) => s.id === openStyleId) ?? null : null;
+
+  const buildStyleAutoPrompt = (style: NonNullable<typeof opened>): string => {
+    return [
+      `角色：${character.name}`,
+      character.description ? `描述：${character.description}` : '',
+      character.bio ? `背景：${character.bio}` : '',
+      `造型：${style.name}`,
+      '输出：全身造型图，单人，纯色背景，光线自然，比例标准',
+      project.stylePrompt ? `风格指引：${project.stylePrompt}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-4 gap-3">
         {character.styles.map((style, idx) => (
-          <div key={style.id ?? idx} className="group relative rounded-xl overflow-hidden bg-gray-100">
+          <div
+            key={style.id ?? idx}
+            className="group relative rounded-xl overflow-hidden bg-gray-100 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => style.id && setOpenStyleId(style.id)}
+          >
             <div className="aspect-[9/16] flex items-center justify-center">
               {style.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={style.image} alt={style.name} className="w-full h-full object-cover" />
               ) : (
-                <ImagePlus className="w-8 h-8 text-gray-400" />
+                <div className="flex flex-col items-center text-gray-400">
+                  <ImagePlus className="w-8 h-8" />
+                  <span className="text-[11px] mt-1">点击编辑</span>
+                </div>
               )}
             </div>
             <div className="px-2 py-1 bg-gray-700 text-white text-[11px] text-center truncate">
@@ -555,7 +607,10 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
             </div>
             {style.id && (
               <button
-                onClick={() => style.id && handleDeleteStyle(style.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (style.id) void handleDeleteStyle(style.id);
+                }}
                 className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-white/85 text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
               >
                 <Trash2 className="w-3 h-3" />
@@ -564,13 +619,13 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
           </div>
         ))}
 
-        {/* "+ 添加造型" tile */}
+        {/* "+ 添加造型" tile — opens a blank style detail page */}
         <button
-          onClick={() => fileRef.current?.click()}
+          onClick={handleAddBlankStyle}
           disabled={!!genBusy || uploadBusy}
           className="aspect-[9/16] rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
         >
-          {uploadBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+          <Plus className="w-5 h-5" />
           <span className="text-xs">添加造型</span>
         </button>
         <input
@@ -586,7 +641,7 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
         />
       </div>
 
-      <div>
+      <div className="flex items-center gap-2">
         <button
           onClick={handleGenerateThreeViews}
           disabled={!!genBusy || uploadBusy}
@@ -595,9 +650,51 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
           {genBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
           {genBusy ? `正在生成「${genBusy}」…` : '一键生成三视图'}
         </button>
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={!!genBusy || uploadBusy}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--color-border)] text-sm hover:bg-gray-50 disabled:opacity-50"
+        >
+          {uploadBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+          上传本地造型
+        </button>
       </div>
 
       {error && <div className="text-sm text-red-600">{error}</div>}
+
+      {opened && opened.id && (
+        <EntityDetailDrawer
+          open
+          kind="style"
+          entity={{
+            id: opened.id,
+            name: opened.name,
+            prompt: opened.prompt ?? '',
+            model: opened.model ?? null,
+            ratio: opened.ratio ?? null,
+            image: opened.image,
+          }}
+          project={project}
+          buildAutoPrompt={() => buildStyleAutoPrompt(opened)}
+          onSave={async (patch) => {
+            const fresh = await updateCharacterStyle(opened.id!, patch);
+            await onChanged();
+            return {
+              id: fresh.id,
+              name: fresh.name,
+              prompt: fresh.prompt,
+              model: fresh.model,
+              ratio: fresh.ratio,
+              image: fresh.image,
+            };
+          }}
+          onDelete={async () => {
+            await deleteCharacterStyle(opened.id!);
+            await onChanged();
+          }}
+          onClose={() => setOpenStyleId(null)}
+        />
+      )}
     </div>
   );
 }

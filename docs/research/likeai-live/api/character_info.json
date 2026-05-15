@@ -1,0 +1,36 @@
+// GET https://likeai.pro/api/projects/6a054ecacd9cde40ac0c811b/character/6a054f0dd60971d44e4df2e8/info → 200
+{
+  "data": {
+    "analyze_task": {
+      "task_error": "",
+      "task_id": "empty",
+      "task_status": "completed"
+    },
+    "appearances": [],
+    "created_at": 1778732813,
+    "features": "",
+    "front_face": "",
+    "front_face_generates": [],
+    "front_face_task": {
+      "task_error": "",
+      "task_id": "",
+      "task_status": ""
+    },
+    "id": "6a054f0dd60971d44e4df2e8",
+    "name": "吴雨华",
+    "project_id": "6a054ecacd9cde40ac0c811b",
+    "role": "女主角，七十岁左右的老人，陈启明与陈长庚的母亲",
+    "side_face": "",
+    "side_face_generates": [],
+    "side_face_task": {
+      "task_error": "",
+      "task_id": "",
+      "task_status": ""
+    },
+    "sort": 1778732813317,
+    "updated_at": 1778780029,
+    "user_id": "6a04202d3befef5ce911208e",
+    "voice_id": ""
+  },
+  "success": true
+}

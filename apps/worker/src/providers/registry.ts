@@ -4,6 +4,7 @@ import { stubVideoProvider } from './stub-video.js';
 import { stubTextProvider } from './stub-text.js';
 import { openaiImageProvider } from './openai-image.js';
 import { openaiTextProvider } from './openai-text.js';
+import { nanobananaImageProvider } from './nanobanana.js';
 import { createSeedanceProvider } from './seedance.js';
 import { config } from '../config.js';
 
@@ -28,6 +29,7 @@ const registry = {
   image: {
     stub: stubImageProvider,
     openai: openaiImageProvider,
+    nanobanana: nanobananaImageProvider,
   },
   video: {
     stub: stubVideoProvider,

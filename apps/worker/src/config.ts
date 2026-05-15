@@ -22,7 +22,18 @@ const ConfigSchema = z.object({
   // Per-task input.model wins if non-empty; these are the env-level fallbacks.
   // For ZenMux-style proxies, set namespaced names (e.g. 'openai/gpt-4o-mini').
   OPENAI_TEXT_MODEL: z.string().default('gpt-4o-mini'),
-  OPENAI_IMAGE_MODEL: z.string().default('gpt-image-1'),
+  OPENAI_IMAGE_MODEL: z.string().default('gpt-image-2'),
+
+  // ZenMux's Vertex-AI-compatible path is separate from /v1/images and is
+  // used by the `nanobanana` provider (Google Gemini image models).
+  // Falls back to OPENAI_API_KEY when ZENMUX_API_KEY is not set, since the
+  // .env in this repo currently points OPENAI_BASE_URL at zenmux anyway.
+  ZENMUX_API_KEY: z.string().optional(),
+  ZENMUX_VERTEX_BASE_URL: z
+    .string()
+    .url()
+    .default('https://zenmux.ai/api/vertex-ai'),
+  NANOBANANA_MODEL: z.string().default('google/gemini-2.5-flash-image'),
 
   // Volcengine Ark (Doubao Seedance) — used by seedance / seedance-fast.
   // Key is required at call time, not at boot, so dev without a key still

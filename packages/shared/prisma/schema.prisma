@@ -97,6 +97,9 @@ model CharacterStyle {
   id          String   @id @default(cuid())
   characterId String
   name        String
+  prompt      String   @default("") @db.Text
+  model       String?
+  ratio       String?
   assetId     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -108,12 +111,16 @@ model CharacterStyle {
 }
 
 model Item {
-  id        String   @id @default(cuid())
-  projectId String
-  name      String
-  assetId   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  description String   @default("") @db.Text
+  prompt      String   @default("") @db.Text
+  model       String?
+  ratio       String?
+  assetId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   asset   Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
@@ -122,12 +129,16 @@ model Item {
 }
 
 model Scene {
-  id        String   @id @default(cuid())
-  projectId String
-  name      String
-  assetId   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  description String   @default("") @db.Text
+  prompt      String   @default("") @db.Text
+  model       String?
+  ratio       String?
+  assetId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   asset   Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)

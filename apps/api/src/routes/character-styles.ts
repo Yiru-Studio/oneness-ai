@@ -16,13 +16,25 @@ export const characterStyleRoutes = new Hono();
 characterStyleRoutes.use('/characters/:id/styles', tryReadUser, requireUser);
 characterStyleRoutes.use('/character-styles/:id', tryReadUser, requireUser);
 
-type StyleDTO = { id: string; name: string; image: string };
+type StyleDTO = {
+  id: string;
+  name: string;
+  image: string;
+  prompt: string;
+  model: string | null;
+  ratio: string | null;
+  assetId: string | null;
+};
 
 async function toDTO(style: CharacterStyle & { asset: Asset | null }): Promise<StyleDTO> {
   return {
     id: style.id,
     name: style.name,
     image: style.asset ? await presignGet(style.asset.bucket, style.asset.key) : '',
+    prompt: style.prompt ?? '',
+    model: style.model ?? null,
+    ratio: style.ratio ?? null,
+    assetId: style.assetId ?? null,
   };
 }
 
@@ -34,7 +46,7 @@ characterStyleRoutes.post(
   async (c) => {
     const user = c.var.user!;
     const { id: characterId } = c.req.valid('param');
-    const { name, assetId } = c.req.valid('json');
+    const body = c.req.valid('json');
     const character = await prisma.character.findFirst({
       where: { id: characterId, project: { ownerId: user.id } },
       select: { id: true },
@@ -42,9 +54,16 @@ characterStyleRoutes.post(
     if (!character) {
       throw AppError.notFound(ErrorCodes.CHARACTER_NOT_FOUND, 'character not found');
     }
-    if (assetId) await assertAssetOwned(assetId, user.id);
+    if (body.assetId) await assertAssetOwned(body.assetId, user.id);
     const style = await prisma.characterStyle.create({
-      data: { characterId, name, assetId: assetId ?? null },
+      data: {
+        characterId,
+        name: body.name,
+        prompt: body.prompt ?? '',
+        model: body.model ?? null,
+        ratio: body.ratio ?? null,
+        assetId: body.assetId ?? null,
+      },
       include: { asset: true },
     });
     return c.json(await toDTO(style), 201);
@@ -66,6 +85,9 @@ characterStyleRoutes.patch(
     }
     const data: Record<string, unknown> = {};
     if (body.name !== undefined) data.name = body.name;
+    if (body.prompt !== undefined) data.prompt = body.prompt;
+    if (body.model !== undefined) data.model = body.model;
+    if (body.ratio !== undefined) data.ratio = body.ratio;
     if (body.assetId !== undefined) data.assetId = body.assetId;
     const updated = await prisma.characterStyle.update({
       where: { id: existing.id },

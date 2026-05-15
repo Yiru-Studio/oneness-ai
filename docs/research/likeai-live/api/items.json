@@ -1,0 +1,90 @@
+// GET https://likeai.pro/api/projects/6a054ecacd9cde40ac0c811b/items → 200
+{
+  "data": [
+    {
+      "created_at": 1778732813,
+      "description": "",
+      "id": "6a054f0dd60971d44e4df2ed",
+      "image": "",
+      "name": "旧信",
+      "sort": 1778732813796,
+      "task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "type": 1
+    },
+    {
+      "created_at": 1778732814,
+      "description": "",
+      "id": "6a054f0dd60971d44e4df2ee",
+      "image": "",
+      "name": "新信",
+      "sort": 1778732813797,
+      "task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "type": 1
+    },
+    {
+      "created_at": 1778732815,
+      "description": "",
+      "id": "6a054f0dd60971d44e4df2ef",
+      "image": "",
+      "name": "二八大杠",
+      "sort": 1778732813798,
+      "task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "type": 1
+    },
+    {
+      "created_at": 1778732816,
+      "description": "",
+      "id": "6a054f0ed60971d44e4df2f0",
+      "image": "",
+      "name": "旧铁盒",
+      "sort": 1778732813799,
+      "task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "type": 1
+    },
+    {
+      "created_at": 1778732817,
+      "description": "",
+      "id": "6a054f0ed60971d44e4df2f1",
+      "image": "",
+      "name": "旧邮戳",
+      "sort": 1778732813800,
+      "task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "type": 1
+    },
+    {
+      "created_at": 1778732818,
+      "description": "",
+      "id": "6a054f0ed60971d44e4df2f2",
+      "image": "",
+      "name": "气象泡",
+      "sort": 1778732813801,
+      "task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "type": 1
+    }
+  ],
+  "success": true
+}

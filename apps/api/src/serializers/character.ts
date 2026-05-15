@@ -1,7 +1,15 @@
 import type { Character, CharacterStyle, Asset } from '@oneness/shared/prisma';
 import { presignGet } from '../lib/assets.js';
 
-export type CharacterStyleDTO = { id: string; name: string; image: string };
+export type CharacterStyleDTO = {
+  id: string;
+  name: string;
+  image: string;
+  prompt: string;
+  model: string | null;
+  ratio: string | null;
+  assetId: string | null;
+};
 export type CharacterDTO = {
   id: string;
   name: string;
@@ -27,6 +35,10 @@ export async function serializeCharacter(c: CharacterWithStyles): Promise<Charac
       id: s.id,
       name: s.name,
       image: s.asset ? await presignGet(s.asset.bucket, s.asset.key) : '',
+      prompt: s.prompt ?? '',
+      model: s.model ?? null,
+      ratio: s.ratio ?? null,
+      assetId: s.assetId ?? null,
     })),
   );
   return {

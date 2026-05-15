@@ -1,0 +1,25 @@
+// GET https://likeai.pro/api/projects/6a054ecacd9cde40ac0c811b/episodes → 200
+{
+  "data": [
+    {
+      "analyze_task": {
+        "task_error": "",
+        "task_id": "",
+        "task_status": ""
+      },
+      "created_at": 1778732764,
+      "episode_credits_consumed": 0,
+      "episode_credits_limit": 500000,
+      "episode_number": 1,
+      "episode_script": "《最后一封信》\n1. INT. 吴雨华家 - 午后\n一间老旧家属楼。\n窗外，初夏的光被异常的虹彩折弯。\n远处，巨大的气象泡悬在城市边缘，吞掉半栋写字楼和一截高架。\n电视里循环播放撤离通知。\n电视播报（V.O.）\n北城第三片区居民请于今日下午五点前完成撤离。\n警戒区内邮政、快递、公共交通服务暂停……\n吴雨华，七十岁上下，坐在木桌前写信。\n桌上放着搪瓷杯、旧邮票册、药瓶、眼药水、泛黄台历、一支用了很多年的钢笔。\n她戴着老花镜，仍旧看不太清。写两个字，就把信纸往窗边挪一挪。光太刺眼，她又偏过头，用左眼去认。\n桌角压着一封旧信。信纸泛黄，折痕处被摸得发软，像随时会断。\n吴雨华看一眼旧信，继续写。\n吴雨",
+      "episode_title": "第1集",
+      "id": "6a054edccd9cde40ac0c811f",
+      "project_id": "6a054ecacd9cde40ac0c811b",
+      "scenes": [],
+      "updated_at": 1778732764,
+      "user_id": "6a04202d3befef5ce911208e"
+    }
+  ],
+  "message": "success",
+  "success": true
+}

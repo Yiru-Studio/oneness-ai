@@ -168,6 +168,7 @@ export default function ProjectDetailPage() {
             <ItemsTabContent
               items={items}
               project={project}
+              scriptContent={episodes[0]?.content}
               onChange={setItems}
             />
           )}

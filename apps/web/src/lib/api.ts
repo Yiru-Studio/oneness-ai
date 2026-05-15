@@ -126,8 +126,22 @@ export async function deleteCharacter(characterId: string): Promise<void> {
 
 export async function createCharacterStyle(
   characterId: string,
-  data: { name: string; assetId?: string | null },
-): Promise<{ id: string; name: string; image: string }> {
+  data: {
+    name: string;
+    prompt?: string;
+    model?: string | null;
+    ratio?: string | null;
+    assetId?: string | null;
+  },
+): Promise<{
+  id: string;
+  name: string;
+  image: string;
+  prompt: string;
+  model: string | null;
+  ratio: string | null;
+  assetId: string | null;
+}> {
   return await apiFetch(`/api/characters/${characterId}/styles`, {
     method: 'POST',
     body: data,
@@ -136,8 +150,22 @@ export async function createCharacterStyle(
 
 export async function updateCharacterStyle(
   styleId: string,
-  data: Partial<{ name: string; assetId: string | null }>,
-): Promise<{ id: string; name: string; image: string }> {
+  data: Partial<{
+    name: string;
+    prompt: string;
+    model: string | null;
+    ratio: string | null;
+    assetId: string | null;
+  }>,
+): Promise<{
+  id: string;
+  name: string;
+  image: string;
+  prompt: string;
+  model: string | null;
+  ratio: string | null;
+  assetId: string | null;
+}> {
   return await apiFetch(`/api/character-styles/${styleId}`, {
     method: 'PATCH',
     body: data,
@@ -154,7 +182,14 @@ export async function getProjectItems(projectId: string): Promise<Item[]> {
 
 export async function createItem(
   projectId: string,
-  data: { name: string; assetId?: string | null },
+  data: {
+    name: string;
+    description?: string;
+    prompt?: string;
+    model?: string | null;
+    ratio?: string | null;
+    assetId?: string | null;
+  },
 ): Promise<Item> {
   return await apiFetch<ItemDTO>(`/api/projects/${projectId}/items`, {
     method: 'POST',
@@ -164,7 +199,14 @@ export async function createItem(
 
 export async function updateItem(
   itemId: string,
-  data: Partial<{ name: string; assetId: string | null }>,
+  data: Partial<{
+    name: string;
+    description: string;
+    prompt: string;
+    model: string | null;
+    ratio: string | null;
+    assetId: string | null;
+  }>,
 ): Promise<Item> {
   return await apiFetch<ItemDTO>(`/api/items/${itemId}`, {
     method: 'PATCH',
@@ -182,7 +224,14 @@ export async function getProjectScenes(projectId: string): Promise<Scene[]> {
 
 export async function createScene(
   projectId: string,
-  data: { name: string; assetId?: string | null },
+  data: {
+    name: string;
+    description?: string;
+    prompt?: string;
+    model?: string | null;
+    ratio?: string | null;
+    assetId?: string | null;
+  },
 ): Promise<Scene> {
   return await apiFetch<SceneDTO>(`/api/projects/${projectId}/scenes`, {
     method: 'POST',
@@ -192,7 +241,14 @@ export async function createScene(
 
 export async function updateScene(
   sceneId: string,
-  data: Partial<{ name: string; assetId: string | null }>,
+  data: Partial<{
+    name: string;
+    description: string;
+    prompt: string;
+    model: string | null;
+    ratio: string | null;
+    assetId: string | null;
+  }>,
 ): Promise<Scene> {
   return await apiFetch<SceneDTO>(`/api/scenes/${sceneId}`, {
     method: 'PATCH',

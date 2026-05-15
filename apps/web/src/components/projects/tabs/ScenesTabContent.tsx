@@ -1,17 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Scene, Project } from '@/types';
-import { Plus, Trash2, ImagePlus, Loader2, Sparkles, Upload, X, FileText } from 'lucide-react';
+import { Plus, Trash2, Loader2, ImagePlus, X } from 'lucide-react';
 import {
   createScene,
   deleteScene,
   updateScene,
-  uploadAsset,
-  createImageTask,
-  pollTaskUntilDone,
   getProjectScenes,
 } from '@/lib/api';
+import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
 
 interface Props {
   scenes: Scene[];
@@ -21,30 +19,36 @@ interface Props {
 }
 
 /**
- * Reference: docs/research/likeai-screenshots/p05-tab-scenes-loaded.png
- *
- * Same layout as Items: grid of cards with first slot = "+ 添加场景".
- * Card hover reveals delete + AI regenerate (script-aware) + upload controls.
- *
- * "添加场景" opens dialog with 场景标题 input.
+ * Scenes tab — grid of cards. Clicking a card opens the secondary detail
+ * drawer with prompt + model + ratio editor.
  */
 export function ScenesTabContent({ scenes, project, scriptContent, onChange }: Props) {
   const [showAdd, setShowAdd] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const aspect =
+    project.ratio === '16:9'
+      ? 'aspect-video'
+      : project.ratio === '9:16'
+        ? 'aspect-[9/16]'
+        : 'aspect-[4/3]';
 
   const reload = async () => {
     const fresh = await getProjectScenes(project.id);
     onChange(fresh);
+    return fresh;
   };
 
-  const handleCreate = async (data: { name: string; assetId?: string | null }) => {
+  const handleCreate = async (data: { name: string }) => {
     setError(null);
     try {
-      await createScene(project.id, data);
-      await reload();
+      const created = await createScene(project.id, data);
+      const fresh = await reload();
+      setOpenId(created.id ?? fresh[fresh.length - 1]?.id ?? null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '保存失败');
+      setError(e instanceof Error ? e.message : '创建失败');
       throw e;
     }
   };
@@ -55,6 +59,7 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
     try {
       await deleteScene(id);
       onChange(scenes.filter((s) => s.id !== id));
+      if (openId === id) setOpenId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除失败');
     } finally {
@@ -62,11 +67,32 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
     }
   };
 
-  const aspect = project.ratio === '16:9' ? 'aspect-video' : project.ratio === '9:16' ? 'aspect-[9/16]' : 'aspect-[4/3]';
+  const opened = openId ? scenes.find((s) => s.id === openId) ?? null : null;
+
+  const buildAutoPrompt = (scene: Scene): string => {
+    const stem = scene.name.replace(/^(INT|EXT)\.?\s*/i, '').split(/\s*[-–]\s*/)[0];
+    const ctxLines = scriptContent
+      ? scriptContent
+          .split(/\n+/)
+          .filter((l) => l.trim().length > 0)
+          .filter((l) => l.includes(scene.name) || (stem && l.includes(stem)))
+          .slice(0, 8)
+          .join('\n')
+      : '';
+    return [
+      `场景：${scene.name}`,
+      scene.description ? `描述：${scene.description}` : '',
+      ctxLines ? `剧本节选：\n${ctxLines}` : '',
+      '输出：场景全景，光线明确，环境细节丰富',
+      project.stylePrompt ? `风格：${project.stylePrompt}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  };
 
   return (
     <div className="p-6 h-full overflow-y-auto">
-      <div className={`grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4`}>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
         <button
           onClick={() => setShowAdd(true)}
           className={`${aspect} rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors bg-[var(--color-bg-card)]`}
@@ -76,173 +102,70 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
         </button>
 
         {scenes.map((scene) => (
-          <SceneCard
+          <div
             key={scene.id}
-            scene={scene}
-            project={project}
-            scriptContent={scriptContent}
-            aspect={aspect}
-            busy={busy === `del-${scene.id}`}
-            onDelete={() => handleDelete(scene.id)}
-            onUpdated={async () => reload()}
-          />
+            className="group relative rounded-xl overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setOpenId(scene.id)}
+          >
+            <div className={`${aspect} flex items-center justify-center relative`}>
+              {scene.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={scene.image} alt={scene.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="flex flex-col items-center text-gray-400">
+                  <ImagePlus className="w-8 h-8" />
+                  <span className="text-xs mt-1">点击编辑</span>
+                </div>
+              )}
+            </div>
+            <div className="px-3 py-2 bg-gray-700 text-white text-xs text-center truncate" title={scene.name}>
+              {scene.name}
+            </div>
+
+            <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void handleDelete(scene.id);
+                }}
+                disabled={busy === `del-${scene.id}`}
+                className="w-7 h-7 rounded-md bg-white/95 text-gray-600 hover:text-red-500 flex items-center justify-center shadow-sm"
+                title="删除"
+              >
+                {busy === `del-${scene.id}` ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </div>
+          </div>
         ))}
       </div>
 
       {error && <div className="text-sm text-red-600 mt-4">{error}</div>}
 
-      <AddSceneModal
-        isOpen={showAdd}
-        onClose={() => setShowAdd(false)}
-        onCreate={handleCreate}
-      />
-    </div>
-  );
-}
+      <AddSceneModal isOpen={showAdd} onClose={() => setShowAdd(false)} onCreate={handleCreate} />
 
-function SceneCard({
-  scene,
-  project,
-  scriptContent,
-  aspect,
-  busy,
-  onDelete,
-  onUpdated,
-}: {
-  scene: Scene;
-  project: Project;
-  scriptContent?: string;
-  aspect: string;
-  busy: boolean;
-  onDelete: () => void;
-  onUpdated: () => Promise<void>;
-}) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [genBusy, setGenBusy] = useState(false);
-  const [uploadBusy, setUploadBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const buildScenePrompt = (): string => {
-    // "Auto-fill prompt from script" rule: pull lines that mention this scene name,
-    // fall back to opening of script if no matches. Compose with style guidance.
-    const ctxLines = scriptContent
-      ? scriptContent
-          .split(/\n+/)
-          .filter((l) => l.trim().length > 0)
-          .filter((l) => l.includes(scene.name) || l.includes(scene.name.split(/[\s\-_/]/)[0] ?? ''))
-          .slice(0, 6)
-          .join('\n')
-      : '';
-    return [
-      `场景：${scene.name}`,
-      ctxLines ? `剧本节选：\n${ctxLines}` : '',
-      '输出：俯视全景，光线明确，环境细节丰富',
-      project.stylePrompt ? `风格：${project.stylePrompt}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
-  };
-
-  const regenerate = async () => {
-    setGenBusy(true);
-    setError(null);
-    try {
-      const task = await createImageTask(
-        project.id,
-        { prompt: buildScenePrompt(), ratio: project.ratio, model: project.imageModel, n: 1 },
-        'openai',
-      );
-      const final = await pollTaskUntilDone(task.id);
-      if (final.status !== 'SUCCEEDED' || !final.outputAssets?.[0]) {
-        throw new Error(final.error || '生成失败');
-      }
-      await updateScene(scene.id, { assetId: final.outputAssets[0].id });
-      await onUpdated();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '生成失败');
-    } finally {
-      setGenBusy(false);
-    }
-  };
-
-  const upload = async (file: File) => {
-    setUploadBusy(true);
-    setError(null);
-    try {
-      const a = await uploadAsset(file);
-      await updateScene(scene.id, { assetId: a.id });
-      await onUpdated();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '上传失败');
-    } finally {
-      setUploadBusy(false);
-    }
-  };
-
-  return (
-    <div className="group relative rounded-xl overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)]">
-      <div className={`${aspect} flex items-center justify-center relative`}>
-        {scene.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={scene.image} alt={scene.name} className="w-full h-full object-cover" />
-        ) : (
-          <div className="flex flex-col items-center text-gray-400 cursor-pointer" onClick={regenerate}>
-            <Sparkles className="w-8 h-8" />
-            <span className="text-xs mt-1">点击生成</span>
-          </div>
-        )}
-        {(genBusy || uploadBusy) && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-            <Loader2 className="w-6 h-6 text-white animate-spin" />
-          </div>
-        )}
-      </div>
-      <div className="px-3 py-2 bg-gray-700 text-white text-xs text-center truncate" title={scene.name}>
-        {scene.name}
-      </div>
-
-      <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          onClick={regenerate}
-          disabled={genBusy || uploadBusy}
-          title="基于剧本上下文 AI 重新生成"
-          className="w-7 h-7 rounded-md bg-white/90 text-gray-700 hover:text-[var(--color-primary)] flex items-center justify-center"
-          aria-label="重新生成"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={genBusy || uploadBusy}
-          title="上传本地图片"
-          className="w-7 h-7 rounded-md bg-white/90 text-gray-700 hover:text-[var(--color-primary)] flex items-center justify-center"
-          aria-label="上传图片"
-        >
-          <Upload className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={onDelete}
-          disabled={busy}
-          className="w-7 h-7 rounded-md bg-white/90 text-gray-600 hover:text-red-500 flex items-center justify-center"
-          aria-label="删除"
-        >
-          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-        </button>
-      </div>
-
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void upload(f);
-          e.target.value = '';
-        }}
-      />
-
-      {error && <div className="text-xs text-red-600 px-3 py-1 bg-red-50">{error}</div>}
+      {opened && (
+        <EntityDetailDrawer
+          open
+          kind="scene"
+          entity={opened}
+          project={project}
+          buildAutoPrompt={() => buildAutoPrompt(opened)}
+          onSave={async (patch) => {
+            const fresh = await updateScene(opened.id, patch);
+            onChange(scenes.map((s) => (s.id === fresh.id ? fresh : s)));
+            return fresh;
+          }}
+          onDelete={async () => {
+            await deleteScene(opened.id);
+            onChange(scenes.filter((s) => s.id !== opened.id));
+          }}
+          onClose={() => setOpenId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -314,6 +237,9 @@ function AddSceneModal({
               placeholder="如：INT. 老旧家属楼 - 午后"
               className="w-full px-3 py-2 rounded-lg border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] outline-none transition-colors text-sm"
             />
+            <div className="text-xs text-gray-400 mt-1">
+              创建后可在右侧详情面板编辑提示词、模型、比例并生成图片
+            </div>
           </div>
 
           {error && <div className="text-sm text-red-600">{error}</div>}

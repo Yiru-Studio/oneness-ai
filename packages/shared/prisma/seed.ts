@@ -39,8 +39,8 @@ async function main() {
       stylePrompt:
         '精细的素描和简洁的线条，日式漫画风格，武道主题。故事围绕一位格斗选手展开，场景包括道场、城市街头和地下格斗场。角色设计强调力量感和速度感，配色以深蓝、黑色和金色为主。',
       analysisModel: 'anthropic/claude-sonnet-4.6',
-      imageModel: 'Nano banana pro',
-      videoModel: 'Seedance 2.0',
+      imageModel: 'openai/gpt-image-2',
+      videoModel: 'doubao-seedance-2-0-fast-260128',
       generalAnalysis: 'COMPLETED',
       basicAnalysis: 'COMPLETED',
     },
@@ -55,8 +55,8 @@ async function main() {
       stylePrompt:
         '电影级画质，写实风格，强调光影对比和景深效果。动作场面采用快速剪辑和慢镜头结合，色调偏冷，以蓝灰色为主。',
       analysisModel: 'anthropic/claude-sonnet-4.6',
-      imageModel: 'Nano banana pro',
-      videoModel: 'Seedance 2.0',
+      imageModel: 'openai/gpt-image-2',
+      videoModel: 'doubao-seedance-2-0-fast-260128',
       generalAnalysis: 'COMPLETED',
       basicAnalysis: 'COMPLETED',
     },

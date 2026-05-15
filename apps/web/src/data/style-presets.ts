@@ -78,7 +78,9 @@ export const ANALYSIS_MODEL_OPTIONS: AnalysisModelOption[] = [
 ];
 
 export const IMAGE_MODEL_OPTIONS: AnalysisModelOption[] = [
-  { modelId: 'openai/gpt-image-1', label: 'GPT Image 1' },
+  { modelId: 'openai/gpt-image-2', label: 'GPT Image 2' },
+  { modelId: 'openai/gpt-image-1.5', label: 'GPT Image 1.5' },
+  { modelId: 'google/gemini-2.5-flash-image', label: 'Nano Banana' },
   { modelId: 'stub/placeholder', label: 'Stub (开发用)' },
 ];
 
@@ -89,7 +91,7 @@ export const VIDEO_MODEL_OPTIONS: AnalysisModelOption[] = [
 ];
 
 export const DEFAULT_ANALYSIS_MODEL = 'anthropic/claude-sonnet-4.6';
-export const DEFAULT_IMAGE_MODEL = 'openai/gpt-image-1';
+export const DEFAULT_IMAGE_MODEL = 'openai/gpt-image-2';
 export const DEFAULT_VIDEO_MODEL = 'doubao-seedance-2-0-fast-260128';
 
 export function analysisModelLabel(modelId: string): string {
@@ -98,6 +100,19 @@ export function analysisModelLabel(modelId: string): string {
 
 export function imageModelLabel(modelId: string): string {
   return IMAGE_MODEL_OPTIONS.find((m) => m.modelId === modelId)?.label ?? modelId;
+}
+
+/**
+ * Pick the worker provider that owns this image model. Each image model lives
+ * behind exactly one provider, and the API/worker registry keys are the
+ * provider names — so the mapping here is the single source of truth for
+ * routing model → provider on the client. Add a new entry whenever a new
+ * provider (e.g. seedream) lands in the worker registry.
+ */
+export function imageProviderForModel(modelId: string): string {
+  if (modelId.startsWith('google/')) return 'nanobanana';
+  if (modelId.startsWith('stub/')) return 'stub';
+  return 'openai';
 }
 
 export function videoModelLabel(modelId: string): string {

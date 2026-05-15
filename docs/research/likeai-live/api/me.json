@@ -1,0 +1,28 @@
+// GET https://likeai.pro/api/users/me → 200
+{
+  "success": true,
+  "user": {
+    "avatar": "",
+    "company_active": false,
+    "company_credits": 0,
+    "company_id": "",
+    "company_name": "",
+    "credits": 1931,
+    "email": "1280165525@qq.com",
+    "has_volc_api_key": false,
+    "id": "6a04202d3befef5ce911208e",
+    "is_admin": false,
+    "is_company_admin": false,
+    "is_middle_platform_user": false,
+    "is_user_b": true,
+    "middle_permissions": [],
+    "nickname": "黄昱舟",
+    "opc_invite_max_per_user": 1,
+    "opc_redeemed_count": 0,
+    "opc_user": false,
+    "permissions": [],
+    "region_id": "",
+    "total_credits": 1931,
+    "volc_api_key_masked": ""
+  }
+}

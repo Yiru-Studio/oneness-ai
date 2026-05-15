@@ -1,0 +1,84 @@
+// GET https://likeai.pro/api/projects → 200
+{
+  "projects": [
+    {
+      "aspect_ratio": "16:9",
+      "category_id": "",
+      "created_at": 1778745118,
+      "id": "6a057f1e0dd70b66eec0fd88",
+      "in_middle_platform": false,
+      "is_b_project": false,
+      "is_owner": true,
+      "project_status": "",
+      "style_id": "692a9273feeacf767c277e4c",
+      "style_name": "cinematic",
+      "title": "研究测试项目"
+    },
+    {
+      "aspect_ratio": "9:16",
+      "category_id": "",
+      "created_at": 1778743164,
+      "id": "6a05777ccd9cde40ac0c91ba",
+      "in_middle_platform": false,
+      "is_b_project": false,
+      "is_owner": true,
+      "project_status": "",
+      "style_id": "692a9273feeacf767c277e50",
+      "style_name": "anime",
+      "title": "测试中"
+    },
+    {
+      "aspect_ratio": "16:9",
+      "category_id": "",
+      "created_at": 1778732746,
+      "id": "6a054ecacd9cde40ac0c811b",
+      "in_middle_platform": false,
+      "is_b_project": true,
+      "is_owner": true,
+      "project_status": "approved",
+      "style_id": "692a9273feeacf767c277e4c",
+      "style_name": "cinematic",
+      "title": "一封信"
+    },
+    {
+      "aspect_ratio": "16:9",
+      "category_id": "",
+      "created_at": 1778731526,
+      "id": "6a054a0679ad459e5713b64c",
+      "in_middle_platform": false,
+      "is_b_project": false,
+      "is_owner": true,
+      "project_status": "",
+      "style_id": "692a9273feeacf767c277e4c",
+      "style_name": "cinematic",
+      "title": "测试"
+    },
+    {
+      "aspect_ratio": "16:9",
+      "category_id": "",
+      "created_at": 1778658606,
+      "id": "6a042d2e79ad459e57137732",
+      "in_middle_platform": false,
+      "is_b_project": false,
+      "is_owner": true,
+      "project_status": "",
+      "style_id": "692a9273feeacf767c277e50",
+      "style_name": "anime",
+      "title": "格斗动画"
+    },
+    {
+      "aspect_ratio": "16:9",
+      "category_id": "",
+      "created_at": 1778655681,
+      "id": "6a0421c15d224cb176c4dfe0",
+      "in_middle_platform": false,
+      "is_b_project": false,
+      "is_owner": true,
+      "project_status": "",
+      "style_id": "692a9273feeacf767c277e4c",
+      "style_name": "cinematic",
+      "title": "格斗"
+    }
+  ],
+  "success": true
+}

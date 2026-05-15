@@ -40,18 +40,32 @@ export interface Character {
     id?: string;
     name: string;
     image: string;
+    prompt?: string;
+    model?: string | null;
+    ratio?: string | null;
+    assetId?: string | null;
   }>;
 }
 
 export interface Item {
   id: string;
   name: string;
+  description?: string;
+  prompt?: string;
+  model?: string | null;
+  ratio?: string | null;
+  assetId?: string | null;
   image: string;
 }
 
 export interface Scene {
   id: string;
   name: string;
+  description?: string;
+  prompt?: string;
+  model?: string | null;
+  ratio?: string | null;
+  assetId?: string | null;
   image: string;
 }
 

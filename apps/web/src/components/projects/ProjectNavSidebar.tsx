@@ -57,6 +57,7 @@ export function ProjectNavSidebar({ activeTab, onTabChange, scriptUploaded }: Pr
             <button
               onClick={() => !disabled && onTabChange(tab)}
               disabled={disabled}
+              aria-label={label}
               onMouseEnter={() => setHoveredTab(tab)}
               onMouseLeave={() => setHoveredTab(null)}
               className={`w-10 h-10 flex items-center justify-center rounded-full shadow-md border transition-all ${
