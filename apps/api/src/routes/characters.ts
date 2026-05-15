@@ -178,18 +178,34 @@ characterRoutes.post('/characters/:id/analyze', zValidator('param', IdParamSchem
     },
   });
 
-  // Create 3 default style cards (front / side / back) if they don't exist yet.
-  const defaultViews = ['正面', '侧面', '背面'];
-  const existingNames = new Set(character.styles.map((s) => s.name));
-  for (let i = 0; i < defaultViews.length; i++) {
-    const viewName = defaultViews[i];
-    if (existingNames.has(viewName)) continue;
-    const stylePrompt = analysis.styles[i]?.prompt ?? '';
+  // Replace style cards with the LLM-suggested looks. We only delete style
+  // cards that have not produced an image yet — preserving any look the user
+  // already generated. Then we add the freshly inferred looks (2–5 items).
+  await prisma.characterStyle.deleteMany({
+    where: { characterId: character.id, assetId: null },
+  });
+
+  const remainingStyles = await prisma.characterStyle.findMany({
+    where: { characterId: character.id },
+    select: { name: true },
+  });
+  const takenNames = new Set(remainingStyles.map((s) => s.name));
+
+  for (const look of analysis.styles) {
+    let name = look.name.trim() || '造型';
+    // Avoid duplicate names colliding with preserved (image-generated) cards.
+    if (takenNames.has(name)) {
+      let suffix = 2;
+      while (takenNames.has(`${name}${suffix}`)) suffix++;
+      name = `${name}${suffix}`;
+    }
+    takenNames.add(name);
+
     await prisma.characterStyle.create({
       data: {
         characterId: character.id,
-        name: viewName,
-        prompt: stylePrompt,
+        name,
+        prompt: look.prompt,
         model: character.project.imageModel,
         ratio: '9:16',
       },
@@ -236,8 +252,11 @@ async function analyzeCharacterWithLLM(
 
   const systemPrompt =
     '你是一个专业的剧本角色分析师和造型设计师。' +
-    '基于提供的剧本内容和已有的角色简介，进一步丰富角色的详细信息，并为其生成三个视角（正面、侧面、背面）的AI绘画提示词。' +
-    '你必须只输出一个严格合法的JSON对象，不要包含 markdown 代码块、不要包含任何解释文字。';
+    '基于提供的剧本内容和已有的角色简介，进一步丰富角色的详细信息，' +
+    '并结合该角色在剧中可能出现的不同场景、身份、阶段，推断出 2 到 5 个该角色在剧中实际可能出现的造型，' +
+    '为每个造型生成一段用于 AI 绘画的中文提示词。' +
+    '造型的命名要紧扣剧情场景或身份，例如「年轻时消防员制服造型」「暖阳回忆训练服造型」「现代日常居家造型」等，避免使用「正面/侧面/背面」这类视角词。' +
+    '你必须只输出一个严格合法的 JSON 对象，不要包含 markdown 代码块、不要包含任何解释文字。';
 
   const existingPart = existingDescription.trim()
     ? `已有的角色简介（来自剧本初步提取）：${existingDescription.trim()}\n\n`
@@ -248,16 +267,22 @@ async function analyzeCharacterWithLLM(
 ${existingPart}剧本内容：
 ${scriptText}
 
-${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : ''}请返回严格的JSON格式，不要包含任何其他文本：
+${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : ''}请仔细分析该角色在剧本中出现的不同场景、时间段、身份/职业/状态变化，从中挑选 2 到 5 个最具代表性、视觉差异明显的造型。请返回严格的 JSON 格式，不要包含任何其他文本：
 {
   "description": "角色的简短描述（一句话介绍角色身份、地位、外貌特征），可以比已有简介更详细",
-  "bio": "角色的背景故事和性格特点（1-2句话）",
+  "bio": "角色的背景故事和性格特点（1-2 句话）",
   "styles": [
-    { "name": "正面", "prompt": "用于生成正面全身造型图的英文AI绘画提示词，需包含角色外貌细节、服装、姿态、光线、背景等，300字以内" },
-    { "name": "侧面", "prompt": "用于生成侧面全身造型图的英文AI绘画提示词..." },
-    { "name": "背面", "prompt": "用于生成背面全身造型图的英文AI绘画提示词..." }
+    {
+      "name": "造型名称（中文，紧扣剧情场景或身份，例如：年轻时消防员制服造型 / 暖阳回忆训练服造型 / 现代日常居家造型）",
+      "prompt": "用于生成该造型全身图的中文 AI 绘画提示词，需包含：年龄段、外貌特征、发型、服装细节、姿态、神态、所处场景或背景、光线氛围等；300 字以内"
+    }
   ]
-}`;
+}
+
+要求：
+1. styles 数组长度必须在 2 到 5 之间，根据剧本中该角色实际出现的造型变化数量决定，不要凑数。
+2. 每个造型必须对应剧本里真实出现的一种状态/场景，不要重复，不要使用「正面/侧面/背面」之类的视角名。
+3. prompt 一律使用中文撰写。`;
 
   const res = await fetch(`${baseURL}/chat/completions`, {
     method: 'POST',
@@ -307,17 +332,22 @@ ${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : 
 
   const styles = (parsed.styles ?? [])
     .filter((s): s is { name: string; prompt: string } =>
-      typeof s.name === 'string' && typeof s.prompt === 'string',
+      typeof s.name === 'string' &&
+      typeof s.prompt === 'string' &&
+      s.name.trim().length > 0 &&
+      s.prompt.trim().length > 0,
     )
-    .slice(0, 3);
+    .slice(0, 5);
 
-  // Fallback: if LLM didn't return all 3 styles, pad with auto-generated prompts.
-  const defaults = ['正面', '侧面', '背面'];
-  while (styles.length < 3) {
+  // Fallback: if LLM returned fewer than 2 usable looks, pad with generic
+  // Chinese prompts so the user still sees something actionable.
+  const fallbackNames = ['日常造型', '剧情高光造型'];
+  while (styles.length < 2) {
     const idx = styles.length;
+    const fallbackName = fallbackNames[idx] ?? `造型${idx + 1}`;
     styles.push({
-      name: defaults[idx],
-      prompt: `Full-body ${defaults[idx]} view of ${characterName}, detailed character design, clean background, natural lighting.`,
+      name: fallbackName,
+      prompt: `${characterName} 的${fallbackName}全身图：根据剧情设定还原年龄、外貌、发型与服装，姿态自然，光线柔和，单人，简洁背景。`,
     });
   }
 
