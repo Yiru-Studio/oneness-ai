@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Character, Project } from '@/types';
-import { User, ImagePlus, Plus, Trash2, Sparkles, Upload, Loader2, Pencil } from 'lucide-react';
+import { User, ImagePlus, Plus, Trash2, Sparkles, Loader2, Pencil } from 'lucide-react';
 import {
   createCharacter,
   updateCharacter,
@@ -10,15 +10,11 @@ import {
   createCharacterStyle,
   updateCharacterStyle,
   deleteCharacterStyle,
-  uploadAsset,
-  createImageTask,
-  pollTaskUntilDone,
   getProjectCharacters,
   analyzeCharacter,
 } from '@/lib/api';
 import { AddCharacterModal } from '@/components/modals/AddCharacterModal';
 import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
-import { imageProviderForModel } from '@/data/style-presets';
 import { useGeneration } from '@/contexts/GenerationContext';
 
 interface Props {
@@ -248,70 +244,39 @@ function CharacterEditableDetail({
   onUpdated,
   onStyleChanged,
 }: DetailProps) {
-  const avatarFileRef = useRef<HTMLInputElement>(null);
-  const [avatarBusy, setAvatarBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { isGenerating, getError, clearError, runGeneration } = useGeneration();
+  const [avatarDrawerOpen, setAvatarDrawerOpen] = useState(false);
+  const { isGenerating, getError } = useGeneration();
   const genBusy = isGenerating('character-avatar', character.id);
   const remoteError = getError('character-avatar', character.id);
-
-  const handleAvatarUpload = async (file: File) => {
-    setAvatarBusy(true);
-    setError(null);
-    try {
-      const asset = await uploadAsset(file);
-      const updated = await updateCharacter(character.id, { avatarAssetId: asset.id });
-      onUpdated(updated);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '更换头像失败');
-    } finally {
-      setAvatarBusy(false);
-    }
-  };
-
-  const handleGenerateAvatar = async () => {
-    setError(null);
-    clearError('character-avatar', character.id);
-    try {
-      await runGeneration('character-avatar', character.id, async () => {
-        const prompt = [
-          `角色：${character.name}`,
-          character.description ? `描述：${character.description}` : '',
-          character.bio ? `背景：${character.bio}` : '',
-          '输出：单人头像，半身像，正面，正常表情，光线自然',
-          project.stylePrompt ? `风格指引：${project.stylePrompt}` : '',
-        ]
-          .filter(Boolean)
-          .join('\n');
-        const task = await createImageTask(
-          project.id,
-          { prompt, ratio: '1:1', model: project.imageModel, n: 1 },
-          imageProviderForModel(project.imageModel),
-        );
-        const final = await pollTaskUntilDone(task.id, { intervalMs: 2000 });
-        if (final.status !== 'SUCCEEDED' || !final.outputAssets?.[0]) {
-          throw new Error(final.error || '生成失败');
-        }
-        const updated = await updateCharacter(character.id, {
-          avatarAssetId: final.outputAssets[0].id,
-        });
-        onUpdated(updated);
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '生成失败');
-    }
-  };
 
   const handleSaveText = async (field: 'name' | 'description' | 'bio' | 'voice', value: string) => {
     const updated = await updateCharacter(character.id, { [field]: value });
     onUpdated(updated);
   };
 
+  const buildAvatarAutoPrompt = () => {
+    if (character.avatarPrompt) return character.avatarPrompt;
+    return [
+      `角色：${character.name}`,
+      character.description ? `描述：${character.description}` : '',
+      character.bio ? `背景：${character.bio}` : '',
+      '输出：单人头像，半身像，正面，正常表情，光线自然',
+      project.stylePrompt ? `风格指引：${project.stylePrompt}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-stretch gap-5">
         <div className="relative w-40 rounded-2xl overflow-hidden flex-shrink-0 self-stretch">
-          <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+          <button
+            type="button"
+            onClick={() => setAvatarDrawerOpen(true)}
+            className="w-full h-full bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors"
+          >
             {character.avatar ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={character.avatar} alt={character.name} className="w-full h-full object-cover" />
@@ -320,43 +285,12 @@ function CharacterEditableDetail({
                 <User className="w-16 h-16" />
               </div>
             )}
-            {(avatarBusy || genBusy) && (
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                <Loader2 className="w-6 h-6 text-white animate-spin" />
-              </div>
-            )}
-          </div>
-          <div className="absolute bottom-2 right-2 flex gap-1">
-            <button
-              type="button"
-              onClick={() => avatarFileRef.current?.click()}
-              disabled={avatarBusy || genBusy}
-              className="w-7 h-7 rounded-md bg-white shadow-sm text-gray-700 hover:text-[var(--color-primary)] flex items-center justify-center"
-              title="上传头像"
-            >
-              <Upload className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={handleGenerateAvatar}
-              disabled={avatarBusy || genBusy}
-              className="w-7 h-7 rounded-md bg-white shadow-sm text-gray-700 hover:text-[var(--color-primary)] flex items-center justify-center"
-              title="AI 生成头像"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <input
-            ref={avatarFileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void handleAvatarUpload(f);
-              e.target.value = '';
-            }}
-          />
+          </button>
+          {genBusy && (
+            <div className="pointer-events-none absolute inset-0 bg-black/40 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 text-white animate-spin" />
+            </div>
+          )}
         </div>
 
         <div className="flex-1 space-y-3">
@@ -380,6 +314,46 @@ function CharacterEditableDetail({
       {(error || remoteError) && (
         <div className="text-sm text-red-600">{error || remoteError}</div>
       )}
+
+      <EntityDetailDrawer
+        open={avatarDrawerOpen}
+        kind="character-avatar"
+        entity={{
+          id: character.id,
+          name: character.name,
+          description: character.description,
+          prompt: character.avatarPrompt ?? '',
+          model: null,
+          ratio: '1:1',
+          image: character.avatar,
+        }}
+        project={project}
+        buildAutoPrompt={buildAvatarAutoPrompt}
+        onSave={async (patch) => {
+          const data: Partial<{
+            name: string;
+            description: string;
+            avatarPrompt: string | null;
+            avatarAssetId: string | null;
+          }> = {};
+          if (patch.name !== undefined) data.name = patch.name;
+          if (patch.description !== undefined) data.description = patch.description;
+          if (patch.prompt !== undefined) data.avatarPrompt = patch.prompt;
+          if (patch.assetId !== undefined) data.avatarAssetId = patch.assetId ?? null;
+          const fresh = await updateCharacter(character.id, data);
+          onUpdated(fresh);
+          return {
+            id: fresh.id,
+            name: fresh.name,
+            description: fresh.description,
+            prompt: fresh.avatarPrompt ?? '',
+            model: null,
+            ratio: '1:1',
+            image: fresh.avatar,
+          };
+        }}
+        onClose={() => setAvatarDrawerOpen(false)}
+      />
 
       <div className="border-t border-[var(--color-border)] pt-6">
         <div className="flex items-center justify-between mb-4">
