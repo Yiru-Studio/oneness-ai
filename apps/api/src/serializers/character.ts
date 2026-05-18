@@ -19,6 +19,7 @@ export type CharacterDTO = {
   bio: string;
   voice?: string;
   markedBlank: boolean;
+  avatarPrompt: string | null;
   styles: CharacterStyleDTO[];
 };
 
@@ -50,6 +51,7 @@ export async function serializeCharacter(c: CharacterWithStyles): Promise<Charac
     bio: c.bio,
     voice: c.voice ?? '',
     markedBlank: c.markedBlank ?? false,
+    avatarPrompt: c.avatarPrompt ?? null,
     styles,
   };
 }

@@ -100,6 +100,7 @@ characterRoutes.patch(
     if (body.description !== undefined) data.description = body.description;
     if (body.bio !== undefined) data.bio = body.bio;
     if (body.voice !== undefined) data.voice = body.voice;
+    if (body.avatarPrompt !== undefined) data.avatarPrompt = body.avatarPrompt;
     if (body.markedBlank !== undefined) data.markedBlank = body.markedBlank;
     if (body.avatarAssetId !== undefined) {
       if (body.avatarAssetId) await assertAssetOwned(body.avatarAssetId, user.id);
@@ -169,12 +170,13 @@ characterRoutes.post('/characters/:id/analyze', zValidator('param', IdParamSchem
     character.project.stylePrompt ?? '',
   );
 
-  // Update character with description + bio.
+  // Update character with description + bio + avatarPrompt.
   await prisma.character.update({
     where: { id: character.id },
     data: {
       description: analysis.description,
       bio: analysis.bio,
+      avatarPrompt: analysis.avatarPrompt,
     },
   });
 
@@ -234,6 +236,7 @@ async function assertAssetOwned(assetId: string, userId: string) {
 type LLMCharacterAnalysis = {
   description: string;
   bio: string;
+  avatarPrompt: string;
   styles: Array<{ name: string; prompt: string }>;
 };
 
@@ -253,8 +256,10 @@ async function analyzeCharacterWithLLM(
   const systemPrompt =
     '你是一个专业的剧本角色分析师和造型设计师。' +
     '基于提供的剧本内容和已有的角色简介，进一步丰富角色的详细信息，' +
+    '为该角色生成一段用于 AI 绘画的「头像提示词」，' +
     '并结合该角色在剧中可能出现的不同场景、身份、阶段，推断出 2 到 5 个该角色在剧中实际可能出现的造型，' +
     '为每个造型生成一段用于 AI 绘画的中文提示词。' +
+    '头像提示词应聚焦于角色的面部特征、发型、神态、气质，适合生成半身像或头像。' +
     '造型的命名要紧扣剧情场景或身份，例如「年轻时消防员制服造型」「暖阳回忆训练服造型」「现代日常居家造型」等，避免使用「正面/侧面/背面」这类视角词。' +
     '你必须只输出一个严格合法的 JSON 对象，不要包含 markdown 代码块、不要包含任何解释文字。';
 
@@ -267,10 +272,11 @@ async function analyzeCharacterWithLLM(
 ${existingPart}剧本内容：
 ${scriptText}
 
-${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : ''}请仔细分析该角色在剧本中出现的不同场景、时间段、身份/职业/状态变化，从中挑选 2 到 5 个最具代表性、视觉差异明显的造型。请返回严格的 JSON 格式，不要包含任何其他文本：
+${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : ''}请仔细分析该角色在剧本中出现的不同场景、时间段、身份/职业/状态变化，并返回严格的 JSON 格式，不要包含任何其他文本：
 {
   "description": "角色的简短描述（一句话介绍角色身份、地位、外貌特征），可以比已有简介更详细",
   "bio": "角色的背景故事和性格特点（1-2 句话）",
+  "avatarPrompt": "用于生成该角色头像/半身像的中文 AI 绘画提示词，需聚焦于：面部特征、五官细节、发型、神态表情、气质氛围、光线；200 字以内。不要包含场景背景。",
   "styles": [
     {
       "name": "造型名称（中文，紧扣剧情场景或身份，例如：年轻时消防员制服造型 / 暖阳回忆训练服造型 / 现代日常居家造型）",
@@ -280,9 +286,10 @@ ${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : 
 }
 
 要求：
-1. styles 数组长度必须在 2 到 5 之间，根据剧本中该角色实际出现的造型变化数量决定，不要凑数。
-2. 每个造型必须对应剧本里真实出现的一种状态/场景，不要重复，不要使用「正面/侧面/背面」之类的视角名。
-3. prompt 一律使用中文撰写。`;
+1. avatarPrompt 必须生成，专注于面部和上半身特征，适合作为角色头像参考图。
+2. styles 数组长度必须在 2 到 5 之间，根据剧本中该角色实际出现的造型变化数量决定，不要凑数。
+3. 每个造型必须对应剧本里真实出现的一种状态/场景，不要重复，不要使用「正面/侧面/背面」之类的视角名。
+4. prompt 和 avatarPrompt 一律使用中文撰写。`;
 
   const res = await fetch(`${baseURL}/chat/completions`, {
     method: 'POST',
@@ -319,6 +326,7 @@ ${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : 
   let parsed: {
     description?: string;
     bio?: string;
+    avatarPrompt?: string;
     styles?: Array<{ name?: string; prompt?: string }>;
   };
   try {
@@ -351,9 +359,12 @@ ${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : 
     });
   }
 
+  const rawAvatarPrompt = typeof parsed.avatarPrompt === 'string' ? parsed.avatarPrompt.trim() : '';
+
   return {
     description: typeof parsed.description === 'string' ? parsed.description : '',
     bio: typeof parsed.bio === 'string' ? parsed.bio : '',
+    avatarPrompt: rawAvatarPrompt || `${characterName} 的头像：根据剧情设定还原面部特征、发型与神态，正面半身像，光线自然，简洁背景。`,
     styles,
   };
 }

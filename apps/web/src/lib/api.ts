@@ -112,7 +112,7 @@ export async function createCharacter(
 
 export async function updateCharacter(
   characterId: string,
-  data: Partial<{ name: string; description: string; bio: string; voice: string | null; avatarAssetId: string | null; markedBlank: boolean }>,
+  data: Partial<{ name: string; description: string; bio: string; voice: string | null; avatarAssetId: string | null; avatarPrompt: string | null; markedBlank: boolean }>,
 ): Promise<Character> {
   return await apiFetch<CharacterDTO>(`/api/characters/${characterId}`, {
     method: 'PATCH',

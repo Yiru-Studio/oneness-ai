@@ -35,6 +35,7 @@ export interface Character {
   description: string;
   bio: string;
   voice?: string;
+  avatarPrompt?: string | null;
   markedBlank?: boolean;
   styles: Array<{
     id?: string;
