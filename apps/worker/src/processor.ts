@@ -168,8 +168,51 @@ export async function processTask(taskId: string) {
   // 5. Success path — persist outputs.
   const r = result!;
   await persistSuccess(taskId, task.ownerId, task.costCredits, r);
+  // If this VIDEO task was generating for a shot, link the produced asset back
+  // to the Shot row so the UI can display it without polling assets manually.
+  if (task.type === 'VIDEO') {
+    const shotId = readShotId(task.input);
+    if (shotId) await linkShotVideo(shotId, taskId, r, taskLog);
+  }
   metrics.incr('task.success', { type: task.type, provider: task.provider });
   taskLog.info({ outputAssets: r.outputAssets?.length ?? 0 }, 'task succeeded');
+}
+
+function readShotId(input: unknown): string | null {
+  if (input && typeof input === 'object' && 'shotId' in input) {
+    const v = (input as { shotId?: unknown }).shotId;
+    if (typeof v === 'string' && v.length > 0) return v;
+  }
+  return null;
+}
+
+async function linkShotVideo(
+  shotId: string,
+  taskId: string,
+  result: ProviderResult,
+  log: import('@oneness/shared/logger').Logger,
+) {
+  // Find the video asset on this task (it was inserted by persistSuccess).
+  const ta = await prisma.taskAsset.findFirst({
+    where: { taskId, role: 'output' },
+    include: { asset: true },
+    orderBy: { asset: { createdAt: 'desc' } },
+  });
+  if (!ta) {
+    log.warn({ shotId, taskId }, 'shot video task succeeded but produced no asset; skipping link');
+    return;
+  }
+  // The Seedance provider records the lastFrame URL in outputJson but doesn't
+  // download it. Phase-1 omits lastFrame asset persistence; the URL is logged.
+  const out = result.outputJson as { lastFrameUrl?: string | null } | undefined;
+  if (out?.lastFrameUrl) {
+    log.info({ shotId, lastFrameUrl: out.lastFrameUrl }, 'shot last-frame URL recorded (not persisted)');
+  }
+  await prisma.shot.update({
+    where: { id: shotId },
+    data: { videoAssetId: ta.assetId },
+  });
+  log.info({ shotId, assetId: ta.assetId }, 'shot.videoAssetId updated');
 }
 
 async function persistSuccess(

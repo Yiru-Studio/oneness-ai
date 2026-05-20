@@ -15,6 +15,7 @@ import { characterStyleRoutes } from './routes/character-styles.js';
 import { itemRoutes } from './routes/items.js';
 import { sceneRoutes } from './routes/scenes.js';
 import { episodeRoutes } from './routes/episodes.js';
+import { shotRoutes } from './routes/shots.js';
 import { knowledgeDocRoutes } from './routes/knowledge-docs.js';
 import { taskRoutes } from './routes/tasks.js';
 import './types/hono-env.js';
@@ -35,6 +36,7 @@ app.route('/api', characterStyleRoutes);
 app.route('/api', itemRoutes);
 app.route('/api', sceneRoutes);
 app.route('/api', episodeRoutes);
+app.route('/api', shotRoutes);
 app.route('/api', knowledgeDocRoutes);
 app.route('/api', taskRoutes);
 

@@ -15,5 +15,5 @@ export function getPrismaClient(opts?: ConstructorParameters<typeof PrismaClient
 export { PrismaClient };
 export type {
   User, Project, Character, CharacterStyle, Item, Scene,
-  StoryboardEpisode, KnowledgeDoc, Task, Asset, TaskAsset,
+  StoryboardEpisode, Shot, KnowledgeDoc, Task, Asset, TaskAsset,
 } from '@prisma/client';

@@ -1,0 +1,202 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { X, Check } from 'lucide-react';
+import { Character, Item, Scene } from '@/types';
+
+type PickerOption = {
+  id: string;
+  label: string;
+  sub?: string;
+  thumb: string | null;
+};
+
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  characters: Character[];
+  items: Item[];
+  scenes: Scene[];
+  selected: {
+    characterStyleIds: string[];
+    sceneIds: string[];
+    itemIds: string[];
+  };
+  onConfirm: (next: {
+    characterStyleIds: string[];
+    sceneIds: string[];
+    itemIds: string[];
+  }) => void;
+}
+
+/**
+ * One dialog that lets the user pick the character styles, scenes, and items
+ * to attach to a shot as reference images. Each selected ID becomes a
+ * `reference_image` in the Seedance call. Picking a *character* picks a
+ * character STYLE row (which is what carries an assetId).
+ */
+export function ReferencePickerDialog({
+  isOpen,
+  onClose,
+  characters,
+  items,
+  scenes,
+  selected,
+  onConfirm,
+}: Props) {
+  const [tab, setTab] = useState<'characters' | 'scenes' | 'items'>('characters');
+  const [styleIds, setStyleIds] = useState<string[]>(selected.characterStyleIds);
+  const [sceneIds, setSceneIds] = useState<string[]>(selected.sceneIds);
+  const [itemIds, setItemIds] = useState<string[]>(selected.itemIds);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setStyleIds(selected.characterStyleIds);
+    setSceneIds(selected.sceneIds);
+    setItemIds(selected.itemIds);
+    setTab('characters');
+  }, [isOpen, selected.characterStyleIds, selected.sceneIds, selected.itemIds]);
+
+  if (!isOpen) return null;
+
+  const characterOptions: PickerOption[] = characters.flatMap((c) =>
+    c.styles
+      .filter((s) => Boolean(s.id))
+      .map((s) => ({
+        id: s.id as string,
+        label: c.name,
+        sub: s.name,
+        thumb: s.image || c.avatar || null,
+      })),
+  );
+  const sceneOptions: PickerOption[] = scenes.map((s) => ({
+    id: s.id,
+    label: s.name,
+    thumb: s.image || null,
+  }));
+  const itemOptions: PickerOption[] = items.map((i) => ({
+    id: i.id,
+    label: i.name,
+    thumb: i.image || null,
+  }));
+
+  const toggle = (ids: string[], setIds: (next: string[]) => void, id: string) => {
+    if (ids.includes(id)) setIds(ids.filter((x) => x !== id));
+    else setIds([...ids, id]);
+  };
+
+  const currentOptions =
+    tab === 'characters' ? characterOptions : tab === 'scenes' ? sceneOptions : itemOptions;
+  const currentSelected = tab === 'characters' ? styleIds : tab === 'scenes' ? sceneIds : itemIds;
+  const setCurrentSelected =
+    tab === 'characters' ? setStyleIds : tab === 'scenes' ? setSceneIds : setItemIds;
+
+  return (
+    <div
+      className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl p-5 w-[760px] max-w-[94vw] max-h-[80vh] flex flex-col shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold">选择参考资产</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex gap-2 mb-3 text-sm">
+          {(['characters', 'scenes', 'items'] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`px-3 py-1.5 rounded-full ${
+                tab === k
+                  ? 'bg-[var(--color-dark)] text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {k === 'characters' ? '角色造型' : k === 'scenes' ? '场景' : '物品'}
+              <span className="ml-1.5 text-xs opacity-70">
+                ({(k === 'characters' ? styleIds : k === 'scenes' ? sceneIds : itemIds).length})
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {currentOptions.length === 0 ? (
+            <div className="text-sm text-gray-400 text-center py-12">
+              暂无可选资产，请先在对应模块创建。
+            </div>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+              {currentOptions.map((opt) => {
+                const isSelected = currentSelected.includes(opt.id);
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => toggle(currentSelected, setCurrentSelected, opt.id)}
+                    className={`relative rounded-lg overflow-hidden border-2 text-left transition ${
+                      isSelected
+                        ? 'border-[var(--color-primary)] shadow'
+                        : 'border-[var(--color-border)] hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="aspect-square bg-gray-100 flex items-center justify-center">
+                      {opt.thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={opt.thumb}
+                          alt={opt.label}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-400">无封面</span>
+                      )}
+                    </div>
+                    <div className="px-2 py-1.5">
+                      <div className="text-xs font-medium truncate">{opt.label}</div>
+                      {opt.sub && (
+                        <div className="text-[10px] text-gray-500 truncate">{opt.sub}</div>
+                      )}
+                    </div>
+                    {isSelected && (
+                      <div className="absolute top-1 right-1 bg-[var(--color-primary)] text-white rounded-full w-5 h-5 flex items-center justify-center">
+                        <Check className="w-3 h-3" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 pt-3 border-t border-[var(--color-border)] mt-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:bg-gray-50"
+          >
+            取消
+          </button>
+          <button
+            onClick={() => {
+              onConfirm({
+                characterStyleIds: styleIds,
+                sceneIds,
+                itemIds,
+              });
+              onClose();
+            }}
+            className="px-4 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-sm hover:bg-[var(--color-primary-hover)]"
+          >
+            确认
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

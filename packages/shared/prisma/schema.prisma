@@ -158,8 +158,56 @@ model StoryboardEpisode {
   updatedAt DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shots   Shot[]
 
   @@unique([projectId, number])
+}
+
+/// A single shot (镜头) inside a storyboard episode. Equivalent to one row in
+/// likeai's `storyboards` array. Phase-1 supports the manual mode only;
+/// `createType` is kept so future AI-assist generated rows can be told apart.
+model Shot {
+  id              String   @id @default(cuid())
+  episodeId       String
+  displayId       Int
+  /// 'new' (a fresh shot) | 'continuation' (continues from another shot's last frame)
+  shotType        String   @default("new")
+  /// preId points at another Shot.displayId in the same episode whose last
+  /// frame seeds this shot. Null when shotType = 'new'.
+  preId           Int?
+  duration        Int      @default(4)
+  prompt          String   @default("") @db.Text
+  model           String   @default("seedance")
+  ratio           String   @default("16:9")
+  resolution      String   @default("720p")
+  generateAudio   Boolean  @default(false)
+  /// 'manual' (user created) | 'assist' (AI-assist batch generated). Phase 1 only writes 'manual'.
+  createType      String   @default("manual")
+
+  sketchAssetId    String?
+  videoAssetId     String?
+  lastFrameAssetId String?
+  videoTaskId      String?
+
+  /// Json arrays of references chosen by the user. We keep them as ID arrays
+  /// (rather than join tables) so a shot can survive deletion of a referenced
+  /// character/scene without cascading away — we just filter out missing IDs
+  /// at read time.
+  characterStyleIds Json @default("[]")
+  sceneIds          Json @default("[]")
+  itemIds           Json @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  episode    StoryboardEpisode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  sketch     Asset?            @relation("ShotSketch", fields: [sketchAssetId], references: [id], onDelete: SetNull)
+  video      Asset?            @relation("ShotVideo", fields: [videoAssetId], references: [id], onDelete: SetNull)
+  lastFrame  Asset?            @relation("ShotLastFrame", fields: [lastFrameAssetId], references: [id], onDelete: SetNull)
+  videoTask  Task?             @relation("ShotVideoTask", fields: [videoTaskId], references: [id], onDelete: SetNull)
+
+  @@unique([episodeId, displayId])
+  @@index([episodeId])
 }
 
 model KnowledgeDoc {
@@ -195,6 +243,7 @@ model Task {
   owner   User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   project Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
   assets  TaskAsset[]
+  shots   Shot[]      @relation("ShotVideoTask")
 
   @@index([ownerId, status, createdAt])
   @@index([projectId, type])
@@ -218,6 +267,9 @@ model Asset {
   items           Item[]
   scenes          Scene[]
   taskAssets      TaskAsset[]
+  shotSketches    Shot[]           @relation("ShotSketch")
+  shotVideos      Shot[]           @relation("ShotVideo")
+  shotLastFrames  Shot[]           @relation("ShotLastFrame")
 
   @@unique([bucket, key])
   @@index([ownerId, createdAt])

@@ -6,6 +6,7 @@ import {
   Item,
   Scene,
   StoryboardEpisode,
+  Shot,
   AnalyticsData,
 } from '@/types';
 import { apiFetch, setAuthToken, ApiError } from './api-client';
@@ -345,6 +346,78 @@ export async function updateEpisode(
 
 export async function deleteEpisode(episodeId: string): Promise<void> {
   await apiFetch<void>(`/api/episodes/${episodeId}`, { method: 'DELETE' });
+}
+
+// -- Shots --------------------------------------------------------------
+
+type ShotDTO = Shot;
+
+export async function getEpisodeShots(
+  projectId: string,
+  episodeId: string,
+): Promise<Shot[]> {
+  return await apiFetch<ShotDTO[]>(
+    `/api/projects/${projectId}/episodes/${episodeId}/shots`,
+  );
+}
+
+export type CreateShotInput = {
+  afterDisplayId?: number;
+  shotType?: 'new' | 'continuation';
+  preId?: number;
+  duration?: number;
+  prompt?: string;
+  model?: string;
+  ratio?: string;
+  resolution?: string;
+  generateAudio?: boolean;
+  characterStyleIds?: string[];
+  sceneIds?: string[];
+  itemIds?: string[];
+};
+
+export async function createShot(
+  projectId: string,
+  episodeId: string,
+  body: CreateShotInput,
+): Promise<Shot> {
+  return await apiFetch<ShotDTO>(
+    `/api/projects/${projectId}/episodes/${episodeId}/shots`,
+    { method: 'POST', body },
+  );
+}
+
+export type UpdateShotInput = Partial<{
+  shotType: 'new' | 'continuation';
+  preId: number | null;
+  duration: number;
+  prompt: string;
+  model: string;
+  ratio: string;
+  resolution: string;
+  generateAudio: boolean;
+  sketchAssetId: string | null;
+  characterStyleIds: string[];
+  sceneIds: string[];
+  itemIds: string[];
+}>;
+
+export async function updateShot(shotId: string, body: UpdateShotInput): Promise<Shot> {
+  return await apiFetch<ShotDTO>(`/api/shots/${shotId}`, {
+    method: 'PATCH',
+    body,
+  });
+}
+
+export async function deleteShot(shotId: string): Promise<void> {
+  await apiFetch<void>(`/api/shots/${shotId}`, { method: 'DELETE' });
+}
+
+export async function generateShotVideo(shotId: string): Promise<Shot> {
+  return await apiFetch<ShotDTO>(`/api/shots/${shotId}/generate-video`, {
+    method: 'POST',
+    body: {},
+  });
 }
 
 export type TaskSummary = {

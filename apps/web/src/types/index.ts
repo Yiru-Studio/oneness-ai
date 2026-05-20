@@ -78,6 +78,44 @@ export interface StoryboardEpisode {
   analyzed: boolean;
 }
 
+export interface ShotAssetRef {
+  id: string;
+  url: string;
+  contentType: string;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+}
+
+export type ShotType = 'new' | 'continuation';
+export type ShotCreateType = 'manual' | 'assist';
+export type ShotVideoTaskStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+
+export interface Shot {
+  id: string;
+  episodeId: string;
+  displayId: number;
+  shotType: ShotType;
+  preId: number | null;
+  duration: number;
+  prompt: string;
+  model: string;
+  ratio: string;
+  resolution: string;
+  generateAudio: boolean;
+  createType: ShotCreateType;
+  sketch: ShotAssetRef | null;
+  video: ShotAssetRef | null;
+  lastFrame: ShotAssetRef | null;
+  videoTaskId: string | null;
+  videoTaskStatus: ShotVideoTaskStatus | null;
+  characterStyleIds: string[];
+  sceneIds: string[];
+  itemIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AnalyticsData {
   totalCredits: number;
   imageCount: number;

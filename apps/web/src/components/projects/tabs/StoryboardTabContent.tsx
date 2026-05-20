@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { StoryboardEpisode, Project } from '@/types';
-import { Plus, CheckCircle2, Trash2, Loader2, Sparkles, X, Pencil, FileText } from 'lucide-react';
+import { Plus, CheckCircle2, Trash2, Loader2, Sparkles, X, Pencil, FileText, Film } from 'lucide-react';
 import {
   createEpisode,
   deleteEpisode,
@@ -23,6 +24,7 @@ interface Props {
  * an inline editor showing title, number, content, and re-analyze controls.
  */
 export function StoryboardTabContent({ episodes, project, onChange }: Props) {
+  const router = useRouter();
   const [showAdd, setShowAdd] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -82,7 +84,13 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
           <div
             key={ep.id}
             className="group relative rounded-xl border border-[var(--color-border)] bg-white p-4 hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => setOpenId(ep.id)}
+            onClick={() => {
+              if (ep.analyzed) {
+                router.push(`/projects/${project.id}/episodes/${ep.id}`);
+              } else {
+                setOpenId(ep.id);
+              }
+            }}
           >
             <div className="flex items-center gap-2 mb-3">
               <span className="text-sm font-bold">[{ep.number}]</span>
@@ -106,6 +114,28 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
             </div>
 
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {ep.analyzed && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/projects/${project.id}/episodes/${ep.id}`);
+                  }}
+                  title="进入分镜创作"
+                  className="w-7 h-7 rounded-md bg-white/95 border border-[var(--color-border)] text-gray-700 hover:text-[var(--color-primary)] flex items-center justify-center"
+                >
+                  <Film className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpenId(ep.id);
+                }}
+                title="查看 / 编辑剧本"
+                className="w-7 h-7 rounded-md bg-white/95 border border-[var(--color-border)] text-gray-700 hover:text-[var(--color-primary)] flex items-center justify-center"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
