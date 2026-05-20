@@ -154,6 +154,12 @@ model StoryboardEpisode {
   title     String
   content   String   @db.Text
   analyzed  Boolean  @default(false)
+  /// Episode-level summary produced by the storyboard "分析剧集" step.
+  summary   String   @default("") @db.Text
+  /// Scene breakdown produced by "分析剧集" (likeai's per-episode `scenes`).
+  /// Json array of { index, title, content, characters: string[], environment }.
+  /// Shots reference a scene by its `index` via Shot.sceneIndex.
+  scenesJson Json    @default("[]")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -181,8 +187,11 @@ model Shot {
   ratio           String   @default("16:9")
   resolution      String   @default("720p")
   generateAudio   Boolean  @default(false)
-  /// 'manual' (user created) | 'assist' (AI-assist batch generated). Phase 1 only writes 'manual'.
+  /// 'manual' (user created) | 'assist' (AI-assist batch generated).
   createType      String   @default("manual")
+  /// Which episode scene (StoryboardEpisode.scenesJson[].index) this shot belongs to.
+  /// Shots are partitioned per scene, matching likeai's /episode/:id/:sceneIndex/storyboards.
+  sceneIndex      Int      @default(0)
 
   sketchAssetId    String?
   videoAssetId     String?
@@ -196,6 +205,9 @@ model Shot {
   characterStyleIds Json @default("[]")
   sceneIds          Json @default("[]")
   itemIds           Json @default("[]")
+  /// Character/role names produced by AI-assist (likeai's `roles`). Display-only;
+  /// resolved to characterStyleIds when a matching styled character exists.
+  roleNames         Json @default("[]")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -208,6 +220,7 @@ model Shot {
 
   @@unique([episodeId, displayId])
   @@index([episodeId])
+  @@index([episodeId, sceneIndex])
 }
 
 model KnowledgeDoc {

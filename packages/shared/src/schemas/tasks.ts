@@ -54,10 +54,25 @@ const TextInputSchema = z.union([
   z.object({
     episodeId: CuidSchema,
     analysisType: z.enum(['general', 'basic']),
+    model: z.string().min(1).max(80).optional(),
   }),
   z.object({
     episodeId: CuidSchema,
     subjectType: z.enum(['characters', 'items', 'scenes']),
+    model: z.string().min(1).max(80).optional(),
+  }),
+  // Storyboard "分析剧集": break the episode into scenes.
+  z.object({
+    episodeId: CuidSchema,
+    analysisType: z.literal('scene_list'),
+    model: z.string().min(1).max(80).optional(),
+  }),
+  // AI-assist "智能分镜创作": break one scene into shots.
+  z.object({
+    episodeId: CuidSchema,
+    sceneIndex: z.number().int().min(0),
+    analysisType: z.literal('shot_breakdown'),
+    model: z.string().min(1).max(80).optional(),
   }),
 ]);
 

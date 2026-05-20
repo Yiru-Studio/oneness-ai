@@ -70,12 +70,22 @@ export interface Scene {
   image: string;
 }
 
+export interface EpisodeScene {
+  index: number;
+  title: string;
+  content: string;
+  characters: string[];
+  environment: string;
+}
+
 export interface StoryboardEpisode {
   id: string;
   number: number;
   title: string;
   content: string;
   analyzed: boolean;
+  summary: string;
+  scenes: EpisodeScene[];
 }
 
 export interface ShotAssetRef {
@@ -104,6 +114,7 @@ export interface Shot {
   resolution: string;
   generateAudio: boolean;
   createType: ShotCreateType;
+  sceneIndex: number;
   sketch: ShotAssetRef | null;
   video: ShotAssetRef | null;
   lastFrame: ShotAssetRef | null;
@@ -112,6 +123,7 @@ export interface Shot {
   characterStyleIds: string[];
   sceneIds: string[];
   itemIds: string[];
+  roleNames: string[];
   createdAt: string;
   updatedAt: string;
 }

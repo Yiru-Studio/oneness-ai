@@ -24,7 +24,45 @@ export const episodeRoutes = new Hono();
 episodeRoutes.use('/projects/:id/episodes', tryReadUser, requireUser);
 episodeRoutes.use('/projects/:id/episodes/:episodeId/analyze', tryReadUser, requireUser);
 episodeRoutes.use('/projects/:id/episodes/:episodeId/analyze-storyboard', tryReadUser, requireUser);
+episodeRoutes.use('/projects/:id/episodes/:episodeId/generate-shots', tryReadUser, requireUser);
 episodeRoutes.use('/episodes/:id', tryReadUser, requireUser);
+
+// Reserves credits for one TEXT_ANALYZE task, creates it, and enqueues it.
+// Shared by the scene-list ("分析剧集") and shot-breakdown ("智能分镜创作") flows.
+async function createTextTask(
+  userId: string,
+  projectId: string,
+  input: Prisma.InputJsonValue,
+) {
+  const cost = estimateCost(TaskType.TEXT_ANALYZE);
+  const providerName = config.PROVIDER_TEXT;
+  const task = await prisma.$transaction(async (tx) => {
+    const u = await tx.user.findUnique({ where: { id: userId }, select: { credits: true } });
+    if (!u) throw AppError.unauthorized();
+    if (u.credits < cost) {
+      throw AppError.badRequest(
+        ErrorCodes.INSUFFICIENT_CREDITS,
+        `requires ${cost} credits, have ${u.credits}`,
+        { required: cost, available: u.credits },
+      );
+    }
+    await tx.user.update({ where: { id: userId }, data: { credits: { decrement: cost } } });
+    return tx.task.create({
+      data: {
+        ownerId: userId,
+        projectId,
+        type: TaskType.TEXT_ANALYZE,
+        provider: providerName,
+        status: TaskStatus.QUEUED,
+        input,
+        costCredits: cost,
+      },
+      include: { assets: { include: { asset: true } } },
+    });
+  });
+  await enqueueTaskJob(queueForTaskType(TaskType.TEXT_ANALYZE), task.id);
+  return task;
+}
 
 episodeRoutes.get(
   '/projects/:id/episodes',
@@ -196,27 +234,92 @@ episodeRoutes.post('/projects/:id/episodes/:episodeId/analyze', async (c) => {
 });
 
 // POST /projects/:id/episodes/:episodeId/analyze-storyboard
-// Marks the episode as ready for storyboarding. Phase-1 stub: just flips the
-// `analyzed` flag and returns the updated row. Phase-2 will additionally fan
-// out the scene-list LLM task (likeai's "场景列表分析") so AI-assist mode has
-// a scene→characters map to draw shots from.
+// likeai's "分析剧集": fans out a TEXT_ANALYZE task that breaks the episode
+// into scenes (summary + scenes[]) and flips `analyzed` when it completes.
+// Returns the task so the client can poll it, then re-fetch the episode.
 episodeRoutes.post('/projects/:id/episodes/:episodeId/analyze-storyboard', async (c) => {
   const user = c.var.user!;
   const projectId = c.req.param('id');
   const episodeId = c.req.param('episodeId');
 
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, ownerId: user.id },
+    select: { id: true, analysisModel: true },
+  });
+  if (!project) {
+    throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
+  }
   const episode = await prisma.storyboardEpisode.findFirst({
-    where: { id: episodeId, projectId, project: { ownerId: user.id } },
+    where: { id: episodeId, projectId },
     select: { id: true },
   });
   if (!episode) {
     throw AppError.notFound(ErrorCodes.EPISODE_NOT_FOUND, 'episode not found');
   }
-  const updated = await prisma.storyboardEpisode.update({
-    where: { id: episode.id },
-    data: { analyzed: true },
+
+  const task = await createTextTask(user.id, projectId, {
+    episodeId,
+    analysisType: 'scene_list',
+    model: project.analysisModel,
+  } as Prisma.InputJsonValue);
+
+  return c.json({ task: await serializeTask(task) }, 201);
+});
+
+// POST /projects/:id/episodes/:episodeId/generate-shots
+// likeai's AI-assist "智能分镜创作": fans out a TEXT_ANALYZE task that breaks
+// one analyzed scene into a shot list and creates the Shot rows.
+// Body: { sceneIndex: number }. Returns the task to poll.
+episodeRoutes.post('/projects/:id/episodes/:episodeId/generate-shots', async (c) => {
+  const user = c.var.user!;
+  const projectId = c.req.param('id');
+  const episodeId = c.req.param('episodeId');
+
+  const body = (await c.req.json().catch(() => ({}))) as { sceneIndex?: unknown };
+  const sceneIndex = Number(body.sceneIndex);
+  if (!Number.isInteger(sceneIndex) || sceneIndex < 0) {
+    throw AppError.badRequest(
+      ErrorCodes.VALIDATION_FAILED,
+      'sceneIndex must be a non-negative integer',
+    );
+  }
+
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, ownerId: user.id },
+    select: { id: true, analysisModel: true },
   });
-  return c.json(serializeEpisode(updated));
+  if (!project) {
+    throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
+  }
+  const episode = await prisma.storyboardEpisode.findFirst({
+    where: { id: episodeId, projectId },
+    select: { id: true, analyzed: true, scenesJson: true },
+  });
+  if (!episode) {
+    throw AppError.notFound(ErrorCodes.EPISODE_NOT_FOUND, 'episode not found');
+  }
+  const scenes = Array.isArray(episode.scenesJson) ? episode.scenesJson : [];
+  if (!episode.analyzed || scenes.length === 0) {
+    throw AppError.badRequest(
+      ErrorCodes.VALIDATION_FAILED,
+      'episode not analyzed yet; run 分析剧集 first',
+    );
+  }
+  if (sceneIndex >= scenes.length) {
+    throw AppError.badRequest(
+      ErrorCodes.VALIDATION_FAILED,
+      `sceneIndex out of range (0..${scenes.length - 1})`,
+    );
+  }
+
+  const task = await createTextTask(user.id, projectId, {
+    episodeId,
+    sceneIndex,
+    analysisType: 'shot_breakdown',
+    model: project.analysisModel,
+  } as Prisma.InputJsonValue);
+
+  return c.json({ task: await serializeTask(task) }, 201);
 });
 
 async function loadOwned(id: string, userId: string) {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Project,
@@ -23,6 +23,8 @@ import {
   updateShot,
   deleteShot,
   generateShotVideo,
+  generateSceneShots,
+  pollTaskUntilDone,
 } from '@/lib/api';
 import { TopBar } from '@/components/layout/TopBar';
 import { StoryboardSidebar } from '@/components/storyboard/StoryboardSidebar';
@@ -42,6 +44,7 @@ export default function StoryboardEpisodePage() {
   const episodeId = params.episodeId as string;
 
   const [project, setProject] = useState<Project | null>(null);
+  const [episodes, setEpisodes] = useState<StoryboardEpisode[]>([]);
   const [episode, setEpisode] = useState<StoryboardEpisode | null>(null);
   const [shots, setShots] = useState<Shot[]>([]);
   const [characters, setCharacters] = useState<Character[]>([]);
@@ -51,6 +54,9 @@ export default function StoryboardEpisodePage() {
   const [error, setError] = useState<string | null>(null);
   const [busyShot, setBusyShot] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [sceneIndex, setSceneIndex] = useState(0);
+  const [aiAssistEnabled, setAiAssistEnabled] = useState(true);
+  const [assistBusy, setAssistBusy] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const reloadShots = useCallback(async () => {
@@ -97,6 +103,7 @@ export default function StoryboardEpisodePage() {
           return;
         }
         setProject(proj);
+        setEpisodes(eps);
         setEpisode(ep);
         setShots(sh);
         setCharacters(chars);
@@ -130,12 +137,20 @@ export default function StoryboardEpisodePage() {
     return () => {};
   }, [shots, reloadShots, stopPolling]);
 
-  const siblingIds = useMemo(() => shots.map((s) => s.displayId), [shots]);
+  const episodeScenes = episode?.scenes ?? [];
+  const selectedScene = episodeScenes.find((s) => s.index === sceneIndex) ?? null;
+
+  // Shots scoped to the selected scene.
+  const sceneShots = useMemo(
+    () => shots.filter((s) => s.sceneIndex === sceneIndex),
+    [shots, sceneIndex],
+  );
+  const siblingIds = useMemo(() => sceneShots.map((s) => s.displayId), [sceneShots]);
 
   const handleCreate = async (afterDisplayId?: number) => {
     setCreating(true);
     try {
-      await createShot(projectId, episodeId, { afterDisplayId });
+      await createShot(projectId, episodeId, { afterDisplayId, sceneIndex });
       await reloadShots();
     } catch (e) {
       setError(e instanceof Error ? e.message : '创建分镜失败');
@@ -144,10 +159,26 @@ export default function StoryboardEpisodePage() {
     }
   };
 
+  const handleGenerateShots = async () => {
+    setAssistBusy(true);
+    setError(null);
+    try {
+      const task = await generateSceneShots(projectId, episodeId, sceneIndex);
+      const done = await pollTaskUntilDone(task.id, { intervalMs: 2000, timeoutMs: 4 * 60_000 });
+      if (done.status !== 'SUCCEEDED') {
+        throw new Error(done.error || '智能分镜生成失败');
+      }
+      await reloadShots();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '智能分镜生成失败');
+    } finally {
+      setAssistBusy(false);
+    }
+  };
+
   const handleUpdate = async (id: string, patch: Partial<Shot>) => {
     setBusyShot(id);
     try {
-      // Optimistically update local state for snappy feedback.
       setShots((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
       await updateShot(id, patch);
       await reloadShots();
@@ -192,10 +223,10 @@ export default function StoryboardEpisodePage() {
     );
   }
 
-  if (error || !project || !episode) {
+  if (error && (!project || !episode)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3">
-        <div className="text-sm text-red-600">{error ?? '加载失败'}</div>
+        <div className="text-sm text-red-600">{error}</div>
         <button
           onClick={() => router.push(`/projects/${projectId}`)}
           className="text-sm text-[var(--color-primary)] hover:underline"
@@ -206,20 +237,34 @@ export default function StoryboardEpisodePage() {
     );
   }
 
+  if (!project || !episode) return null;
+
   return (
     <div className="min-h-screen bg-[var(--color-bg)] flex flex-col">
       <TopBar project={project} onProjectUpdated={setProject} />
 
       <div className="flex flex-1 overflow-hidden" style={{ height: 'calc(100vh - 64px)' }}>
         <StoryboardSidebar
-          episode={episode}
-          aiAssistEnabled={false}
-          onToggleAiAssist={() => {}}
+          episodes={episodes}
+          episodeId={episodeId}
+          scenes={episodeScenes}
+          sceneIndex={sceneIndex}
+          aiAssistEnabled={aiAssistEnabled}
+          onEpisodeChange={(id) => router.push(`/projects/${projectId}/episodes/${id}`)}
+          onSceneChange={(idx) => setSceneIndex(idx)}
+          onToggleAiAssist={setAiAssistEnabled}
           onBack={() => router.push(`/projects/${projectId}`)}
         />
 
         <main className="flex-1 overflow-y-auto px-6 py-4">
-          <AnalysisProgressPanel aiAssistEnabled={false} />
+          <AnalysisProgressPanel
+            aiAssistEnabled={aiAssistEnabled}
+            scenes={episodeScenes}
+            selectedScene={selectedScene}
+            sceneShotCount={sceneShots.length}
+            batchStatus={assistBusy ? 'running' : 'idle'}
+            onGenerate={handleGenerateShots}
+          />
 
           {error && (
             <div className="mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700 flex items-center justify-between">
@@ -230,21 +275,35 @@ export default function StoryboardEpisodePage() {
             </div>
           )}
 
-          {shots.length === 0 ? (
+          {sceneShots.length === 0 ? (
             <div className="rounded-xl border-2 border-dashed border-gray-300 px-6 py-16 text-center">
-              <div className="text-sm text-gray-500 mb-3">该剧集还没有分镜</div>
-              <button
-                onClick={() => handleCreate()}
-                disabled={creating}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
-              >
-                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                创建第 1 个分镜
-              </button>
+              <div className="text-sm text-gray-500 mb-4">
+                {selectedScene ? `「${selectedScene.title}」还没有分镜` : '该剧集还没有分镜'}
+              </div>
+              <div className="flex items-center justify-center gap-3">
+                {aiAssistEnabled && episodeScenes.length > 0 && (
+                  <button
+                    onClick={handleGenerateShots}
+                    disabled={assistBusy}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+                  >
+                    {assistBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    {assistBusy ? '智能生成中…' : '智能分镜创作'}
+                  </button>
+                )}
+                <button
+                  onClick={() => handleCreate()}
+                  disabled={creating}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--color-border)] text-sm text-gray-700 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
+                >
+                  {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  手动创建分镜
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-2">
-              {shots.map((shot, idx) => (
+              {sceneShots.map((shot, idx) => (
                 <div key={shot.id}>
                   <ShotCard
                     shot={shot}
@@ -261,7 +320,7 @@ export default function StoryboardEpisodePage() {
                     onInsert={() => handleCreate(shot.displayId)}
                     disabled={creating}
                   />
-                  {idx === shots.length - 1 && (
+                  {idx === sceneShots.length - 1 && (
                     <div className="flex justify-center mt-2">
                       <button
                         onClick={() => handleCreate()}

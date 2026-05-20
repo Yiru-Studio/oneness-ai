@@ -8,6 +8,8 @@ export const ShotCreateTypeEnum = z.enum(['manual', 'assist']);
 export const CreateShotSchema = z.object({
   /** Optional — when omitted the server appends after the highest displayId. */
   afterDisplayId: z.number().int().min(0).optional(),
+  /** Which episode scene this shot belongs to. Defaults to 0. */
+  sceneIndex: z.number().int().min(0).default(0),
   shotType: ShotTypeEnum.default('new'),
   preId: z.number().int().min(1).optional(),
   duration: z.number().int().min(1).max(60).default(4),

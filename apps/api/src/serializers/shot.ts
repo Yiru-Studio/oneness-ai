@@ -21,6 +21,7 @@ export type ShotDTO = {
   resolution: string;
   generateAudio: boolean;
   createType: 'manual' | 'assist';
+  sceneIndex: number;
   sketch: AssetDTO | null;
   video: AssetDTO | null;
   lastFrame: AssetDTO | null;
@@ -29,6 +30,7 @@ export type ShotDTO = {
   characterStyleIds: string[];
   sceneIds: string[];
   itemIds: string[];
+  roleNames: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -56,6 +58,7 @@ export async function serializeShot(s: ShotWithAssets): Promise<ShotDTO> {
     resolution: s.resolution,
     generateAudio: s.generateAudio,
     createType: s.createType as 'manual' | 'assist',
+    sceneIndex: s.sceneIndex,
     sketch,
     video,
     lastFrame,
@@ -64,6 +67,7 @@ export async function serializeShot(s: ShotWithAssets): Promise<ShotDTO> {
     characterStyleIds: jsonArray(s.characterStyleIds),
     sceneIds: jsonArray(s.sceneIds),
     itemIds: jsonArray(s.itemIds),
+    roleNames: jsonArray(s.roleNames),
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
   };

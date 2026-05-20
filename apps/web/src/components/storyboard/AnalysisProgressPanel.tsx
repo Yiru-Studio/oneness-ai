@@ -1,40 +1,141 @@
 'use client';
 
-import { CheckCircle2, Circle } from 'lucide-react';
+import { CheckCircle2, Circle, Loader2, Sparkles, RotateCcw } from 'lucide-react';
+import { EpisodeScene } from '@/types';
+
+interface Props {
+  /** Whether the AI-assist switch is on. When off, the panel is hidden. */
+  aiAssistEnabled: boolean;
+  /** All analyzed scenes of the episode (from 分析剧集). */
+  scenes: EpisodeScene[];
+  /** Scene the user is currently storyboarding. */
+  selectedScene: EpisodeScene | null;
+  /** Number of shots already created for the selected scene. */
+  sceneShotCount: number;
+  /** Batch-generation lifecycle for the selected scene. */
+  batchStatus: 'idle' | 'running' | 'done';
+  /** Triggers AI-assist shot generation for the selected scene. */
+  onGenerate: () => void;
+}
 
 /**
- * Mirrors likeai's 4-step AI-assist progress panel. Phase 1 is manual-only,
- * so all steps render as inactive — kept here as a visual placeholder so the
- * AI-assist toggle has a destination when it's wired up later.
+ * Mirrors likeai's 4-step AI-assist progress panel. We implement the first two
+ * steps for real (场景列表分析 from 分析剧集, 批量分镜生成 from shot-breakdown);
+ * sketch generation/cropping are surfaced as "暂未启用" so the layout matches.
  */
-const STEPS = [
-  { key: 'scene-list', label: '场景列表分析' },
-  { key: 'batch-shots', label: '批量分镜生成' },
-  { key: 'sketch', label: '生成分镜手稿' },
-  { key: 'crop', label: '裁切分镜手稿' },
-] as const;
+export function AnalysisProgressPanel({
+  aiAssistEnabled,
+  scenes,
+  selectedScene,
+  sceneShotCount,
+  batchStatus,
+  onGenerate,
+}: Props) {
+  if (!aiAssistEnabled) return null;
 
-export function AnalysisProgressPanel({ aiAssistEnabled }: { aiAssistEnabled: boolean }) {
+  const sceneListDone = scenes.length > 0;
+  const batchDone = batchStatus === 'done' || (batchStatus === 'idle' && sceneShotCount > 0);
+
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4 mb-4">
-      {STEPS.map((step) => (
-        <div
-          key={step.key}
-          className={`flex items-center gap-3 py-2 ${
-            aiAssistEnabled ? 'opacity-100' : 'opacity-40'
-          }`}
-        >
-          {aiAssistEnabled ? (
-            <Circle className="w-5 h-5 text-gray-400" />
-          ) : (
-            <CheckCircle2 className="w-5 h-5 text-gray-300" />
-          )}
-          <span className="text-sm text-[var(--color-text)]">{step.label}</span>
-          <span className="text-xs text-gray-400 ml-auto">
-            {aiAssistEnabled ? '待开始' : '手动模式'}
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4 mb-4 space-y-1">
+      {/* Step 1 — scene-list analysis */}
+      <Row done={sceneListDone} label="场景列表分析">
+        {sceneListDone ? (
+          <div className="flex flex-wrap gap-1.5 justify-end max-w-[60%]">
+            {scenes.slice(0, 6).map((s) => (
+              <span
+                key={s.index}
+                className={`px-2 py-0.5 rounded-md text-xs whitespace-nowrap ${
+                  selectedScene?.index === s.index
+                    ? 'bg-[var(--color-primary)] text-white'
+                    : 'bg-blue-50 text-blue-600'
+                }`}
+                title={s.title}
+              >
+                {truncate(s.title, 14)}
+              </span>
+            ))}
+            {scenes.length > 6 && (
+              <span className="px-2 py-0.5 text-xs text-gray-400">+{scenes.length - 6}</span>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs text-gray-400">待分析剧集</span>
+        )}
+      </Row>
+
+      {/* Step 2 — batch shot generation */}
+      <Row done={batchDone} running={batchStatus === 'running'} label="批量分镜生成">
+        {batchStatus === 'running' ? (
+          <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-primary)]">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            生成中…
           </span>
-        </div>
-      ))}
+        ) : (
+          <div className="flex items-center gap-2">
+            {sceneShotCount > 0 && (
+              <span className="text-xs text-gray-500">本场景 {sceneShotCount} 个分镜</span>
+            )}
+            <button
+              onClick={onGenerate}
+              disabled={!selectedScene}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[var(--color-primary)] text-white text-xs font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+            >
+              {sceneShotCount > 0 ? (
+                <>
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  重新生成
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  智能分镜创作
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </Row>
+
+      {/* Steps 3 & 4 — deferred */}
+      <Row done={false} label="生成分镜手稿" dim>
+        <span className="text-xs text-gray-400">暂未启用</span>
+      </Row>
+      <Row done={false} label="裁切分镜手稿" dim>
+        <span className="text-xs text-gray-400">暂未启用</span>
+      </Row>
     </div>
   );
+}
+
+function Row({
+  done,
+  running,
+  label,
+  dim,
+  children,
+}: {
+  done: boolean;
+  running?: boolean;
+  label: string;
+  dim?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`flex items-center gap-3 py-2 ${dim ? 'opacity-50' : ''}`}>
+      {running ? (
+        <Loader2 className="w-5 h-5 text-[var(--color-primary)] animate-spin flex-shrink-0" />
+      ) : done ? (
+        <CheckCircle2 className="w-5 h-5 text-[var(--color-success)] flex-shrink-0" />
+      ) : (
+        <Circle className="w-5 h-5 text-gray-300 flex-shrink-0" />
+      )}
+      <span className="text-sm text-[var(--color-text)] flex-shrink-0">{label}</span>
+      <div className="ml-auto">{children}</div>
+    </div>
+  );
+}
+
+function truncate(s: string, n: number): string {
+  return s.length > n ? s.slice(0, n) + '…' : s;
 }

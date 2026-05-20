@@ -1,9 +1,11 @@
+import { Prisma } from '@prisma/client';
 import type {
   TextProvider,
   TextInput,
   ProviderContext,
   ProviderResult,
 } from '@oneness/shared/providers';
+import type OpenAI from 'openai';
 import { config } from '../config.js';
 import {
   getOpenAIClient,
@@ -249,13 +251,30 @@ export const openaiTextProvider: TextProvider = {
 
     const ep = await ctx.prisma.storyboardEpisode.findUnique({
       where: { id: input.episodeId },
-      select: { number: true, title: true, content: true, projectId: true },
+      select: { number: true, title: true, content: true, projectId: true, scenesJson: true },
     });
     if (!ep) throw new Error(`episode not found: ${input.episodeId}`);
 
     const userContent =
       `Episode #${ep.number} — ${ep.title}\n\n` +
       `${ep.content || '(empty content)'}`;
+
+    // ── Storyboard "分析剧集": episode → scene breakdown ──
+    if ('analysisType' in input && input.analysisType === 'scene_list') {
+      return analyzeSceneList({ client, model, ep, episodeId: input.episodeId, ctx });
+    }
+
+    // ── AI-assist "智能分镜创作": one scene → shot list ──
+    if ('analysisType' in input && input.analysisType === 'shot_breakdown') {
+      return analyzeShotBreakdown({
+        client,
+        model,
+        ep,
+        episodeId: input.episodeId,
+        sceneIndex: input.sceneIndex,
+        ctx,
+      });
+    }
 
     if ('subjectType' in input) {
       const { subjectType } = input;
@@ -431,4 +450,336 @@ async function persistExtractedEntities(
     scenes.map((s) => ctx.prisma.scene.create({ data: { projectId, name: s.name } })),
   );
   return rows.map((r) => r.id);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Storyboard "分析剧集": episode → scene breakdown (summary + scenes[])
+// ──────────────────────────────────────────────────────────────────────────
+
+type EpisodeRow = {
+  number: number;
+  title: string;
+  content: string;
+  projectId: string;
+  scenesJson: unknown;
+};
+
+type AnalyzedScene = {
+  index: number;
+  title: string;
+  content: string;
+  characters: string[];
+  environment: string;
+};
+
+function sceneListSystemPrompt(): string {
+  return [
+    'You are a professional film script breakdown assistant for an AI storyboard tool.',
+    'Given one episode script, split it into its distinct SCENES — each a continuous',
+    'location + time block, usually marked by a scene heading. Also write a 2–4 sentence',
+    'episode summary.',
+    '',
+    'Return a single JSON object EXACTLY of this shape:',
+    '{ "summary": string, "scenes": [{ "title": string, "content": string, "characters": string[], "environment": string }] }',
+    '',
+    'Rules:',
+    "- Use the script's native language for every field (Chinese in → Chinese out).",
+    '- `title` = the scene heading (location + 日/夜 + 内/外), short.',
+    '- `content` = the script text for that scene: keep short scenes close to verbatim; for long scenes, condense to the key action beats + important dialogue (a few sentences). Stay concrete — this drives shot generation.',
+    '- `characters` = names of characters who appear or speak in the scene.',
+    '- `environment` = one vivid sentence describing the physical setting for image/video generation (lighting, space, mood).',
+    '- Identify up to 24 of the most important scenes, in story order. Merge trivially short fragments into a neighbour.',
+    '- NEVER use double-quote characters (") inside field values; use single quotes or 「」 instead.',
+    '- No prose outside the JSON object.',
+  ].join('\n');
+}
+
+function safeParseSceneList(raw: string): {
+  summary: string;
+  scenes: Array<{ title: string; content: string; characters: string[]; environment: string }>;
+} {
+  const cleaned = extractJsonObject(raw);
+  try {
+    const obj = JSON.parse(cleaned) as Record<string, unknown>;
+    const scenesRaw = Array.isArray(obj.scenes) ? obj.scenes : [];
+    const scenes = scenesRaw
+      .filter((s): s is Record<string, unknown> => typeof s === 'object' && s !== null)
+      .map((s) => ({
+        title: String(s.title ?? '').trim(),
+        content: String(s.content ?? '').trim(),
+        characters: Array.isArray(s.characters)
+          ? s.characters.filter((x): x is string => typeof x === 'string').map((x) => x.trim())
+          : [],
+        environment: String(s.environment ?? '').trim(),
+      }))
+      .filter((s) => s.title.length > 0 || s.content.length > 0);
+    return { summary: typeof obj.summary === 'string' ? obj.summary : '', scenes };
+  } catch {
+    return { summary: '', scenes: [] };
+  }
+}
+
+async function analyzeSceneList(args: {
+  client: OpenAI;
+  model: string;
+  ep: EpisodeRow;
+  episodeId: string;
+  ctx: ProviderContext;
+}): Promise<ProviderResult> {
+  const { client, model, ep, episodeId, ctx } = args;
+  ctx.log.info({ provider: 'openai', op: 'scene_list', model, episodeId }, 'scene-list analyze start');
+  try {
+    const resp = await client.chat.completions.create(
+      {
+        model,
+        messages: [
+          { role: 'system', content: sceneListSystemPrompt() },
+          {
+            role: 'user',
+            content: `剧集 #${ep.number} — ${ep.title}\n\n${ep.content || '(empty content)'}`,
+          },
+        ],
+        response_format: { type: 'json_object' },
+        max_tokens: 16000,
+      },
+      { signal: ctx.abortSignal },
+    );
+
+    const raw = resp.choices[0]?.message?.content ?? '{}';
+    const parsed = safeParseSceneList(raw);
+    const scenes: AnalyzedScene[] = parsed.scenes.map((s, i) => ({ index: i, ...s }));
+
+    if (scenes.length === 0) {
+      ctx.log.warn(
+        { provider: 'openai', op: 'scene_list', rawPreview: raw.slice(0, 800) },
+        'scene-list produced 0 scenes',
+      );
+    }
+
+    await ctx.prisma.storyboardEpisode.update({
+      where: { id: episodeId },
+      data: {
+        summary: parsed.summary,
+        scenesJson: scenes as unknown as Prisma.InputJsonValue,
+        analyzed: true,
+      },
+    });
+
+    return {
+      outputJson: {
+        provider: 'openai',
+        model,
+        analysisType: 'scene_list',
+        episodeId,
+        summary: parsed.summary,
+        sceneCount: scenes.length,
+        generationId: resp.id ?? null,
+        usage: resp.usage ?? null,
+      },
+    };
+  } catch (err) {
+    throw normalizeOpenAIError(err);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// AI-assist "智能分镜创作": one scene → shot list (auto-fills Shot rows)
+// ──────────────────────────────────────────────────────────────────────────
+
+type AnalyzedShot = {
+  shotType: 'new' | 'continue';
+  duration: number;
+  prompt: string;
+  roles: string[];
+  items: string[];
+};
+
+function shotBreakdownSystemPrompt(stylePrompt: string): string {
+  return [
+    'You are a professional AI film storyboard director. Given ONE scene, break it into a',
+    'sequence of video shots (镜头). Each shot becomes one AI-generated video clip.',
+    '',
+    'Return a single JSON object EXACTLY of this shape:',
+    '{ "shots": [{ "shotType": "new" | "continue", "duration": number, "prompt": string, "roles": string[], "items": string[] }] }',
+    '',
+    "Write each `prompt` (camera description) in the script's native language following:",
+    '景别 + 运镜方式 + 视角 + 画面内容及运动方式 + 效果提示词（光影/色调/构图/细节）。若有台词或音效，附在末尾。',
+    '',
+    'Rules:',
+    `- Honour the project visual style: ${stylePrompt || 'cinematic, realistic'}.`,
+    '- Produce 6 to 12 shots, in story order. Each `duration` is an integer 3–8 (seconds).',
+    '- The first shot must be "new". Use "continue" only when the shot flows seamlessly from the previous one (same action/camera continuation).',
+    '- `roles` = character names that appear in the shot (reuse names from the scene). `items` = notable props.',
+    '- The AI video model has real-human face-consistency limits: PREFER wide / medium / environment / over-the-shoulder / silhouette / stylized compositions. AVOID extreme facial close-ups of real humans.',
+    '- NEVER use double-quote characters (") inside field values; use single quotes or 「」 instead.',
+    '- No prose outside the JSON object.',
+  ].join('\n');
+}
+
+function safeParseShots(raw: string): AnalyzedShot[] {
+  const cleaned = extractJsonObject(raw);
+  try {
+    const obj = JSON.parse(cleaned) as Record<string, unknown>;
+    const arr = Array.isArray(obj.shots) ? obj.shots : [];
+    return arr
+      .filter((s): s is Record<string, unknown> => typeof s === 'object' && s !== null)
+      .map((s) => ({
+        shotType: s.shotType === 'continue' ? ('continue' as const) : ('new' as const),
+        duration: clampInt(Number(s.duration), 3, 8, 4),
+        prompt: String(s.prompt ?? '').trim(),
+        roles: Array.isArray(s.roles)
+          ? s.roles.filter((x): x is string => typeof x === 'string').map((x) => x.trim())
+          : [],
+        items: Array.isArray(s.items)
+          ? s.items.filter((x): x is string => typeof x === 'string').map((x) => x.trim())
+          : [],
+      }))
+      .filter((s) => s.prompt.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function clampInt(n: number, lo: number, hi: number, fallback: number): number {
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(hi, Math.max(lo, Math.round(n)));
+}
+
+async function analyzeShotBreakdown(args: {
+  client: OpenAI;
+  model: string;
+  ep: EpisodeRow;
+  episodeId: string;
+  sceneIndex: number;
+  ctx: ProviderContext;
+}): Promise<ProviderResult> {
+  const { client, model, ep, episodeId, sceneIndex, ctx } = args;
+
+  const scenes = Array.isArray(ep.scenesJson) ? (ep.scenesJson as AnalyzedScene[]) : [];
+  const scene = scenes.find((s) => s.index === sceneIndex) ?? scenes[sceneIndex];
+  if (!scene) {
+    throw new Error(`scene ${sceneIndex} not found on episode ${episodeId}; run 分析剧集 first`);
+  }
+
+  const project = await ctx.prisma.project.findUnique({
+    where: { id: ep.projectId },
+    select: { ratio: true, stylePrompt: true },
+  });
+  const ratio = project?.ratio || '16:9';
+
+  ctx.log.info(
+    { provider: 'openai', op: 'shot_breakdown', model, episodeId, sceneIndex, sceneTitle: scene.title },
+    'shot-breakdown analyze start',
+  );
+
+  let shots: AnalyzedShot[];
+  try {
+    const resp = await client.chat.completions.create(
+      {
+        model,
+        messages: [
+          { role: 'system', content: shotBreakdownSystemPrompt(project?.stylePrompt ?? '') },
+          {
+            role: 'user',
+            content:
+              `场景标题：${scene.title}\n` +
+              `出场角色：${scene.characters.join('、') || '（未知）'}\n` +
+              `环境：${scene.environment}\n\n` +
+              `剧本内容：\n${scene.content || '(empty)'}`,
+          },
+        ],
+        response_format: { type: 'json_object' },
+        max_tokens: 8000,
+      },
+      { signal: ctx.abortSignal },
+    );
+    const raw = resp.choices[0]?.message?.content ?? '{}';
+    shots = safeParseShots(raw);
+    if (shots.length === 0) {
+      ctx.log.warn(
+        { provider: 'openai', op: 'shot_breakdown', rawPreview: raw.slice(0, 800) },
+        'shot-breakdown produced 0 shots',
+      );
+    }
+  } catch (err) {
+    throw normalizeOpenAIError(err);
+  }
+
+  // Resolve role/item names to existing project assets (best-effort).
+  const chars = await ctx.prisma.character.findMany({
+    where: { projectId: ep.projectId },
+    select: { name: true, styles: { select: { id: true, assetId: true }, orderBy: { createdAt: 'asc' } } },
+  });
+  const charByName = new Map(chars.map((c) => [c.name, c]));
+  const items = await ctx.prisma.item.findMany({
+    where: { projectId: ep.projectId },
+    select: { id: true, name: true },
+  });
+  const itemIdByName = new Map(items.map((i) => [i.name, i.id]));
+
+  const createdIds = await ctx.prisma.$transaction(
+    async (tx) => {
+      // Re-running AI-assist for a scene replaces its previously generated shots,
+      // leaving any manually created shots untouched.
+      await tx.shot.deleteMany({ where: { episodeId, sceneIndex, createType: 'assist' } });
+      const agg = await tx.shot.aggregate({ where: { episodeId }, _max: { displayId: true } });
+      let displayId = agg._max.displayId ?? 0;
+      let prevDisplayId: number | null = null;
+      const ids: string[] = [];
+
+      for (const s of shots) {
+        displayId += 1;
+        const isContinue = s.shotType === 'continue' && prevDisplayId !== null;
+
+        const characterStyleIds: string[] = [];
+        for (const role of s.roles) {
+          const c = charByName.get(role);
+          if (!c) continue;
+          const styled = c.styles.find((st) => st.assetId) ?? c.styles[0];
+          if (styled) characterStyleIds.push(styled.id);
+        }
+        const itemIds = s.items
+          .map((n) => itemIdByName.get(n))
+          .filter((x): x is string => typeof x === 'string');
+
+        const row = await tx.shot.create({
+          data: {
+            episodeId,
+            displayId,
+            sceneIndex,
+            shotType: isContinue ? 'continuation' : 'new',
+            preId: isContinue ? prevDisplayId : null,
+            duration: s.duration,
+            prompt: s.prompt,
+            model: 'seedance',
+            ratio,
+            resolution: '720p',
+            generateAudio: false,
+            createType: 'assist',
+            roleNames: s.roles as unknown as Prisma.InputJsonValue,
+            characterStyleIds: characterStyleIds as unknown as Prisma.InputJsonValue,
+            itemIds: itemIds as unknown as Prisma.InputJsonValue,
+            sceneIds: [] as unknown as Prisma.InputJsonValue,
+          },
+          select: { id: true },
+        });
+        ids.push(row.id);
+        prevDisplayId = displayId;
+      }
+      return ids;
+    },
+    { timeout: 30000 },
+  );
+
+  return {
+    outputJson: {
+      provider: 'openai',
+      model,
+      analysisType: 'shot_breakdown',
+      episodeId,
+      sceneIndex,
+      shotCount: createdIds.length,
+      createdShotIds: createdIds,
+    },
+  };
 }

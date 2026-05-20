@@ -151,6 +151,8 @@ export const mockStoryboardEpisodes: StoryboardEpisode[] = [
     title: '第1集',
     content: '《终极格斗》（暂拟）电影剧本 编剧 杜庆春 黄昱舟 刘林青 2021年1月30日 精武杯联赛比赛现场（四角擂台）夜 内 一阵清脆利落的撞击响起，一股鲜血溅射在擂台上。鲜血顺着一位白人选手的颧骨流下...',
     analyzed: true,
+    summary: '',
+    scenes: [],
   },
 ];
 

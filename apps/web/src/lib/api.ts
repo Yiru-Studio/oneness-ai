@@ -363,6 +363,7 @@ export async function getEpisodeShots(
 
 export type CreateShotInput = {
   afterDisplayId?: number;
+  sceneIndex?: number;
   shotType?: 'new' | 'continuation';
   preId?: number;
   duration?: number;
@@ -440,18 +441,38 @@ export async function analyzeEpisode(
 }
 
 /**
- * Flips `episode.analyzed = true` so the user can enter the per-episode
- * storyboard page. Distinct from {@link analyzeEpisode}, which fans out
- * project-level character / item / scene extraction.
+ * likeai's "分析剧集": kicks off a TEXT_ANALYZE task that breaks the episode
+ * into scenes (summary + scenes[]) and flips `analyzed` when it completes.
+ * Returns the task; poll it with {@link pollTaskUntilDone}, then re-fetch the
+ * episode. Distinct from {@link analyzeEpisode}, which fans out project-level
+ * character / item / scene extraction.
  */
 export async function analyzeEpisodeForStoryboard(
   projectId: string,
   episodeId: string,
-): Promise<StoryboardEpisode> {
-  return await apiFetch<EpisodeDTO>(
+): Promise<TaskDTO> {
+  const res = await apiFetch<{ task: TaskDTO }>(
     `/api/projects/${projectId}/episodes/${episodeId}/analyze-storyboard`,
     { method: 'POST', body: {} },
   );
+  return res.task;
+}
+
+/**
+ * likeai's AI-assist "智能分镜创作": kicks off a TEXT_ANALYZE task that breaks
+ * one analyzed scene into a shot list and creates the Shot rows. Returns the
+ * task; poll it, then re-fetch the episode's shots.
+ */
+export async function generateSceneShots(
+  projectId: string,
+  episodeId: string,
+  sceneIndex: number,
+): Promise<TaskDTO> {
+  const res = await apiFetch<{ task: TaskDTO }>(
+    `/api/projects/${projectId}/episodes/${episodeId}/generate-shots`,
+    { method: 'POST', body: { sceneIndex } },
+  );
+  return res.task;
 }
 
 export async function getProjectAnalytics(projectId: string): Promise<AnalyticsData> {

@@ -95,6 +95,19 @@ export type TextInput =
       episodeId: string;
       subjectType: 'characters' | 'items' | 'scenes';
       model?: string;
+    }
+  // Storyboard "分析剧集": break the whole episode into scenes (summary + scenes[]).
+  | {
+      episodeId: string;
+      analysisType: 'scene_list';
+      model?: string;
+    }
+  // AI-assist "智能分镜创作": break one scene into a shot list (auto-fills Shot rows).
+  | {
+      episodeId: string;
+      sceneIndex: number;
+      analysisType: 'shot_breakdown';
+      model?: string;
     };
 
 /** Convenience union — used by worker's registry. */

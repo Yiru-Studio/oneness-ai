@@ -11,6 +11,8 @@ import {
   analyzeEpisode,
   analyzeEpisodeForStoryboard,
   getProjectStoryboard,
+  pollTaskUntilDone,
+  type TaskDTO,
 } from '@/lib/api';
 
 interface Props {
@@ -204,10 +206,12 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
       <AnalyzeEpisodeDialog
         episode={analyzeId ? episodes.find((e) => e.id === analyzeId) ?? null : null}
         onClose={() => setAnalyzeId(null)}
-        onAnalyzed={(updated) => {
-          onChange(episodes.map((e) => (e.id === updated.id ? updated : e)));
+        onAnalyzed={async () => {
+          const id = analyzeId!;
+          const fresh = await getProjectStoryboard(project.id);
+          onChange(fresh);
           setAnalyzeId(null);
-          router.push(`/projects/${project.id}/episodes/${updated.id}`);
+          router.push(`/projects/${project.id}/episodes/${id}`);
         }}
         onAnalyzeRequest={() => analyzeEpisodeForStoryboard(project.id, analyzeId!)}
       />
@@ -223,8 +227,8 @@ function AnalyzeEpisodeDialog({
 }: {
   episode: StoryboardEpisode | null;
   onClose: () => void;
-  onAnalyzed: (updated: StoryboardEpisode) => void;
-  onAnalyzeRequest: () => Promise<StoryboardEpisode>;
+  onAnalyzed: () => void | Promise<void>;
+  onAnalyzeRequest: () => Promise<TaskDTO>;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -242,8 +246,12 @@ function AnalyzeEpisodeDialog({
     setBusy(true);
     setError(null);
     try {
-      const updated = await onAnalyzeRequest();
-      onAnalyzed(updated);
+      const task = await onAnalyzeRequest();
+      const done = await pollTaskUntilDone(task.id, { intervalMs: 2000, timeoutMs: 4 * 60_000 });
+      if (done.status !== 'SUCCEEDED') {
+        throw new Error(done.error || '分析失败');
+      }
+      await onAnalyzed();
     } catch (e) {
       setError(e instanceof Error ? e.message : '分析失败');
       setBusy(false);
@@ -274,6 +282,12 @@ function AnalyzeEpisodeDialog({
           <div className="rounded-lg bg-gray-50 border border-[var(--color-border)] px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap font-mono max-h-[40vh] overflow-y-auto">
             {episode.content || <span className="text-gray-400">（剧集尚未填入剧本）</span>}
           </div>
+          {busy && (
+            <div className="text-xs text-[var(--color-text-secondary)] mt-3 inline-flex items-center gap-1.5">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              正在调用大模型拆解场景（约需 1 分钟），请勿关闭…
+            </div>
+          )}
           {error && <div className="text-sm text-red-600 mt-3">{error}</div>}
         </div>
 

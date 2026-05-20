@@ -110,6 +110,7 @@ shotRoutes.post(
         data: {
           episodeId,
           displayId: newDisplayId,
+          sceneIndex: body.sceneIndex,
           shotType: body.shotType,
           preId: body.preId ?? null,
           duration: body.duration,

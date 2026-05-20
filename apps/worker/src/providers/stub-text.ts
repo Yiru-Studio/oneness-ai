@@ -56,6 +56,91 @@ export const stubTextProvider: TextProvider = {
       };
     }
 
+    // Storyboard "分析剧集" — mock a scene breakdown.
+    if (input.analysisType === 'scene_list') {
+      await sleep(1500, ctx.abortSignal);
+      const scenes = [
+        {
+          index: 0,
+          title: '擂台开场 夜 内',
+          content: '聚光灯下的擂台，主角迎战对手，观众沸腾。',
+          characters: ['主角', '对手'],
+          environment: '灯光聚焦的职业格斗擂台，四周铁网围绳，地面血迹斑斑。',
+        },
+        {
+          index: 1,
+          title: '观众席 夜 内',
+          content: '观众席人头攒动，齐声呐喊主角的名字。',
+          characters: ['观众'],
+          environment: '昏暗的体育馆看台，彩色氛围灯扫过欢呼的人群。',
+        },
+      ];
+      await ctx.prisma.storyboardEpisode.update({
+        where: { id: input.episodeId },
+        data: {
+          analyzed: true,
+          summary: '（stub）本集为格斗开场的演示分析。',
+          scenesJson: scenes as never,
+        },
+      });
+      return {
+        outputJson: {
+          kind: 'stub-text',
+          episodeId: input.episodeId,
+          analysisType: 'scene_list',
+          sceneCount: scenes.length,
+        },
+      };
+    }
+
+    // AI-assist "智能分镜创作" — mock a couple of shots.
+    if (input.analysisType === 'shot_breakdown') {
+      await sleep(1500, ctx.abortSignal);
+      const sceneIndex = input.sceneIndex;
+      const mock = [
+        { shotType: 'new', duration: 4, prompt: '全景，固定镜头，俯视，擂台全貌，灯光聚焦。', roles: [] },
+        { shotType: 'continue', duration: 5, prompt: '中景，缓推，平视，主角摆出防守姿态，冷蓝色调。', roles: ['主角'] },
+      ];
+      const ids = await ctx.prisma.$transaction(async (tx) => {
+        await tx.shot.deleteMany({ where: { episodeId: input.episodeId, sceneIndex, createType: 'assist' } });
+        const agg = await tx.shot.aggregate({ where: { episodeId: input.episodeId }, _max: { displayId: true } });
+        let displayId = agg._max.displayId ?? 0;
+        let prev: number | null = null;
+        const out: string[] = [];
+        for (const s of mock) {
+          displayId += 1;
+          const isContinue = s.shotType === 'continue' && prev !== null;
+          const row = await tx.shot.create({
+            data: {
+              episodeId: input.episodeId,
+              displayId,
+              sceneIndex,
+              shotType: isContinue ? 'continuation' : 'new',
+              preId: isContinue ? prev : null,
+              duration: s.duration,
+              prompt: s.prompt,
+              model: 'stub',
+              createType: 'assist',
+              roleNames: s.roles as never,
+            },
+            select: { id: true },
+          });
+          out.push(row.id);
+          prev = displayId;
+        }
+        return out;
+      });
+      return {
+        outputJson: {
+          kind: 'stub-text',
+          episodeId: input.episodeId,
+          analysisType: 'shot_breakdown',
+          sceneIndex,
+          shotCount: ids.length,
+        },
+      };
+    }
+
     ctx.log.info(
       { episodeId: input.episodeId, analysisType: input.analysisType },
       'stub-text start',
