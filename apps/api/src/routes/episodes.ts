@@ -23,6 +23,7 @@ type SubjectType = (typeof SUBJECT_TYPES)[number];
 export const episodeRoutes = new Hono();
 episodeRoutes.use('/projects/:id/episodes', tryReadUser, requireUser);
 episodeRoutes.use('/projects/:id/episodes/:episodeId/analyze', tryReadUser, requireUser);
+episodeRoutes.use('/projects/:id/episodes/:episodeId/analyze-storyboard', tryReadUser, requireUser);
 episodeRoutes.use('/episodes/:id', tryReadUser, requireUser);
 
 episodeRoutes.get(
@@ -192,6 +193,30 @@ episodeRoutes.post('/projects/:id/episodes/:episodeId/analyze', async (c) => {
 
   const serialized = await Promise.all(tasks.map(serializeTask));
   return c.json({ tasks: serialized }, 201);
+});
+
+// POST /projects/:id/episodes/:episodeId/analyze-storyboard
+// Marks the episode as ready for storyboarding. Phase-1 stub: just flips the
+// `analyzed` flag and returns the updated row. Phase-2 will additionally fan
+// out the scene-list LLM task (likeai's "场景列表分析") so AI-assist mode has
+// a scene→characters map to draw shots from.
+episodeRoutes.post('/projects/:id/episodes/:episodeId/analyze-storyboard', async (c) => {
+  const user = c.var.user!;
+  const projectId = c.req.param('id');
+  const episodeId = c.req.param('episodeId');
+
+  const episode = await prisma.storyboardEpisode.findFirst({
+    where: { id: episodeId, projectId, project: { ownerId: user.id } },
+    select: { id: true },
+  });
+  if (!episode) {
+    throw AppError.notFound(ErrorCodes.EPISODE_NOT_FOUND, 'episode not found');
+  }
+  const updated = await prisma.storyboardEpisode.update({
+    where: { id: episode.id },
+    data: { analyzed: true },
+  });
+  return c.json(serializeEpisode(updated));
 });
 
 async function loadOwned(id: string, userId: string) {

@@ -9,6 +9,7 @@ import {
   deleteEpisode,
   updateEpisode,
   analyzeEpisode,
+  analyzeEpisodeForStoryboard,
   getProjectStoryboard,
 } from '@/lib/api';
 
@@ -27,6 +28,7 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
   const router = useRouter();
   const [showAdd, setShowAdd] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [analyzeId, setAnalyzeId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,7 +90,7 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
               if (ep.analyzed) {
                 router.push(`/projects/${project.id}/episodes/${ep.id}`);
               } else {
-                setOpenId(ep.id);
+                setAnalyzeId(ep.id);
               }
             }}
           >
@@ -198,6 +200,109 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
           analyzing={busy === `an-${open.id}`}
         />
       )}
+
+      <AnalyzeEpisodeDialog
+        episode={analyzeId ? episodes.find((e) => e.id === analyzeId) ?? null : null}
+        onClose={() => setAnalyzeId(null)}
+        onAnalyzed={(updated) => {
+          onChange(episodes.map((e) => (e.id === updated.id ? updated : e)));
+          setAnalyzeId(null);
+          router.push(`/projects/${project.id}/episodes/${updated.id}`);
+        }}
+        onAnalyzeRequest={() => analyzeEpisodeForStoryboard(project.id, analyzeId!)}
+      />
+    </div>
+  );
+}
+
+function AnalyzeEpisodeDialog({
+  episode,
+  onClose,
+  onAnalyzed,
+  onAnalyzeRequest,
+}: {
+  episode: StoryboardEpisode | null;
+  onClose: () => void;
+  onAnalyzed: (updated: StoryboardEpisode) => void;
+  onAnalyzeRequest: () => Promise<StoryboardEpisode>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!episode) {
+      setBusy(false);
+      setError(null);
+    }
+  }, [episode]);
+
+  if (!episode) return null;
+
+  const handleAnalyze = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await onAnalyzeRequest();
+      onAnalyzed(updated);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '分析失败');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl w-[640px] max-w-[92vw] max-h-[80vh] flex flex-col shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border)]">
+          <h3 className="text-base font-semibold">分析剧集</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="text-xs text-[var(--color-text-secondary)] mb-1">
+            【{episode.number}】{episode.title}
+          </div>
+          <div className="text-xs text-[var(--color-text-secondary)] mb-1.5">剧本内容</div>
+          <div className="rounded-lg bg-gray-50 border border-[var(--color-border)] px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap font-mono max-h-[40vh] overflow-y-auto">
+            {episode.content || <span className="text-gray-400">（剧集尚未填入剧本）</span>}
+          </div>
+          {error && <div className="text-sm text-red-600 mt-3">{error}</div>}
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-[var(--color-border)]">
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:bg-gray-50"
+          >
+            取消
+          </button>
+          <button
+            onClick={handleAnalyze}
+            disabled={busy}
+            className="px-4 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 inline-flex items-center gap-2"
+          >
+            {busy ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                分析中…
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5" />
+                分析剧集
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

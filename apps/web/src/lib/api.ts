@@ -439,6 +439,21 @@ export async function analyzeEpisode(
   );
 }
 
+/**
+ * Flips `episode.analyzed = true` so the user can enter the per-episode
+ * storyboard page. Distinct from {@link analyzeEpisode}, which fans out
+ * project-level character / item / scene extraction.
+ */
+export async function analyzeEpisodeForStoryboard(
+  projectId: string,
+  episodeId: string,
+): Promise<StoryboardEpisode> {
+  return await apiFetch<EpisodeDTO>(
+    `/api/projects/${projectId}/episodes/${episodeId}/analyze-storyboard`,
+    { method: 'POST', body: {} },
+  );
+}
+
 export async function getProjectAnalytics(projectId: string): Promise<AnalyticsData> {
   return await apiFetch<AnalyticsDTO>(`/api/projects/${projectId}/analytics`);
 }
