@@ -86,9 +86,11 @@ export async function processTask(taskId: string) {
       typeof (providerInput as Record<string, unknown>).prompt === 'string'
     ) {
       const inputObj = providerInput as { prompt: string; referenceAssetIds?: string[] };
-      // Expand @三视图 marker into a canonical three-view layout prompt.
+      // Expand @三视图 marker into a canonical three-view layout prompt,
+      // rendered in the project's art style (anime/2D/realistic/etc.).
       if (inputObj.prompt.trimStart().startsWith(THREE_VIEW_MARKER)) {
-        providerInput = await expandThreeViewPrompt(inputObj, taskLog);
+        const styleDescriptor = await loadProjectStyleDescriptor(task.projectId);
+        providerInput = await expandThreeViewPrompt(inputObj, styleDescriptor, taskLog);
       }
       if (
         Array.isArray(inputObj.referenceAssetIds) &&
@@ -354,22 +356,42 @@ const THREE_VIEW_RATIO = '16:9';
  * full-body panels on the right half — front, 3/4 turned (NOT 90° profile),
  * and back. Same studio backdrop, outfit, and identity across all 4 panels.
  */
-const THREE_VIEW_LAYOUT_PROMPT = [
-  '请生成一张写实角色参考图，单张横向 16:9 图像，画面从左到右分为 4 个等高画面：',
-  '',
-  '【画面 1】（占整图 50% 宽度）：角色脸部大特写，正面 frontal portrait，头肩特写，五官清晰，肤质真实，神情自然平静。',
-  '',
-  '【画面 2 / 3 / 4】（平分整图右侧 50% 宽度）：同一个角色的全身像（从头顶到脚尖完整入镜，鞋子完整），三个角度并排：',
-  '  • 画面 2 = 全身正视图（front view）：身体与镜头完全正对，双臂自然垂在体侧。',
-  '  • 画面 3 = 全身 3/4 微侧身视图（three-quarter view，**约 30 度侧身、绝非 90 度侧面**）：身体仅轻微转向一侧，观众仍能清楚看到两只眼睛、整张脸的正面、整个胸腹的正面，只是稍微带一点角度。绝对禁止画成 profile / 全侧面剪影 / 只能看到一只眼睛的纯侧视图。',
-  '  • 画面 4 = 全身背视图（back view）：身体完全背对镜头，观众只能看到后脑勺和后背。',
-  '',
-  '强制约束：',
-  '- 4 个画面共用完全一致的中性灰白色摄影棚背景、同样均匀柔和的影棚布光、同一套服装、同一个发型、同样的体型、年龄、肤色、人物身份。',
-  '- 全身像必须站立、双脚着地、双臂自然下垂、放松站姿；不做任何动作、不带道具。',
-  '- 严格写实摄影风格；禁止任何文字、标签、字幕、水印、logo、画框、白色分隔条、网格。',
-  '',
-].join('\n');
+/**
+ * Builds the canonical three-view layout prompt, parameterised by the
+ * project's art style. The style line is injected (not hardcoded to 写实) so a
+ * 日漫/2D/etc. project produces an anime turnaround rather than a photoreal one
+ * — switching the project style now actually takes effect on the three-view.
+ */
+function threeViewLayoutPrompt(styleDescriptor: string): string {
+  const style = styleDescriptor.trim() || '写实摄影风格';
+  return [
+    '请生成一张角色参考图，单张横向 16:9 图像，画面从左到右分为 4 个等高画面：',
+    '',
+    '【画面 1】（占整图 50% 宽度）：角色脸部大特写，正面 frontal portrait，头肩特写，五官清晰，刻画精致，神情自然平静。',
+    '',
+    '【画面 2 / 3 / 4】（平分整图右侧 50% 宽度）：同一个角色的全身像（从头顶到脚尖完整入镜，鞋子完整），三个角度并排：',
+    '  • 画面 2 = 全身正视图（front view）：身体与镜头完全正对，双臂自然垂在体侧。',
+    '  • 画面 3 = 全身 3/4 微侧身视图（three-quarter view，**约 30 度侧身、绝非 90 度侧面**）：身体仅轻微转向一侧，观众仍能清楚看到两只眼睛、整张脸的正面、整个胸腹的正面，只是稍微带一点角度。绝对禁止画成 profile / 全侧面剪影 / 只能看到一只眼睛的纯侧视图。',
+    '  • 画面 4 = 全身背视图（back view）：身体完全背对镜头，观众只能看到后脑勺和后背。',
+    '',
+    '强制约束：',
+    `- 整体画风：${style}（务必贯穿全部 4 个画面，严禁混入其它画风；若为动漫/2D 风格则不要画成写实照片）。`,
+    '- 4 个画面共用完全一致的中性灰白色背景、同样均匀柔和的布光、同一套服装、同一个发型、同样的体型、年龄、肤色、人物身份。',
+    '- 全身像必须站立、双脚着地、双臂自然下垂、放松站姿；不做任何动作、不带道具。',
+    '- 禁止任何文字、标签、字幕、水印、logo、画框、白色分隔条、网格。',
+    '',
+  ].join('\n');
+}
+
+/** Resolve a project's art-style descriptor for three-view rendering. */
+async function loadProjectStyleDescriptor(projectId: string | null): Promise<string> {
+  if (!projectId) return '';
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { stylePrompt: true, style: true },
+  });
+  return project?.stylePrompt?.trim() || project?.style?.trim() || '';
+}
 
 /**
  * Replaces a leading `@三视图` marker in the prompt with the canonical
@@ -386,7 +408,8 @@ const THREE_VIEW_LAYOUT_PROMPT = [
  */
 async function expandThreeViewPrompt<
   T extends { prompt: string; ratio?: string },
->(input: T, log: import('@oneness/shared/logger').Logger): Promise<T> {
+>(input: T, styleDescriptor: string, log: import('@oneness/shared/logger').Logger): Promise<T> {
+  const layoutPrompt = threeViewLayoutPrompt(styleDescriptor);
   const trimmed = input.prompt.trimStart();
   const without = trimmed.slice(THREE_VIEW_MARKER.length).replace(/^\s*\n?/, '');
   const rawBody = without.trim();
@@ -419,8 +442,8 @@ async function expandThreeViewPrompt<
   }
 
   const expanded = cleansedBody
-    ? `${THREE_VIEW_LAYOUT_PROMPT}补充描述：\n${cleansedBody}`
-    : THREE_VIEW_LAYOUT_PROMPT;
+    ? `${layoutPrompt}补充描述：\n${cleansedBody}`
+    : layoutPrompt;
 
   log.info(
     {

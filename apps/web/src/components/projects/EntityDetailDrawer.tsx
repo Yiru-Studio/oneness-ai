@@ -97,13 +97,6 @@ const KIND_LABEL: Record<EntityKind, string> = {
   'character-avatar': '角色头像',
 };
 
-const DEFAULT_RATIO_BY_KIND: Record<EntityKind, string> = {
-  item: '1:1',
-  scene: '16:9',
-  style: '9:16',
-  'character-avatar': '1:1',
-};
-
 export function EntityDetailDrawer({
   open,
   kind,
@@ -122,7 +115,7 @@ export function EntityDetailDrawer({
   const [threeView, setThreeView] = useState(initialParsed.threeView);
   const [model, setModel] = useState(entity.model || project.imageModel);
   const [ratio, setRatio] = useState(
-    entity.ratio || (kind === 'scene' ? project.ratio : DEFAULT_RATIO_BY_KIND[kind]),
+    entity.ratio || project.ratio,
   );
   const [image, setImage] = useState(entity.image || '');
   const { isGenerating, getError, clearError, runGeneration } = useGeneration();
@@ -147,7 +140,7 @@ export function EntityDetailDrawer({
     setThreeView(parsed.threeView);
     setModel(entity.model || project.imageModel);
     setRatio(
-      entity.ratio || (kind === 'scene' ? project.ratio : DEFAULT_RATIO_BY_KIND[kind]),
+      entity.ratio || project.ratio,
     );
     setImage(entity.image || '');
     setError(null);
@@ -157,12 +150,15 @@ export function EntityDetailDrawer({
   if (!open) return null;
 
   const composedPrompt = composeThreeViewPrompt(threeView, promptBody);
+  // The 三视图 chip alone is a valid prompt (the worker expands it); otherwise
+  // there must be prompt text. Empty → Generate is disabled to block invalid requests.
+  const hasPrompt = threeView || promptBody.trim().length > 0;
   const dirty =
     name !== entity.name ||
     description !== (entity.description ?? '') ||
     composedPrompt !== (entity.prompt ?? '') ||
     model !== (entity.model || project.imageModel) ||
-    ratio !== (entity.ratio || (kind === 'scene' ? project.ratio : DEFAULT_RATIO_BY_KIND[kind]));
+    ratio !== (entity.ratio || project.ratio);
 
   const isStyle = kind === 'style';
   const handleAutoFill = () => {
@@ -330,8 +326,9 @@ export function EntityDetailDrawer({
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleGenerate}
-              disabled={generating || uploading}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+              disabled={generating || uploading || !hasPrompt}
+              title={!hasPrompt ? '请先填写提示词或点击「三视图」' : undefined}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {generating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

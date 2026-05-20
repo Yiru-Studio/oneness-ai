@@ -150,7 +150,8 @@ export default function StoryboardEpisodePage() {
   const handleCreate = async (afterDisplayId?: number) => {
     setCreating(true);
     try {
-      await createShot(projectId, episodeId, { afterDisplayId, sceneIndex });
+      // Inherit the project's aspect ratio; 音画同出 defaults on (schema).
+      await createShot(projectId, episodeId, { afterDisplayId, sceneIndex, ratio: project?.ratio });
       await reloadShots();
     } catch (e) {
       setError(e instanceof Error ? e.message : '创建分镜失败');

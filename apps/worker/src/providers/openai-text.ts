@@ -754,7 +754,7 @@ async function analyzeShotBreakdown(args: {
             model: 'seedance',
             ratio,
             resolution: '720p',
-            generateAudio: false,
+            generateAudio: true,
             createType: 'assist',
             roleNames: s.roles as unknown as Prisma.InputJsonValue,
             characterStyleIds: characterStyleIds as unknown as Prisma.InputJsonValue,

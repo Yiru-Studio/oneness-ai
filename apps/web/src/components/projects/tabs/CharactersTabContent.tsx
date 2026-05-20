@@ -179,15 +179,20 @@ function CharacterDetail({ character, project, onUpdated, onStyleChanged }: Deta
   const isFresh = !character.markedBlank && character.styles.length === 0;
 
   const [analyzing, setAnalyzing] = useState(false);
+  const { runGeneration } = useGeneration();
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
     try {
-      const updated = await analyzeCharacter(character.id);
+      // Reuse the avatar-generation loading channel so the left-panel avatar
+      // slot shows the same spinner during script/character analysis.
+      const updated = await runGeneration('character-avatar', character.id, () =>
+        analyzeCharacter(character.id),
+      );
       onUpdated(updated);
-    } catch (e) {
-      // Keep the character in fresh state so the user can retry.
-      throw e;
+    } catch {
+      // Keep the character in fresh state so the user can retry; the error is
+      // surfaced via the generation context.
     } finally {
       setAnalyzing(false);
     }
@@ -324,7 +329,7 @@ function CharacterEditableDetail({
           description: character.description,
           prompt: character.avatarPrompt ?? '',
           model: null,
-          ratio: '1:1',
+          ratio: project.ratio,
           image: character.avatar,
         }}
         project={project}
@@ -348,7 +353,7 @@ function CharacterEditableDetail({
             description: fresh.description,
             prompt: fresh.avatarPrompt ?? '',
             model: null,
-            ratio: '1:1',
+            ratio: project.ratio,
             image: fresh.avatar,
           };
         }}
@@ -450,7 +455,7 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
         name: styleName,
         prompt: '',
         model: project.imageModel,
-        ratio: '9:16',
+        ratio: project.ratio,
       });
       await onChanged();
       setOpenStyleId(created.id);

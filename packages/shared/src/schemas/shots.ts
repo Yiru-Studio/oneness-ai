@@ -17,7 +17,8 @@ export const CreateShotSchema = z.object({
   model: z.string().min(1).default('seedance'),
   ratio: z.string().min(1).default('16:9'),
   resolution: z.string().min(1).default('720p'),
-  generateAudio: z.boolean().default(false),
+  // 音画同出 (synchronized audio+video) is the default per product spec.
+  generateAudio: z.boolean().default(true),
   characterStyleIds: z.array(z.string()).default([]),
   sceneIds: z.array(z.string()).default([]),
   itemIds: z.array(z.string()).default([]),

@@ -32,8 +32,10 @@ characterRoutes.get(
     }
     const characters = await prisma.character.findMany({
       where: { projectId },
-      include: { styles: { include: { asset: true } }, avatar: true },
-      orderBy: { createdAt: 'asc' },
+      include: { styles: { include: { asset: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }, avatar: true },
+      // createdAt alone is unstable: extraction creates many rows in one
+      // transaction with identical timestamps. id is the deterministic tiebreaker.
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
     const serialized = await Promise.all(characters.map(serializeCharacter));
     return c.json(serialized);
@@ -67,7 +69,7 @@ characterRoutes.post(
         avatarAssetId: body.avatarAssetId ?? null,
         markedBlank: body.markedBlank ?? false,
       },
-      include: { styles: { include: { asset: true } }, avatar: true },
+      include: { styles: { include: { asset: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }, avatar: true },
     });
     return c.json(await serializeCharacter(created), 201);
   },
@@ -109,7 +111,7 @@ characterRoutes.patch(
     const updated = await prisma.character.update({
       where: { id },
       data,
-      include: { styles: { include: { asset: true } }, avatar: true },
+      include: { styles: { include: { asset: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }, avatar: true },
     });
     return c.json(await serializeCharacter(updated));
   },
@@ -131,7 +133,7 @@ characterRoutes.delete(
 async function loadOwnedCharacter(id: string, userId: string) {
   const character = await prisma.character.findFirst({
     where: { id, project: { ownerId: userId } },
-    include: { styles: { include: { asset: true } }, avatar: true },
+    include: { styles: { include: { asset: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }, avatar: true },
   });
   if (!character) {
     throw AppError.notFound(ErrorCodes.CHARACTER_NOT_FOUND, 'character not found');
@@ -209,7 +211,7 @@ characterRoutes.post('/characters/:id/analyze', zValidator('param', IdParamSchem
         name,
         prompt: look.prompt,
         model: character.project.imageModel,
-        ratio: '9:16',
+        ratio: character.project.ratio,
       },
     });
   }
@@ -217,7 +219,7 @@ characterRoutes.post('/characters/:id/analyze', zValidator('param', IdParamSchem
   // Re-fetch with the freshly-created styles so the response reflects them.
   const fresh = await prisma.character.findUniqueOrThrow({
     where: { id: character.id },
-    include: { styles: { include: { asset: true } }, avatar: true },
+    include: { styles: { include: { asset: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }, avatar: true },
   });
 
   return c.json(await serializeCharacter(fresh), 200);

@@ -313,10 +313,14 @@ async function resolveReferences(
   if (ids.characterStyle.length > 0) {
     const styles = await prisma.characterStyle.findMany({
       where: { id: { in: ids.characterStyle } },
-      select: { assetId: true },
+      // Fall back to the parent character's avatar when the style itself has no
+      // generated image — the reference picker shows `style.image || avatar`, so
+      // a selection must always resolve to whatever image the user actually saw.
+      select: { assetId: true, character: { select: { avatarAssetId: true } } },
     });
     for (const s of styles) {
-      if (s.assetId) refs.push({ assetId: s.assetId, role: 'reference_image' });
+      const assetId = s.assetId ?? s.character?.avatarAssetId ?? null;
+      if (assetId) refs.push({ assetId, role: 'reference_image' });
     }
   }
   if (ids.scene.length > 0) {
