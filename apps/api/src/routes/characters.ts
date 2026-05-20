@@ -263,7 +263,8 @@ async function analyzeCharacterWithLLM(
     '为每个造型生成一段用于 AI 绘画的中文提示词。' +
     '头像提示词应聚焦于角色的面部特征、发型、神态、气质，适合生成半身像或头像。' +
     '造型的命名要紧扣剧情场景或身份，例如「年轻时消防员制服造型」「暖阳回忆训练服造型」「现代日常居家造型」等，避免使用「正面/侧面/背面」这类视角词。' +
-    '你必须只输出一个严格合法的 JSON 对象，不要包含 markdown 代码块、不要包含任何解释文字。';
+    '你必须只输出一个严格合法的 JSON 对象，不要包含 markdown 代码块、不要包含任何解释文字。' +
+    '字段值内部严禁使用英文双引号(")，如需引用一律改用中文引号「」或单引号，否则 JSON 会解析失败。';
 
   const existingPart = existingDescription.trim()
     ? `已有的角色简介（来自剧本初步提取）：${existingDescription.trim()}\n\n`
@@ -305,6 +306,9 @@ ${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : 
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
+      // Force JSON output so Claude/zenmux can't wrap it in prose or break
+      // JSON.parse with unescaped quotes — mirrors the worker's text provider.
+      response_format: { type: 'json_object' },
     }),
   });
 
