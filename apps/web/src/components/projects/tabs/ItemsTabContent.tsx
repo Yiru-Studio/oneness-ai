@@ -82,7 +82,7 @@ export function ItemsTabContent({ items, project, scriptContent, onChange }: Pro
       `物品：${item.name}`,
       item.description ? `描述：${item.description}` : '',
       ctxLines ? `剧本节选：\n${ctxLines}` : '',
-      '输出：单个物品特写，纯色背景，光线柔和，构图居中',
+      '输出：单个物品特写，纯白色干净背景，光线柔和，构图居中',
       project.stylePrompt ? `风格：${project.stylePrompt}` : '',
     ]
       .filter(Boolean)

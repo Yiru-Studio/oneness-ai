@@ -221,14 +221,19 @@ export function EntityDetailDrawer({
       setError('请先填写提示词');
       return;
     }
-    // For avatars, force a tight close-up headshot on a clean white background,
-    // regardless of how the prompt was authored (LLM analysis, manual, or auto-fill).
-    // Appended only to the generation request — not the saved prompt — so it never
-    // accumulates across repeated generations.
-    const generationPrompt =
-      kind === 'character-avatar'
-        ? `${effectivePrompt}\n\n构图要求：面部特写头像（close-up headshot），仅包含人物头部与肩部，正面视角，五官清晰；背景为纯白色干净背景（clean solid white background），无任何场景、道具、阴影或装饰。`
-        : effectivePrompt;
+    // Composition constraints appended to the generation request ONLY (never the
+    // saved prompt, so they don't accumulate across repeated generations),
+    // regardless of how the prompt was authored (LLM analysis, manual, auto-fill):
+    //  - avatars: a tight close-up headshot on a clean white background.
+    //  - props (items): the item centered on a clean pure-white background.
+    const compositionSuffix: Partial<Record<EntityKind, string>> = {
+      'character-avatar':
+        '构图要求：面部特写头像（close-up headshot），仅包含人物头部与肩部，正面视角，五官清晰；背景为纯白色干净背景（clean solid white background），无任何场景、道具、阴影或装饰。',
+      item:
+        '构图要求：物品居中特写，背景为纯白色干净背景（pure white background），无任何场景、其它道具、阴影或装饰。',
+    };
+    const suffix = compositionSuffix[kind];
+    const generationPrompt = suffix ? `${effectivePrompt}\n\n${suffix}` : effectivePrompt;
     setError(null);
     clearError(kind, entity.id);
     try {
