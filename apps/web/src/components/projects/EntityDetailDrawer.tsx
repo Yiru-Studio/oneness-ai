@@ -82,11 +82,13 @@ function composeThreeViewPrompt(threeView: boolean, body: string): string {
   return body ? `${THREE_VIEW_MARKER}\n${body}` : THREE_VIEW_MARKER;
 }
 
-// Character designs (造型) render as a three-view sheet by default, so the chip
-// starts selected for a fresh style that has no saved prompt yet.
-function initialThreeView(kind: EntityKind, parsedThreeView: boolean, body: string): boolean {
+// Character designs (造型) render as a three-view sheet by default. The chip
+// starts selected for any style that has not produced an image yet — including
+// looks suggested by 分析角色 that arrive with a prompt but no marker — while an
+// already generated style keeps whatever its saved prompt encodes.
+function initialThreeView(kind: EntityKind, parsedThreeView: boolean, hasImage: boolean): boolean {
   if (parsedThreeView) return true;
-  return kind === 'style' && body.trim().length === 0;
+  return kind === 'style' && !hasImage;
 }
 
 const RATIO_OPTIONS = [
@@ -120,7 +122,7 @@ export function EntityDetailDrawer({
   const initialParsed = parseThreeViewPrompt(entity.prompt ?? '');
   const [promptBody, setPromptBody] = useState(initialParsed.body);
   const [threeView, setThreeView] = useState(
-    initialThreeView(kind, initialParsed.threeView, initialParsed.body),
+    initialThreeView(kind, initialParsed.threeView, Boolean(entity.image)),
   );
   const [model, setModel] = useState(entity.model || project.imageModel);
   const [ratio, setRatio] = useState(
@@ -146,7 +148,7 @@ export function EntityDetailDrawer({
     setDescription(entity.description ?? '');
     const parsed = parseThreeViewPrompt(entity.prompt ?? '');
     setPromptBody(parsed.body);
-    setThreeView(initialThreeView(kind, parsed.threeView, parsed.body));
+    setThreeView(initialThreeView(kind, parsed.threeView, Boolean(entity.image)));
     setModel(entity.model || project.imageModel);
     setRatio(
       entity.ratio || project.ratio,
