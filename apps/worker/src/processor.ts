@@ -49,6 +49,10 @@ export async function processTask(taskId: string) {
     taskLog.info('lost claim race, another worker took it');
     return;
   }
+  await prisma.resourceImage.updateMany({
+    where: { taskId, status: TaskStatus.QUEUED },
+    data: { status: TaskStatus.RUNNING },
+  });
   metrics.incr('task.start', { type: task.type, provider: task.provider });
 
   // 3. AbortController + cancel poller
@@ -138,6 +142,10 @@ export async function processTask(taskId: string) {
         where: { id: taskId },
         data: { completedAt: new Date() },
       }),
+      prisma.resourceImage.updateMany({
+        where: { taskId },
+        data: { status: TaskStatus.CANCELLED },
+      }),
     ]);
     metrics.incr('task.cancel.refunded', {
       type: task.type,
@@ -159,6 +167,13 @@ export async function processTask(taskId: string) {
           status: TaskStatus.FAILED,
           error: providerError.message,
           completedAt: new Date(),
+        },
+      }),
+      prisma.resourceImage.updateMany({
+        where: { taskId },
+        data: {
+          status: TaskStatus.FAILED,
+          error: providerError.message,
         },
       }),
     ]);
@@ -262,6 +277,9 @@ async function persistSuccess(
   // Reconcile credits: if provider reported a different actual cost, settle the delta.
   const actualCost = result.actualCostCredits;
   const delta = actualCost === undefined ? 0 : reservedCost - actualCost;
+  const outputAssetIds = assetRows
+    .filter((a) => a.role === 'output')
+    .map((a) => a.id);
 
   await prisma.$transaction(async (tx) => {
     if (delta > 0) {
@@ -307,7 +325,52 @@ async function persistSuccess(
         completedAt: new Date(),
       },
     });
+    await linkResourceImageOutputs(tx, taskId, outputAssetIds);
   });
+}
+
+async function linkResourceImageOutputs(
+  tx: Prisma.TransactionClient,
+  taskId: string,
+  outputAssetIds: string[],
+) {
+  const firstOutputAssetId = outputAssetIds[0] ?? null;
+  const rows = await tx.resourceImage.findMany({
+    where: { taskId },
+    select: {
+      id: true,
+      kind: true,
+      characterStyleId: true,
+      sceneId: true,
+      itemId: true,
+    },
+  });
+  for (const row of rows) {
+    await tx.resourceImage.update({
+      where: { id: row.id },
+      data: {
+        status: TaskStatus.SUCCEEDED,
+        ...(firstOutputAssetId ? { assetId: firstOutputAssetId } : {}),
+      },
+    });
+    if (!firstOutputAssetId) continue;
+    if (row.kind === 'character-style' && row.characterStyleId) {
+      await tx.characterStyle.update({
+        where: { id: row.characterStyleId },
+        data: { assetId: firstOutputAssetId },
+      });
+    } else if (row.kind === 'scene' && row.sceneId) {
+      await tx.scene.update({
+        where: { id: row.sceneId },
+        data: { assetId: firstOutputAssetId },
+      });
+    } else if (row.kind === 'item' && row.itemId) {
+      await tx.item.update({
+        where: { id: row.itemId },
+        data: { assetId: firstOutputAssetId },
+      });
+    }
+  }
 }
 
 async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {

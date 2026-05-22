@@ -4,6 +4,11 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { tryReadUser, requireUser } from '../middleware/auth.js';
 import { enqueueTaskJob, removeTaskJob } from '../lib/queues.js';
+import {
+  linkResourceImageTaskResult,
+  loadOwnedResourceTarget,
+  resourceImageEntityFields,
+} from '../lib/resource-images.js';
 import { serializeTask } from '../serializers/task.js';
 import { AppError, ErrorCodes } from '@oneness/shared/errors';
 import { estimateCost } from '@oneness/shared/pricing';
@@ -27,6 +32,15 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
   const user = c.var.user!;
   const body = c.req.valid('json');
   const estimate = estimateCost(body.type);
+  const resourceTarget =
+    body.type === 'IMAGE' && body.resourceTarget
+      ? await loadOwnedResourceTarget(
+          prisma,
+          body.resourceTarget.kind,
+          body.resourceTarget.entityId,
+          user.id,
+        )
+      : null;
 
   // Validate projectId belongs to user if provided
   if (body.projectId) {
@@ -37,6 +51,12 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
     if (!p) {
       throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
     }
+  }
+  if (resourceTarget && body.projectId && body.projectId !== resourceTarget.projectId) {
+    throw AppError.badRequest(
+      ErrorCodes.VALIDATION_FAILED,
+      'resource target does not belong to project',
+    );
   }
 
   // If a characterId is provided, auto-inject its avatar as a reference image.
@@ -78,10 +98,10 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
       where: { id: user.id },
       data: { credits: { decrement: estimate } },
     });
-    return tx.task.create({
+    const task = await tx.task.create({
       data: {
         ownerId: user.id,
-        projectId: body.projectId ?? null,
+        projectId: resourceTarget?.projectId ?? body.projectId ?? null,
         type: body.type,
         provider: body.provider,
         status: TaskStatus.QUEUED,
@@ -90,6 +110,26 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
       },
       include: { assets: { include: { asset: true } } },
     });
+    if (resourceTarget && body.type === 'IMAGE') {
+      await tx.resourceImage.create({
+        data: {
+          ownerId: user.id,
+          projectId: resourceTarget.projectId,
+          kind: body.resourceTarget!.kind,
+          source: 'generated',
+          status: TaskStatus.QUEUED,
+          prompt: typeof input.prompt === 'string' ? input.prompt : '',
+          model: typeof input.model === 'string' ? input.model : null,
+          ratio: typeof input.ratio === 'string' ? input.ratio : null,
+          taskId: task.id,
+          ...resourceImageEntityFields(
+            body.resourceTarget!.kind,
+            body.resourceTarget!.entityId,
+          ),
+        },
+      });
+    }
+    return task;
   });
 
   // Enqueue AFTER transaction commits so worker can't observe a half-created Task.
@@ -163,6 +203,7 @@ taskRoutes.post(
           type: true,
           status: true,
           costCredits: true,
+          input: true,
         },
       });
 
@@ -237,6 +278,7 @@ taskRoutes.post(
         data: { status: TaskStatus.CANCELLED },
       });
     }
+    await linkResourceImageTaskResult(prisma, id, TaskStatus.CANCELLED);
 
     const fresh = await prisma.task.findUnique({
       where: { id },
@@ -307,6 +349,15 @@ taskRoutes.patch(
             update: {},
           });
         }
+      }
+      if (body.status) {
+        await linkResourceImageTaskResult(
+          tx,
+          id,
+          body.status,
+          body.outputAssetIds ?? [],
+          body.error,
+        );
       }
     });
 

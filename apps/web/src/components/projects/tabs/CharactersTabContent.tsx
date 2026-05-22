@@ -554,6 +554,7 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
             model: opened.model ?? null,
             ratio: opened.ratio ?? null,
             image: opened.image,
+            assetId: opened.assetId ?? null,
           }}
           project={project}
           characterId={character.id}
@@ -568,6 +569,7 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
               model: fresh.model,
               ratio: fresh.ratio,
               image: fresh.image,
+              assetId: fresh.assetId,
             };
           }}
           onDelete={async () => {

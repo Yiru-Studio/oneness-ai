@@ -1,20 +1,26 @@
 'use client';
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useEffect, useRef, useState } from 'react';
 import {
   X,
+  Check,
   Sparkles,
   Loader2,
   ImagePlus,
   Wand2,
   Upload,
 } from 'lucide-react';
-import { Project } from '@/types';
+import { Project, ResourceImage, ResourceImageKind } from '@/types';
 import { ImagePreview } from '@/components/ImagePreview';
 import {
   uploadAsset,
   createImageTask,
+  createResourceImage,
+  getResourceImages,
   pollTaskUntilDone,
+  updateResourceImage,
 } from '@/lib/api';
 import {
   IMAGE_MODEL_OPTIONS,
@@ -42,6 +48,7 @@ export type EntityDetailData = {
   model?: string | null;
   ratio?: string | null;
   image?: string;
+  assetId?: string | null;
 };
 
 interface Props {
@@ -97,6 +104,17 @@ const KIND_LABEL: Record<EntityKind, string> = {
   'character-avatar': '角色头像',
 };
 
+function resourceKindForEntity(kind: EntityKind): ResourceImageKind | null {
+  if (kind === 'style') return 'character-style';
+  if (kind === 'scene') return 'scene';
+  if (kind === 'item') return 'item';
+  return null;
+}
+
+function historyKey(kind: ResourceImageKind, entityId: string): string {
+  return `${kind}:${entityId}`;
+}
+
 export function EntityDetailDrawer({
   open,
   kind,
@@ -105,7 +123,6 @@ export function EntityDetailDrawer({
   characterId,
   buildAutoPrompt,
   onSave,
-  onDelete,
   onClose,
 }: Props) {
   const [name, setName] = useState(entity.name);
@@ -118,13 +135,18 @@ export function EntityDetailDrawer({
     entity.ratio || project.ratio,
   );
   const [image, setImage] = useState(entity.image || '');
+  const [assetId, setAssetId] = useState(entity.assetId ?? null);
   const { isGenerating, getError, clearError, runGeneration } = useGeneration();
   const generating = isGenerating(kind, entity.id);
   const remoteError = getError(kind, entity.id);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [history, setHistory] = useState<ResourceImage[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyBusy, setHistoryBusy] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const activeHistoryKeyRef = useRef<string | null>(null);
 
   // Reference image uploaded by user for AI to use during generation.
   const [referenceAssetId, setReferenceAssetId] = useState<string | null>(null);
@@ -143,9 +165,41 @@ export function EntityDetailDrawer({
       entity.ratio || project.ratio,
     );
     setImage(entity.image || '');
+    setAssetId(entity.assetId ?? null);
     setError(null);
     setPreviewOpen(false);
-  }, [entity.id, entity.name, entity.description, entity.prompt, entity.model, entity.ratio, entity.image, project.imageModel, project.ratio, kind]);
+  }, [entity.id, entity.name, entity.description, entity.prompt, entity.model, entity.ratio, entity.image, entity.assetId, project.imageModel, project.ratio, kind]);
+
+  const resourceKind = resourceKindForEntity(kind);
+
+  useEffect(() => {
+    if (!resourceKind) {
+      activeHistoryKeyRef.current = null;
+      setHistory([]);
+      setHistoryLoading(false);
+      return;
+    }
+    activeHistoryKeyRef.current = historyKey(resourceKind, entity.id);
+    setHistory([]);
+    setHistoryLoading(true);
+    void refreshHistory(resourceKind, entity.id);
+  }, [resourceKind, entity.id]);
+
+  async function refreshHistory(kind: ResourceImageKind, entityId: string) {
+    const key = historyKey(kind, entityId);
+    if (activeHistoryKeyRef.current !== key) return;
+    setHistoryLoading(true);
+    try {
+      const rows = await getResourceImages(kind, entityId);
+      if (activeHistoryKeyRef.current === key) setHistory(rows);
+    } catch (e) {
+      if (activeHistoryKeyRef.current === key) {
+        setError(e instanceof Error ? e.message : '图片历史加载失败');
+      }
+    } finally {
+      if (activeHistoryKeyRef.current === key) setHistoryLoading(false);
+    }
+  }
 
   if (!open) return null;
 
@@ -210,13 +264,22 @@ export function EntityDetailDrawer({
             ...(characterId ? { characterId } : {}),
           },
           imageProviderForModel(model || project.imageModel),
+          resourceKind ? { kind: resourceKind, entityId: entity.id } : undefined,
         );
-        const final = await pollTaskUntilDone(task.id, { intervalMs: 2000 });
+        if (resourceKind) await refreshHistory(resourceKind, entity.id);
+        const final = await pollTaskUntilDone(task.id, {
+          intervalMs: 2000,
+          onTick: () => {
+            if (resourceKind) void refreshHistory(resourceKind, entity.id);
+          },
+        });
+        if (resourceKind) await refreshHistory(resourceKind, entity.id);
         if (final.status !== 'SUCCEEDED' || !final.outputAssets?.[0]) {
           throw new Error(final.error || '生成失败');
         }
         const fresh = await onSave({ assetId: final.outputAssets[0].id });
         setImage(fresh.image || '');
+        setAssetId(fresh.assetId ?? final.outputAssets[0].id);
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成失败');
@@ -228,8 +291,23 @@ export function EntityDetailDrawer({
     setError(null);
     try {
       const asset = await uploadAsset(file);
+      if (resourceKind) {
+        await createResourceImage({
+          kind: resourceKind,
+          entityId: entity.id,
+          source: 'upload',
+          status: 'SUCCEEDED',
+          prompt: composedPrompt,
+          model,
+          ratio,
+          assetId: asset.id,
+          setAsCurrent: true,
+        });
+      }
       const fresh = await onSave({ assetId: asset.id });
       setImage(fresh.image || '');
+      setAssetId(fresh.assetId ?? asset.id);
+      if (resourceKind) await refreshHistory(resourceKind, entity.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : '上传失败');
     } finally {
@@ -251,6 +329,23 @@ export function EntityDetailDrawer({
     }
   };
 
+  const handleSetCurrent = async (row: ResourceImage) => {
+    if (!row.assetId || !resourceKind) return;
+    setHistoryBusy(row.id);
+    setError(null);
+    try {
+      await updateResourceImage(row.id, { setAsCurrent: true });
+      const fresh = await onSave({ assetId: row.assetId });
+      setImage(fresh.image || row.image || '');
+      setAssetId(fresh.assetId ?? row.assetId);
+      await refreshHistory(resourceKind, entity.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '设置当前图片失败');
+    } finally {
+      setHistoryBusy(null);
+    }
+  };
+
   const aspectClass =
     ratio === '16:9'
       ? 'aspect-video'
@@ -265,9 +360,19 @@ export function EntityDetailDrawer({
   return (
     <div className="fixed inset-0 z-[1900] flex justify-end bg-black/30" onClick={onClose}>
       <div
-        className="w-[760px] max-w-[100vw] h-full bg-white shadow-2xl overflow-y-auto"
+        className="w-[840px] max-w-[100vw] h-full bg-white shadow-2xl flex overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
+        {resourceKind && (
+          <HistoryRail
+            history={history}
+            loading={historyLoading}
+            currentAssetId={assetId}
+            busyId={historyBusy}
+            onSetCurrent={handleSetCurrent}
+          />
+        )}
+        <div className="min-w-0 flex-1 h-full overflow-y-auto">
         <div className="sticky top-0 z-10 bg-white border-b border-[var(--color-border)] px-6 py-4 flex items-center justify-between">
           <div className="min-w-0 flex-1">
             <div className="text-xs text-[var(--color-text-secondary)]">
@@ -486,6 +591,7 @@ export function EntityDetailDrawer({
             <div className="text-sm text-red-600">{error || remoteError}</div>
           )}
         </div>
+        </div>
       </div>
 
       <ImagePreview
@@ -495,5 +601,78 @@ export function EntityDetailDrawer({
         onClose={() => setPreviewOpen(false)}
       />
     </div>
+  );
+}
+
+function HistoryRail({
+  history,
+  loading,
+  currentAssetId,
+  busyId,
+  onSetCurrent,
+}: {
+  history: ResourceImage[];
+  loading: boolean;
+  currentAssetId: string | null;
+  busyId: string | null;
+  onSetCurrent: (row: ResourceImage) => void;
+}) {
+  return (
+    <aside className="w-20 shrink-0 border-r border-[var(--color-border)] bg-white px-2 py-4 flex flex-col">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto scrollbar-none">
+        {loading && history.length === 0 ? (
+          <div className="w-full aspect-square rounded-lg bg-gray-100 flex items-center justify-center">
+            <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+          </div>
+        ) : history.length === 0 ? (
+          <div className="w-full aspect-square rounded-lg border border-dashed border-[var(--color-border)] flex items-center justify-center">
+            <ImagePlus className="w-4 h-4 text-gray-300" />
+          </div>
+        ) : (
+          history.map((row) => {
+            const pending = row.status === 'QUEUED' || row.status === 'RUNNING';
+            const failed = row.status === 'FAILED';
+            const selected = Boolean(row.assetId && row.assetId === currentAssetId);
+            return (
+              <button
+                key={row.id}
+                onClick={() => {
+                  if (row.assetId) onSetCurrent(row);
+                }}
+                disabled={!row.assetId || pending || busyId === row.id}
+                className={`relative w-full aspect-square rounded-lg overflow-hidden border transition-colors ${
+                  selected
+                    ? 'border-[var(--color-primary)]'
+                    : failed
+                      ? 'border-red-200'
+                      : 'border-[var(--color-border)] hover:border-[var(--color-primary)]'
+                } disabled:cursor-default`}
+                title={failed ? row.error || '生成失败' : row.source === 'upload' ? '上传图片' : '生成历史'}
+              >
+                {row.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={row.image} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                    {pending || busyId === row.id ? (
+                      <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                    ) : failed ? (
+                      <X className="w-4 h-4 text-red-500" />
+                    ) : (
+                      <ImagePlus className="w-4 h-4 text-gray-400" />
+                    )}
+                  </div>
+                )}
+                {selected && (
+                  <span className="absolute right-1 top-1 w-4 h-4 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center">
+                    <Check className="w-3 h-3" />
+                  </span>
+                )}
+              </button>
+            );
+          })
+        )}
+      </div>
+    </aside>
   );
 }

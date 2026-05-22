@@ -70,6 +70,27 @@ export interface Scene {
   image: string;
 }
 
+export type ResourceImageKind = 'character-style' | 'scene' | 'item';
+export type ResourceImageStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+
+export interface ResourceImage {
+  id: string;
+  kind: ResourceImageKind;
+  entityId: string | null;
+  source: 'generated' | 'upload' | 'legacy';
+  status: ResourceImageStatus;
+  prompt: string;
+  model: string | null;
+  ratio: string | null;
+  error: string | null;
+  assetId: string | null;
+  taskId: string | null;
+  image: string;
+  taskStatus: ResourceImageStatus | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface EpisodeScene {
   index: number;
   title: string;
