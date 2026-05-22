@@ -82,6 +82,13 @@ function composeThreeViewPrompt(threeView: boolean, body: string): string {
   return body ? `${THREE_VIEW_MARKER}\n${body}` : THREE_VIEW_MARKER;
 }
 
+// Character designs (造型) render as a three-view sheet by default, so the chip
+// starts selected for a fresh style that has no saved prompt yet.
+function initialThreeView(kind: EntityKind, parsedThreeView: boolean, body: string): boolean {
+  if (parsedThreeView) return true;
+  return kind === 'style' && body.trim().length === 0;
+}
+
 const RATIO_OPTIONS = [
   { value: '1:1', label: '1:1 方形' },
   { value: '16:9', label: '16:9 横屏' },
@@ -112,7 +119,9 @@ export function EntityDetailDrawer({
   const [description, setDescription] = useState(entity.description ?? '');
   const initialParsed = parseThreeViewPrompt(entity.prompt ?? '');
   const [promptBody, setPromptBody] = useState(initialParsed.body);
-  const [threeView, setThreeView] = useState(initialParsed.threeView);
+  const [threeView, setThreeView] = useState(
+    initialThreeView(kind, initialParsed.threeView, initialParsed.body),
+  );
   const [model, setModel] = useState(entity.model || project.imageModel);
   const [ratio, setRatio] = useState(
     entity.ratio || project.ratio,
@@ -137,7 +146,7 @@ export function EntityDetailDrawer({
     setDescription(entity.description ?? '');
     const parsed = parseThreeViewPrompt(entity.prompt ?? '');
     setPromptBody(parsed.body);
-    setThreeView(parsed.threeView);
+    setThreeView(initialThreeView(kind, parsed.threeView, parsed.body));
     setModel(entity.model || project.imageModel);
     setRatio(
       entity.ratio || project.ratio,
@@ -185,6 +194,14 @@ export function EntityDetailDrawer({
       setError('请先填写提示词');
       return;
     }
+    // For avatars, force a tight close-up headshot on a clean white background,
+    // regardless of how the prompt was authored (LLM analysis, manual, or auto-fill).
+    // Appended only to the generation request — not the saved prompt — so it never
+    // accumulates across repeated generations.
+    const generationPrompt =
+      kind === 'character-avatar'
+        ? `${effectivePrompt}\n\n构图要求：面部特写头像（close-up headshot），仅包含人物头部与肩部，正面视角，五官清晰；背景为纯白色干净背景（clean solid white background），无任何场景、道具、阴影或装饰。`
+        : effectivePrompt;
     setError(null);
     clearError(kind, entity.id);
     try {
@@ -202,7 +219,7 @@ export function EntityDetailDrawer({
         const task = await createImageTask(
           project.id,
           {
-            prompt: effectivePrompt,
+            prompt: generationPrompt,
             ratio,
             model: model || project.imageModel,
             n: 1,
