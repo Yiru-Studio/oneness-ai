@@ -91,6 +91,20 @@ function initialThreeView(kind: EntityKind, parsedThreeView: boolean, hasImage: 
   return kind === 'style' && !hasImage;
 }
 
+// Props (物品) and scenes (场景) pre-fill their prompt from the auto-builder when
+// nothing has been saved yet, so the field is ready to edit/generate without a
+// manual "自动填充" click. Styles/avatars keep their existing behaviour.
+const AUTO_PREFILL_KINDS: EntityKind[] = ['item', 'scene'];
+
+function initialRawPrompt(
+  kind: EntityKind,
+  savedPrompt: string,
+  buildAutoPrompt: () => string,
+): string {
+  if (savedPrompt.trim()) return savedPrompt;
+  return AUTO_PREFILL_KINDS.includes(kind) ? buildAutoPrompt() : savedPrompt;
+}
+
 const RATIO_OPTIONS = [
   { value: '1:1', label: '1:1 方形' },
   { value: '16:9', label: '16:9 横屏' },
@@ -119,7 +133,9 @@ export function EntityDetailDrawer({
 }: Props) {
   const [name, setName] = useState(entity.name);
   const [description, setDescription] = useState(entity.description ?? '');
-  const initialParsed = parseThreeViewPrompt(entity.prompt ?? '');
+  const initialParsed = parseThreeViewPrompt(
+    initialRawPrompt(kind, entity.prompt ?? '', buildAutoPrompt),
+  );
   const [promptBody, setPromptBody] = useState(initialParsed.body);
   const [threeView, setThreeView] = useState(
     initialThreeView(kind, initialParsed.threeView, Boolean(entity.image)),
@@ -142,11 +158,20 @@ export function EntityDetailDrawer({
   const [referenceImageUrl, setReferenceImageUrl] = useState<string>('');
   const refFileRef = useRef<HTMLInputElement>(null);
 
+  // Keep the latest auto-prompt builder in a ref so the reset effect can call it
+  // without listing it as a dependency — the prop is a fresh closure each render,
+  // and depending on it would reset the prompt on every keystroke.
+  const buildAutoPromptRef = useRef(buildAutoPrompt);
+  // eslint-disable-next-line react-hooks/refs -- latest-ref idiom; consumed only in effects below.
+  buildAutoPromptRef.current = buildAutoPrompt;
+
   // Reset state when the entity changes.
   useEffect(() => {
     setName(entity.name);
     setDescription(entity.description ?? '');
-    const parsed = parseThreeViewPrompt(entity.prompt ?? '');
+    const parsed = parseThreeViewPrompt(
+      initialRawPrompt(kind, entity.prompt ?? '', buildAutoPromptRef.current),
+    );
     setPromptBody(parsed.body);
     setThreeView(initialThreeView(kind, parsed.threeView, Boolean(entity.image)));
     setModel(entity.model || project.imageModel);
@@ -420,18 +445,22 @@ export function EntityDetailDrawer({
               <label className="text-xs font-medium text-[var(--color-text-secondary)]">
                 提示词
               </label>
-              <button
-                onClick={handleAutoFill}
-                className="text-xs text-[var(--color-primary)] hover:underline inline-flex items-center gap-1"
-                title={
-                  isStyle
-                    ? '生成该角色的三视图（正/侧/背 + 大头）'
-                    : '基于剧本 / 项目自动生成提示词'
-                }
-              >
-                <Wand2 className="w-3 h-3" />
-                {isStyle ? '三视图' : '自动填充'}
-              </button>
+              {/* Props/scenes auto-fill on open, so they don't need this button.
+                  Styles keep the 三视图 toggle; avatars keep manual 自动填充. */}
+              {(isStyle || kind === 'character-avatar') && (
+                <button
+                  onClick={handleAutoFill}
+                  className="text-xs text-[var(--color-primary)] hover:underline inline-flex items-center gap-1"
+                  title={
+                    isStyle
+                      ? '生成该角色的三视图（正/侧/背 + 大头）'
+                      : '基于剧本 / 项目自动生成提示词'
+                  }
+                >
+                  <Wand2 className="w-3 h-3" />
+                  {isStyle ? '三视图' : '自动填充'}
+                </button>
+              )}
             </div>
             <div className="rounded-lg border border-[var(--color-border)] focus-within:border-[var(--color-primary)] focus-within:ring-1 focus-within:ring-[var(--color-primary)] overflow-hidden">
               {threeView && (
