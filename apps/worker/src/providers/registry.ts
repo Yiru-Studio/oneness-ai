@@ -5,6 +5,7 @@ import { stubTextProvider } from './stub-text.js';
 import { openaiImageProvider } from './openai-image.js';
 import { openaiTextProvider } from './openai-text.js';
 import { nanobananaImageProvider } from './nanobanana.js';
+import { zenmuxPredictImageProvider } from './zenmux-predict.js';
 import { createSeedanceProvider } from './seedance.js';
 import { config } from '../config.js';
 
@@ -30,6 +31,7 @@ const registry = {
     stub: stubImageProvider,
     openai: openaiImageProvider,
     nanobanana: nanobananaImageProvider,
+    'zenmux-predict': zenmuxPredictImageProvider,
   },
   video: {
     stub: stubVideoProvider,

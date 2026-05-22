@@ -84,6 +84,9 @@ export const IMAGE_MODEL_OPTIONS: AnalysisModelOption[] = [
   { modelId: 'openai/gpt-image-1.5', label: 'GPT Image 1.5' },
   { modelId: 'google/gemini-2.5-flash-image', label: 'Nano Banana' },
   { modelId: 'google/gemini-3.1-flash-image-preview', label: 'Gemini 3.1 Flash Image (Preview)' },
+  { modelId: 'qwen/qwen-image-2.0', label: 'Qwen Image 2.0' },
+  { modelId: 'qwen/qwen-image-2.0-pro', label: 'Qwen Image 2.0 Pro' },
+  { modelId: 'bytedance/doubao-seedream-5.0-lite', label: 'Doubao Seedream 5.0 Lite' },
   { modelId: 'stub/placeholder', label: 'Stub (开发用)' },
 ];
 
@@ -114,6 +117,8 @@ export function imageModelLabel(modelId: string): string {
  */
 export function imageProviderForModel(modelId: string): string {
   if (modelId.startsWith('google/')) return 'nanobanana';
+  // Qwen-Image / Doubao Seedream live on ZenMux's Vertex-style `:predict` path.
+  if (modelId.startsWith('qwen/') || modelId.startsWith('bytedance/')) return 'zenmux-predict';
   if (modelId.startsWith('stub/')) return 'stub';
   return 'openai';
 }

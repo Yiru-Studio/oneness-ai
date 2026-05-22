@@ -35,9 +35,13 @@ if (!KEY) {
   process.exit(2);
 }
 
-const ANALYSIS = ['google/gemini-3.5-flash', 'openai/gpt-5.5', 'bytedance/doubao-seedance-2.0'];
-const IMAGE_OPENAI = ['qwen/qwen-image-2.0', 'qwen/qwen-image-2.0-pro', 'bytedance/doubao-seedream-5.0-lite'];
+// Analysis (chat/completions). doubao-seedance-2.0 is intentionally absent:
+// it is a video model and 404s on /v1/chat/completions.
+const ANALYSIS = ['google/gemini-3.5-flash', 'openai/gpt-5.5'];
+// Google image models use the Vertex generateContent path.
 const IMAGE_GEMINI = ['google/gemini-3.1-flash-image-preview'];
+// Qwen / Doubao image models use the Vertex-style :predict path (NOT /v1/images).
+const IMAGE_PREDICT = ['qwen/qwen-image-2.0', 'qwen/qwen-image-2.0-pro', 'bytedance/doubao-seedream-5.0-lite'];
 
 const TIMEOUT_MS = 180_000;
 
@@ -74,7 +78,10 @@ async function testAnalysis(model) {
   const r = await post(`${BASE}/chat/completions`, KEY, {
     model,
     messages: [{ role: 'user', content: '只回复两个字：你好' }],
-    max_tokens: 32,
+    // Generous budget: reasoning models (gemini-3.5-flash) spend tokens
+    // thinking before any visible content, so a tight cap looks like an
+    // empty reply (finish_reason=length).
+    max_tokens: 800,
   });
   if (!r.ok) return fail(model, r.status, r.json?.error?.message ?? r.text);
   const content = r.json?.choices?.[0]?.message?.content;
@@ -84,17 +91,16 @@ async function testAnalysis(model) {
   return pass(model, r.ms, `reply="${content.replace(/\s+/g, ' ').slice(0, 30)}"`);
 }
 
-async function testImageOpenai(model) {
-  const r = await post(`${BASE}/images/generations`, KEY, {
-    model,
-    prompt: 'a single red apple on a clean white background, studio lighting',
-    n: 1,
-    size: '1024x1024',
+async function testImagePredict(model) {
+  const url = `${VERTEX}/v1/models/${encodeURI(model)}:predict`;
+  const r = await post(url, VKEY, {
+    instances: [{ prompt: 'a single red apple on a clean white background, studio lighting' }],
+    parameters: { sampleCount: 1 },
   });
   if (!r.ok) return fail(model, r.status, r.json?.error?.message ?? r.text);
-  const item = r.json?.data?.[0];
-  const got = item?.b64_json ? `b64(${item.b64_json.length}B)` : item?.url ? `url` : null;
-  if (!got) return fail(model, r.status, `no image in data: ${r.text.slice(0, 160)}`);
+  const p = r.json?.predictions?.[0];
+  const got = p?.bytesBase64Encoded ? `b64(${p.bytesBase64Encoded.length}B)` : p?.gcsUri ? `gcsUri` : null;
+  if (!got) return fail(model, r.status, `no image in predictions: ${r.text.slice(0, 160)}`);
   return pass(model, r.ms, got);
 }
 
@@ -118,11 +124,11 @@ console.log(`\nZenMux smoke test  base=${BASE}  vertex=${VERTEX}\n`);
 console.log('Analysis models (chat/completions):');
 for (const m of ANALYSIS) results.push(await testAnalysis(m));
 
-console.log('\nImage models — openai images path (/images/generations):');
-for (const m of IMAGE_OPENAI) results.push(await testImageOpenai(m));
-
 console.log('\nImage models — gemini vertex path (:generateContent):');
 for (const m of IMAGE_GEMINI) results.push(await testImageGemini(m));
+
+console.log('\nImage models — vertex predict path (:predict):');
+for (const m of IMAGE_PREDICT) results.push(await testImagePredict(m));
 
 const passed = results.filter(Boolean).length;
 console.log(`\n${passed}/${results.length} passed\n`);
