@@ -22,7 +22,8 @@ import { redis } from './redis.js';
  * so old cleansed strings don't shadow the new behavior.
  */
 
-const CACHE_VERSION = 'v1';
+// v2: distillation now strips handheld/carried objects (empty-hands turnaround).
+const CACHE_VERSION = 'v2';
 const CACHE_KEY_PREFIX = `three-view-distill:${CACHE_VERSION}:`;
 
 const SYSTEM_PROMPT = [
@@ -35,10 +36,16 @@ const SYSTEM_PROMPT = [
   'Extract ONLY the sentences describing:',
   '  • the character\'s physical traits (age, gender, build, face, hair,',
   '    skin tone, distinguishing features)',
-  '  • their clothing / outfit / accessories',
+  '  • their clothing / outfit / footwear and accessories WORN on the body',
+  '    (hats, glasses, jewelry, scarves, gloves, belts, badges)',
   '',
   'Discard everything else. Specifically discard:',
   '  • poses, gestures, actions, interactions with other people',
+  '  • ANY object the character is holding or carrying — handheld props,',
+  '    weapons, tools, bags, backpacks, phones, documents, food, umbrellas,',
+  '    etc. (verbs like 手持 / 手拿 / 握 / 抱 / 拎 / 提 / 背 / 扛 / 举 + an',
+  '    object). The turnaround must show empty hands, so NEVER keep a held',
+  '    or carried item — keep only what is WORN on the body.',
   '  • scene / background / location descriptions',
   '  • lighting, color grading, film grain, time-of-day',
   '  • style/quality tags ("cinematic", "movie still", "masterpiece",',
