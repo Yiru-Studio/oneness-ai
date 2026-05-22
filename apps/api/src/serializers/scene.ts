@@ -10,6 +10,10 @@ export type SceneDTO = {
   ratio: string | null;
   image: string;
   assetId: string | null;
+  reviewStatus: string;
+  promptStatus: string;
+  promptTaskId: string | null;
+  promptError: string | null;
 };
 
 type SceneWithAsset = Scene & { asset: Asset | null };
@@ -24,5 +28,9 @@ export async function serializeScene(s: SceneWithAsset): Promise<SceneDTO> {
     ratio: s.ratio ?? null,
     image: s.asset ? await presignGet(s.asset.bucket, s.asset.key) : '',
     assetId: s.assetId ?? null,
+    reviewStatus: s.reviewStatus,
+    promptStatus: s.promptStatus,
+    promptTaskId: s.promptTaskId ?? null,
+    promptError: s.promptError ?? null,
   };
 }

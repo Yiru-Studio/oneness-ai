@@ -36,7 +36,7 @@ export const mockProjects: Project[] = [
   },
 ];
 
-export const mockCharacters: Character[] = [
+export const mockCharacters: Character[] = ([
   {
     id: 'char1',
     name: '潘杰',
@@ -114,18 +114,25 @@ export const mockCharacters: Character[] = [
     bio: '巴西柔术教练，铁亮曾经的对手，后辅导潘杰。',
     styles: [],
   },
-];
+] as Array<Omit<Character, 'reviewStatus'>>).map((character) => ({
+  ...character,
+  reviewStatus: 'CONFIRMED',
+}));
 
-export const mockItems: Item[] = [
+export const mockItems: Item[] = ([
   { id: 'item1', name: '马鬃绳', image: '' },
   { id: 'item2', name: '橡皮人', image: '' },
   { id: 'item3', name: '旧拳套', image: '' },
   { id: 'item4', name: '三巨头合照', image: '' },
   { id: 'item5', name: '五色项圈', image: '' },
   { id: 'item6', name: '戒指盒', image: '' },
-];
+] as Array<Omit<Item, 'reviewStatus' | 'promptStatus'>>).map((item) => ({
+  ...item,
+  reviewStatus: 'CONFIRMED',
+  promptStatus: 'EMPTY',
+}));
 
-export const mockScenes: Scene[] = [
+export const mockScenes: Scene[] = ([
   { id: 'scene1', name: '精武杯联赛现场-擂台-夜', image: '' },
   { id: 'scene2', name: '精武杯联赛现场-VIP看台-夜', image: '' },
   { id: 'scene3', name: '精武杯联赛候场区-夜', image: '' },
@@ -142,7 +149,11 @@ export const mockScenes: Scene[] = [
   { id: 'scene14', name: '机场停车位-日', image: '' },
   { id: 'scene15', name: '潘杰车内-日', image: '' },
   { id: 'scene16', name: '城郊路旁-日', image: '' },
-];
+] as Array<Omit<Scene, 'reviewStatus' | 'promptStatus'>>).map((scene) => ({
+  ...scene,
+  reviewStatus: 'CONFIRMED',
+  promptStatus: 'EMPTY',
+}));
 
 export const mockStoryboardEpisodes: StoryboardEpisode[] = [
   {

@@ -23,6 +23,8 @@ const ConfigSchema = z.object({
   // For ZenMux-style proxies, set namespaced names (e.g. 'openai/gpt-4o-mini').
   OPENAI_TEXT_MODEL: z.string().default('gpt-4o-mini'),
   OPENAI_IMAGE_MODEL: z.string().default('gpt-image-2'),
+  IMAGE_OPENAI_API_KEY: z.string().optional(),
+  IMAGE_OPENAI_BASE_URL: z.string().url().optional(),
 
   // ZenMux's Vertex-AI-compatible path is separate from /v1/images and is
   // used by the `nanobanana` provider (Google Gemini image models).

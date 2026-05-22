@@ -4,6 +4,11 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { tryReadUser, requireUser } from '../middleware/auth.js';
 import { enqueueTaskJob, removeTaskJob } from '../lib/queues.js';
+import {
+  linkResourceImageTaskResult,
+  loadOwnedResourceTarget,
+  resourceImageEntityFields,
+} from '../lib/resource-images.js';
 import { serializeTask } from '../serializers/task.js';
 import { AppError, ErrorCodes } from '@oneness/shared/errors';
 import { estimateCost } from '@oneness/shared/pricing';
@@ -14,7 +19,11 @@ import {
   InternalUpdateTaskSchema,
   IdParamSchema,
 } from '@oneness/shared/schemas';
-import { TaskStatus } from '@oneness/shared/enums';
+import {
+  ResourcePromptStatus,
+  ResourceReviewStatus,
+  TaskStatus,
+} from '@oneness/shared/enums';
 import { config } from '../config.js';
 
 export const taskRoutes = new Hono();
@@ -27,6 +36,25 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
   const user = c.var.user!;
   const body = c.req.valid('json');
   const estimate = estimateCost(body.type);
+  if (
+    body.type === 'TEXT_ANALYZE' &&
+    'analysisType' in body.input &&
+    body.input.analysisType === 'resource_prompt'
+  ) {
+    throw AppError.badRequest(
+      ErrorCodes.VALIDATION_FAILED,
+      'resource prompt tasks must be created via /api/resource-prompts/generate',
+    );
+  }
+  const resourceTarget =
+    body.type === 'IMAGE' && body.resourceTarget
+      ? await loadOwnedResourceTarget(
+          prisma,
+          body.resourceTarget.kind,
+          body.resourceTarget.entityId,
+          user.id,
+        )
+      : null;
 
   // Validate projectId belongs to user if provided
   if (body.projectId) {
@@ -36,6 +64,26 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
     });
     if (!p) {
       throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
+    }
+  }
+  if (resourceTarget && body.projectId && body.projectId !== resourceTarget.projectId) {
+    throw AppError.badRequest(
+      ErrorCodes.VALIDATION_FAILED,
+      'resource target does not belong to project',
+    );
+  }
+  if (resourceTarget) {
+    if (resourceTarget.reviewStatus !== ResourceReviewStatus.CONFIRMED) {
+      throw AppError.badRequest(
+        ErrorCodes.VALIDATION_FAILED,
+        '请先确认素材名称和描述，再生成图片',
+      );
+    }
+    if (resourceTarget.promptStatus !== ResourcePromptStatus.READY) {
+      throw AppError.badRequest(
+        ErrorCodes.VALIDATION_FAILED,
+        '请先生成并确认图片提示词，再生成图片',
+      );
     }
   }
 
@@ -78,10 +126,10 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
       where: { id: user.id },
       data: { credits: { decrement: estimate } },
     });
-    return tx.task.create({
+    const task = await tx.task.create({
       data: {
         ownerId: user.id,
-        projectId: body.projectId ?? null,
+        projectId: resourceTarget?.projectId ?? body.projectId ?? null,
         type: body.type,
         provider: body.provider,
         status: TaskStatus.QUEUED,
@@ -90,6 +138,26 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
       },
       include: { assets: { include: { asset: true } } },
     });
+    if (resourceTarget && body.type === 'IMAGE') {
+      await tx.resourceImage.create({
+        data: {
+          ownerId: user.id,
+          projectId: resourceTarget.projectId,
+          kind: body.resourceTarget!.kind,
+          source: 'generated',
+          status: TaskStatus.QUEUED,
+          prompt: typeof input.prompt === 'string' ? input.prompt : '',
+          model: typeof input.model === 'string' ? input.model : null,
+          ratio: typeof input.ratio === 'string' ? input.ratio : null,
+          taskId: task.id,
+          ...resourceImageEntityFields(
+            body.resourceTarget!.kind,
+            body.resourceTarget!.entityId,
+          ),
+        },
+      });
+    }
+    return task;
   });
 
   // Enqueue AFTER transaction commits so worker can't observe a half-created Task.
@@ -163,6 +231,7 @@ taskRoutes.post(
           type: true,
           status: true,
           costCredits: true,
+          input: true,
         },
       });
 
@@ -237,6 +306,13 @@ taskRoutes.post(
         data: { status: TaskStatus.CANCELLED },
       });
     }
+    await linkResourceImageTaskResult(prisma, id, TaskStatus.CANCELLED);
+    await linkResourcePromptTaskStatus(
+      id,
+      task.input,
+      ResourcePromptStatus.FAILED,
+      '任务已取消',
+    );
 
     const fresh = await prisma.task.findUnique({
       where: { id },
@@ -266,7 +342,7 @@ taskRoutes.patch(
     const body = c.req.valid('json');
     const task = await prisma.task.findUnique({
       where: { id },
-      select: { id: true, ownerId: true, costCredits: true, status: true },
+      select: { id: true, ownerId: true, costCredits: true, status: true, input: true },
     });
     if (!task) throw AppError.notFound(ErrorCodes.TASK_NOT_FOUND, 'task not found');
 
@@ -308,7 +384,24 @@ taskRoutes.patch(
           });
         }
       }
+      if (body.status) {
+        await linkResourceImageTaskResult(
+          tx,
+          id,
+          body.status,
+          body.outputAssetIds ?? [],
+          body.error,
+        );
+      }
     });
+    if (body.status === TaskStatus.FAILED || body.status === TaskStatus.CANCELLED) {
+      await linkResourcePromptTaskStatus(
+        id,
+        task.input,
+        ResourcePromptStatus.FAILED,
+        body.error ?? (body.status === TaskStatus.CANCELLED ? '任务已取消' : '提示词生成失败'),
+      );
+    }
 
     const fresh = await prisma.task.findUnique({
       where: { id },
@@ -317,3 +410,46 @@ taskRoutes.patch(
     return c.json(await serializeTask(fresh!));
   },
 );
+
+type ResourcePromptTaskInput = {
+  analysisType: 'resource_prompt';
+  kind: 'character-style' | 'scene' | 'item';
+  entityId: string;
+};
+
+function readResourcePromptInput(input: unknown): ResourcePromptTaskInput | null {
+  if (!input || typeof input !== 'object') return null;
+  const obj = input as Record<string, unknown>;
+  if (obj.analysisType !== 'resource_prompt') return null;
+  if (
+    obj.kind !== 'character-style' &&
+    obj.kind !== 'scene' &&
+    obj.kind !== 'item'
+  ) {
+    return null;
+  }
+  if (typeof obj.entityId !== 'string' || obj.entityId.length === 0) return null;
+  return {
+    analysisType: 'resource_prompt',
+    kind: obj.kind,
+    entityId: obj.entityId,
+  };
+}
+
+async function linkResourcePromptTaskStatus(
+  taskId: string,
+  input: unknown,
+  promptStatus: ResourcePromptStatus,
+  promptError: string | null,
+) {
+  const parsed = readResourcePromptInput(input);
+  if (!parsed) return;
+  const data = { promptStatus, promptTaskId: taskId, promptError };
+  if (parsed.kind === 'character-style') {
+    await prisma.characterStyle.update({ where: { id: parsed.entityId }, data });
+  } else if (parsed.kind === 'scene') {
+    await prisma.scene.update({ where: { id: parsed.entityId }, data });
+  } else {
+    await prisma.item.update({ where: { id: parsed.entityId }, data });
+  }
+}

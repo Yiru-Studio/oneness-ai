@@ -9,3 +9,5 @@ export * from './episodes.js';
 export * from './shots.js';
 export * from './knowledge-docs.js';
 export * from './tasks.js';
+export * from './resource-images.js';
+export * from './resource-prompts.js';

@@ -9,6 +9,7 @@ import {
   UpdateCharacterSchema,
   IdParamSchema,
 } from '@oneness/shared/schemas';
+import { ResourcePromptStatus, ResourceReviewStatus } from '@oneness/shared/enums';
 
 export const characterRoutes = new Hono();
 
@@ -68,6 +69,7 @@ characterRoutes.post(
         voice: body.voice ?? null,
         avatarAssetId: body.avatarAssetId ?? null,
         markedBlank: body.markedBlank ?? false,
+        reviewStatus: body.reviewStatus ?? ResourceReviewStatus.NEEDS_REVIEW,
       },
       include: { styles: { include: { asset: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }, avatar: true },
     });
@@ -104,6 +106,7 @@ characterRoutes.patch(
     if (body.voice !== undefined) data.voice = body.voice;
     if (body.avatarPrompt !== undefined) data.avatarPrompt = body.avatarPrompt;
     if (body.markedBlank !== undefined) data.markedBlank = body.markedBlank;
+    if (body.reviewStatus !== undefined) data.reviewStatus = body.reviewStatus;
     if (body.avatarAssetId !== undefined) {
       if (body.avatarAssetId) await assertAssetOwned(body.avatarAssetId, user.id);
       data.avatarAssetId = body.avatarAssetId ?? null;
@@ -179,6 +182,7 @@ characterRoutes.post('/characters/:id/analyze', zValidator('param', IdParamSchem
       description: analysis.description,
       bio: analysis.bio,
       avatarPrompt: analysis.avatarPrompt,
+      reviewStatus: ResourceReviewStatus.CONFIRMED,
     },
   });
 
@@ -212,6 +216,7 @@ characterRoutes.post('/characters/:id/analyze', zValidator('param', IdParamSchem
         prompt: look.prompt,
         model: character.project.imageModel,
         ratio: character.project.ratio,
+        promptStatus: ResourcePromptStatus.READY,
       },
     });
   }

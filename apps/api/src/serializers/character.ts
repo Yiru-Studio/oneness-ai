@@ -9,6 +9,9 @@ export type CharacterStyleDTO = {
   model: string | null;
   ratio: string | null;
   assetId: string | null;
+  promptStatus: string;
+  promptTaskId: string | null;
+  promptError: string | null;
 };
 export type CharacterDTO = {
   id: string;
@@ -20,6 +23,7 @@ export type CharacterDTO = {
   voice?: string;
   markedBlank: boolean;
   avatarPrompt: string | null;
+  reviewStatus: string;
   styles: CharacterStyleDTO[];
 };
 
@@ -40,6 +44,9 @@ export async function serializeCharacter(c: CharacterWithStyles): Promise<Charac
       model: s.model ?? null,
       ratio: s.ratio ?? null,
       assetId: s.assetId ?? null,
+      promptStatus: s.promptStatus,
+      promptTaskId: s.promptTaskId ?? null,
+      promptError: s.promptError ?? null,
     })),
   );
   return {
@@ -52,6 +59,7 @@ export async function serializeCharacter(c: CharacterWithStyles): Promise<Charac
     voice: c.voice ?? '',
     markedBlank: c.markedBlank ?? false,
     avatarPrompt: c.avatarPrompt ?? null,
+    reviewStatus: c.reviewStatus,
     styles,
   };
 }

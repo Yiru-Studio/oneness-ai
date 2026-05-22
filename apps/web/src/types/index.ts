@@ -20,12 +20,15 @@ export interface Project {
   basicAnalysis: 'pending' | 'completed';
 }
 
-export type ProjectTab = 'info' | 'characters' | 'items' | 'scenes' | 'workbench' | 'storyboard' | 'analytics';
+export type ProjectTab = 'info' | 'resources' | 'workbench' | 'storyboard' | 'analytics';
 
 export interface ProjectTabContent {
   tab: ProjectTab;
   content: string;
 }
+
+export type ResourceReviewStatus = 'NEEDS_REVIEW' | 'CONFIRMED';
+export type ResourcePromptStatus = 'EMPTY' | 'QUEUED' | 'RUNNING' | 'READY' | 'FAILED';
 
 export interface Character {
   id: string;
@@ -37,6 +40,7 @@ export interface Character {
   voice?: string;
   avatarPrompt?: string | null;
   markedBlank?: boolean;
+  reviewStatus: ResourceReviewStatus;
   styles: Array<{
     id?: string;
     name: string;
@@ -45,6 +49,9 @@ export interface Character {
     model?: string | null;
     ratio?: string | null;
     assetId?: string | null;
+    promptStatus?: ResourcePromptStatus;
+    promptTaskId?: string | null;
+    promptError?: string | null;
   }>;
 }
 
@@ -56,6 +63,10 @@ export interface Item {
   model?: string | null;
   ratio?: string | null;
   assetId?: string | null;
+  reviewStatus: ResourceReviewStatus;
+  promptStatus: ResourcePromptStatus;
+  promptTaskId?: string | null;
+  promptError?: string | null;
   image: string;
 }
 
@@ -67,7 +78,42 @@ export interface Scene {
   model?: string | null;
   ratio?: string | null;
   assetId?: string | null;
+  reviewStatus: ResourceReviewStatus;
+  promptStatus: ResourcePromptStatus;
+  promptTaskId?: string | null;
+  promptError?: string | null;
   image: string;
+}
+
+export type ResourceImageKind = 'character-style' | 'scene' | 'item';
+
+export interface ResourceImage {
+  id: string;
+  kind: ResourceImageKind;
+  entityId: string | null;
+  source: 'generated' | 'upload' | 'legacy';
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+  prompt: string;
+  model: string | null;
+  ratio: string | null;
+  error: string | null;
+  assetId: string | null;
+  taskId: string | null;
+  image: string;
+  asset: AssetDTO | null;
+  taskStatus: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AssetDTO {
+  id: string;
+  url: string;
+  contentType: string;
+  sizeBytes: number;
+  width: number | null;
+  height: number | null;
+  durationMs?: number | null;
 }
 
 export interface EpisodeScene {

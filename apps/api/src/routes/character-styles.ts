@@ -10,6 +10,7 @@ import {
   IdParamSchema,
 } from '@oneness/shared/schemas';
 import type { CharacterStyle, Asset } from '@oneness/shared/prisma';
+import { ResourcePromptStatus } from '@oneness/shared/enums';
 
 export const characterStyleRoutes = new Hono();
 
@@ -24,6 +25,9 @@ type StyleDTO = {
   model: string | null;
   ratio: string | null;
   assetId: string | null;
+  promptStatus: string;
+  promptTaskId: string | null;
+  promptError: string | null;
 };
 
 async function toDTO(style: CharacterStyle & { asset: Asset | null }): Promise<StyleDTO> {
@@ -35,6 +39,9 @@ async function toDTO(style: CharacterStyle & { asset: Asset | null }): Promise<S
     model: style.model ?? null,
     ratio: style.ratio ?? null,
     assetId: style.assetId ?? null,
+    promptStatus: style.promptStatus,
+    promptTaskId: style.promptTaskId ?? null,
+    promptError: style.promptError ?? null,
   };
 }
 
@@ -63,6 +70,9 @@ characterStyleRoutes.post(
         model: body.model ?? null,
         ratio: body.ratio ?? null,
         assetId: body.assetId ?? null,
+        promptStatus: body.prompt?.trim()
+          ? ResourcePromptStatus.READY
+          : ResourcePromptStatus.EMPTY,
       },
       include: { asset: true },
     });
@@ -85,7 +95,14 @@ characterStyleRoutes.patch(
     }
     const data: Record<string, unknown> = {};
     if (body.name !== undefined) data.name = body.name;
-    if (body.prompt !== undefined) data.prompt = body.prompt;
+    if (body.prompt !== undefined) {
+      data.prompt = body.prompt;
+      data.promptStatus = body.prompt.trim()
+        ? ResourcePromptStatus.READY
+        : ResourcePromptStatus.EMPTY;
+      data.promptTaskId = null;
+      data.promptError = null;
+    }
     if (body.model !== undefined) data.model = body.model;
     if (body.ratio !== undefined) data.ratio = body.ratio;
     if (body.assetId !== undefined) data.assetId = body.assetId;

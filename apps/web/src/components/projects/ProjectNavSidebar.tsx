@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { ProjectTab } from '@/types';
 import {
-  ArrowLeft, List, Users, Package, Image, Workflow, Film, BarChart3
+  ArrowLeft, List, Package, Workflow, Film, BarChart3
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -20,9 +20,7 @@ const NAV_ITEMS: Array<{
   label: string;
 }> = [
   { tab: 'info', icon: List, label: '信息' },
-  { tab: 'characters', icon: Users, label: '角色' },
-  { tab: 'items', icon: Package, label: '物品' },
-  { tab: 'scenes', icon: Image, label: '场景' },
+  { tab: 'resources', icon: Package, label: '素材' },
   { tab: 'workbench', icon: Workflow, label: '工作台' },
   { tab: 'storyboard', icon: Film, label: '分镜' },
   { tab: 'analytics', icon: BarChart3, label: '数据分析' },

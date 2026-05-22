@@ -11,7 +11,7 @@ import type { PrismaClient } from '@prisma/client';
 import { config } from '../config.js';
 import { minioClient } from '../lib/minio.js';
 import {
-  getOpenAIClient,
+  getOpenAIImageClient,
   normalizeOpenAIError,
 } from '../lib/openai-client.js';
 
@@ -33,6 +33,10 @@ function sizeFromRatio(ratio: string): GptImageSize {
     '9:16': '1024x1536',
   };
   return m[ratio] ?? 'auto';
+}
+
+function normalizeImageModel(model: string): string {
+  return model.startsWith('openai/') ? model.slice('openai/'.length) : model;
 }
 
 function extFromContentType(ct: string): string {
@@ -84,10 +88,10 @@ export const openaiImageProvider: ImageProvider = {
     input: ImageInput,
     ctx: ProviderContext,
   ): Promise<ProviderResult> {
-    const client = getOpenAIClient();
+    const client = getOpenAIImageClient();
     const model =
       input.model && input.model.trim().length > 0
-        ? input.model
+        ? normalizeImageModel(input.model)
         : config.OPENAI_IMAGE_MODEL;
     const n = Math.min(Math.max(input.n ?? 1, 1), 4);
     const size = sizeFromRatio(input.ratio);
@@ -164,7 +168,7 @@ type CallResult = {
 };
 
 async function callGenerate(
-  client: ReturnType<typeof getOpenAIClient>,
+  client: ReturnType<typeof getOpenAIImageClient>,
   ctx: ProviderContext,
   args: GenArgs,
 ): Promise<CallResult> {
@@ -189,7 +193,7 @@ async function callGenerate(
 }
 
 async function callEdit(
-  client: ReturnType<typeof getOpenAIClient>,
+  client: ReturnType<typeof getOpenAIImageClient>,
   ctx: ProviderContext,
   args: EditArgs,
 ): Promise<CallResult> {

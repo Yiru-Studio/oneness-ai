@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { config } from '../config.js';
 
 let cached: OpenAI | null = null;
+let cachedImage: OpenAI | null = null;
 
 /**
  * Lazily build a single OpenAI SDK client from env config.
@@ -28,6 +29,24 @@ export function getOpenAIClient(): OpenAI {
     maxRetries: 0,
   });
   return cached;
+}
+
+export function getOpenAIImageClient(): OpenAI {
+  if (cachedImage) return cachedImage;
+  const apiKey = config.IMAGE_OPENAI_API_KEY || config.OPENAI_API_KEY;
+  const baseURL = config.IMAGE_OPENAI_BASE_URL || config.OPENAI_BASE_URL;
+  if (!apiKey) {
+    throw new Error(
+      'IMAGE_OPENAI_API_KEY or OPENAI_API_KEY is not set — cannot use the ' +
+        'openai image provider.',
+    );
+  }
+  cachedImage = new OpenAI({
+    apiKey,
+    baseURL,
+    maxRetries: 0,
+  });
+  return cachedImage;
 }
 
 /**

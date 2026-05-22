@@ -108,6 +108,13 @@ export type TextInput =
       sceneIndex: number;
       analysisType: 'shot_breakdown';
       model?: string;
+    }
+  // Resource production flow: turn a confirmed resource into an image prompt.
+  | {
+      analysisType: 'resource_prompt';
+      kind: 'character-style' | 'scene' | 'item';
+      entityId: string;
+      model?: string;
     };
 
 /** Convenience union — used by worker's registry. */

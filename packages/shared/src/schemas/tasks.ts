@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CuidSchema } from './common.js';
+import { ResourceImageKindSchema } from './resource-images.js';
 import { TaskType, TaskStatus } from '../enums.js';
 
 const TaskTypeSchema = z.enum([TaskType.IMAGE, TaskType.VIDEO, TaskType.TEXT_ANALYZE]);
@@ -18,6 +19,11 @@ const ImageInputSchema = z.object({
   referenceAssetIds: z.array(CuidSchema).max(8).optional(),
   n: z.number().int().min(1).max(8).default(1),
   characterId: CuidSchema.optional(),
+});
+
+const ResourceTargetSchema = z.object({
+  kind: ResourceImageKindSchema,
+  entityId: CuidSchema,
 });
 
 const VideoReferenceRoleSchema = z.enum([
@@ -74,6 +80,14 @@ const TextInputSchema = z.union([
     analysisType: z.literal('shot_breakdown'),
     model: z.string().min(1).max(80).optional(),
   }),
+  // Resource production flow: confirmed character style / scene / item
+  // becomes an image-model prompt.
+  z.object({
+    analysisType: z.literal('resource_prompt'),
+    kind: ResourceImageKindSchema,
+    entityId: CuidSchema,
+    model: z.string().min(1).max(80).optional(),
+  }),
 ]);
 
 export const CreateTaskSchema = z.discriminatedUnion('type', [
@@ -82,6 +96,7 @@ export const CreateTaskSchema = z.discriminatedUnion('type', [
     projectId: CuidSchema.optional(),
     provider: z.string().min(1).max(60).default('stub'),
     input: ImageInputSchema,
+    resourceTarget: ResourceTargetSchema.optional(),
   }),
   z.object({
     type: z.literal(TaskType.VIDEO),

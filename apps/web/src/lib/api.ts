@@ -5,6 +5,9 @@ import {
   Character,
   Item,
   Scene,
+  ResourceImage,
+  ResourceImageKind,
+  ResourceReviewStatus,
   StoryboardEpisode,
   Shot,
   AnalyticsData,
@@ -19,6 +22,7 @@ type ProjectDTO = Project; // backend serializer matches the frontend Project sh
 type CharacterDTO = Character;
 type ItemDTO = Item;
 type SceneDTO = Scene;
+type ResourceImageDTO = ResourceImage;
 type EpisodeDTO = StoryboardEpisode;
 type KnowledgeDocDTO = KnowledgeDoc;
 type UserDTO = User;
@@ -103,7 +107,7 @@ export async function getProjectCharacters(projectId: string): Promise<Character
 
 export async function createCharacter(
   projectId: string,
-  data: { name: string; description?: string; bio?: string; voice?: string | null; avatarAssetId?: string | null; markedBlank?: boolean },
+  data: { name: string; description?: string; bio?: string; voice?: string | null; avatarAssetId?: string | null; markedBlank?: boolean; reviewStatus?: ResourceReviewStatus },
 ): Promise<Character> {
   return await apiFetch<CharacterDTO>(`/api/projects/${projectId}/characters`, {
     method: 'POST',
@@ -113,7 +117,7 @@ export async function createCharacter(
 
 export async function updateCharacter(
   characterId: string,
-  data: Partial<{ name: string; description: string; bio: string; voice: string | null; avatarAssetId: string | null; avatarPrompt: string | null; markedBlank: boolean }>,
+  data: Partial<{ name: string; description: string; bio: string; voice: string | null; avatarAssetId: string | null; avatarPrompt: string | null; markedBlank: boolean; reviewStatus: ResourceReviewStatus }>,
 ): Promise<Character> {
   return await apiFetch<CharacterDTO>(`/api/characters/${characterId}`, {
     method: 'PATCH',
@@ -144,10 +148,13 @@ export async function createCharacterStyle(
   id: string;
   name: string;
   image: string;
-  prompt: string;
-  model: string | null;
-  ratio: string | null;
-  assetId: string | null;
+    prompt: string;
+    model: string | null;
+    ratio: string | null;
+    assetId: string | null;
+    promptStatus: 'EMPTY' | 'QUEUED' | 'RUNNING' | 'READY' | 'FAILED';
+    promptTaskId: string | null;
+    promptError: string | null;
 }> {
   return await apiFetch(`/api/characters/${characterId}/styles`, {
     method: 'POST',
@@ -168,10 +175,13 @@ export async function updateCharacterStyle(
   id: string;
   name: string;
   image: string;
-  prompt: string;
-  model: string | null;
-  ratio: string | null;
-  assetId: string | null;
+    prompt: string;
+    model: string | null;
+    ratio: string | null;
+    assetId: string | null;
+    promptStatus: 'EMPTY' | 'QUEUED' | 'RUNNING' | 'READY' | 'FAILED';
+    promptTaskId: string | null;
+    promptError: string | null;
 }> {
   return await apiFetch(`/api/character-styles/${styleId}`, {
     method: 'PATCH',
@@ -196,6 +206,7 @@ export async function createItem(
     model?: string | null;
     ratio?: string | null;
     assetId?: string | null;
+    reviewStatus?: ResourceReviewStatus;
   },
 ): Promise<Item> {
   return await apiFetch<ItemDTO>(`/api/projects/${projectId}/items`, {
@@ -213,6 +224,7 @@ export async function updateItem(
     model: string | null;
     ratio: string | null;
     assetId: string | null;
+    reviewStatus: ResourceReviewStatus;
   }>,
 ): Promise<Item> {
   return await apiFetch<ItemDTO>(`/api/items/${itemId}`, {
@@ -238,6 +250,7 @@ export async function createScene(
     model?: string | null;
     ratio?: string | null;
     assetId?: string | null;
+    reviewStatus?: ResourceReviewStatus;
   },
 ): Promise<Scene> {
   return await apiFetch<SceneDTO>(`/api/projects/${projectId}/scenes`, {
@@ -255,6 +268,7 @@ export async function updateScene(
     model: string | null;
     ratio: string | null;
     assetId: string | null;
+    reviewStatus: ResourceReviewStatus;
   }>,
 ): Promise<Scene> {
   return await apiFetch<SceneDTO>(`/api/scenes/${sceneId}`, {
@@ -278,6 +292,11 @@ type CreateImageTaskInput = {
   characterId?: string;
 };
 
+type ResourceTargetInput = {
+  kind: ResourceImageKind;
+  entityId: string;
+};
+
 export type TaskDTO = {
   id: string;
   type: 'IMAGE' | 'VIDEO' | 'TEXT_ANALYZE';
@@ -291,10 +310,22 @@ export async function createImageTask(
   projectId: string,
   input: CreateImageTaskInput,
   provider: string = 'openai',
+  resourceTarget?: ResourceTargetInput,
 ): Promise<TaskDTO> {
   return await apiFetch<TaskDTO>('/api/tasks', {
     method: 'POST',
-    body: { type: 'IMAGE', projectId, provider, input },
+    body: { type: 'IMAGE', projectId, provider, input, resourceTarget },
+  });
+}
+
+export async function generateResourcePrompt(
+  kind: ResourceImageKind,
+  entityId: string,
+  model?: string,
+): Promise<TaskDTO> {
+  return await apiFetch<TaskDTO>('/api/resource-prompts/generate', {
+    method: 'POST',
+    body: { kind, entityId, ...(model ? { model } : {}) },
   });
 }
 
@@ -509,6 +540,55 @@ export async function uploadAsset(file: File): Promise<AssetDTO> {
 
 export async function deleteAsset(id: string): Promise<void> {
   await apiFetch<void>(`/api/assets/${id}`, { method: 'DELETE' });
+}
+
+// -- Resource image history --------------------------------------------
+
+export async function getResourceImages(
+  kind: ResourceImageKind,
+  entityId: string,
+): Promise<ResourceImage[]> {
+  return await apiFetch<ResourceImageDTO[]>('/api/resource-images', {
+    query: { kind, entityId },
+  });
+}
+
+export async function createResourceImage(data: {
+  kind: ResourceImageKind;
+  entityId: string;
+  source?: 'generated' | 'upload' | 'legacy';
+  status?: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+  prompt?: string;
+  model?: string | null;
+  ratio?: string | null;
+  assetId?: string | null;
+  taskId?: string | null;
+  error?: string | null;
+  setAsCurrent?: boolean;
+}): Promise<ResourceImage> {
+  return await apiFetch<ResourceImageDTO>('/api/resource-images', {
+    method: 'POST',
+    body: data,
+  });
+}
+
+export async function updateResourceImage(
+  id: string,
+  data: Partial<{
+    status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+    prompt: string;
+    model: string | null;
+    ratio: string | null;
+    assetId: string | null;
+    taskId: string | null;
+    error: string | null;
+    setAsCurrent: boolean;
+  }>,
+): Promise<ResourceImage> {
+  return await apiFetch<ResourceImageDTO>(`/api/resource-images/${id}`, {
+    method: 'PATCH',
+    body: data,
+  });
 }
 
 // -- Re-export for callers that want to introspect errors -------------

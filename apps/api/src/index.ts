@@ -18,6 +18,8 @@ import { episodeRoutes } from './routes/episodes.js';
 import { shotRoutes } from './routes/shots.js';
 import { knowledgeDocRoutes } from './routes/knowledge-docs.js';
 import { taskRoutes } from './routes/tasks.js';
+import { resourceImageRoutes } from './routes/resource-images.js';
+import { resourcePromptRoutes } from './routes/resource-prompts.js';
 import './types/hono-env.js';
 
 const app = new Hono();
@@ -38,6 +40,8 @@ app.route('/api', sceneRoutes);
 app.route('/api', episodeRoutes);
 app.route('/api', shotRoutes);
 app.route('/api', knowledgeDocRoutes);
+app.route('/api', resourceImageRoutes);
+app.route('/api', resourcePromptRoutes);
 app.route('/api', taskRoutes);
 
 serve({ fetch: app.fetch, port: config.PORT }, (info) => {

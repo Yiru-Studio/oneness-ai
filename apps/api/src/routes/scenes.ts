@@ -9,6 +9,7 @@ import {
   UpdateSceneSchema,
   IdParamSchema,
 } from '@oneness/shared/schemas';
+import { ResourcePromptStatus, ResourceReviewStatus } from '@oneness/shared/enums';
 
 export const sceneRoutes = new Hono();
 sceneRoutes.use('/projects/:id/scenes', tryReadUser, requireUser);
@@ -61,6 +62,10 @@ sceneRoutes.post(
         model: body.model ?? null,
         ratio: body.ratio ?? null,
         assetId: body.assetId ?? null,
+        reviewStatus: body.reviewStatus ?? ResourceReviewStatus.NEEDS_REVIEW,
+        promptStatus: body.prompt?.trim()
+          ? ResourcePromptStatus.READY
+          : ResourcePromptStatus.EMPTY,
       },
       include: { asset: true },
     });
@@ -83,7 +88,15 @@ sceneRoutes.patch(
     const data: Record<string, unknown> = {};
     if (body.name !== undefined) data.name = body.name;
     if (body.description !== undefined) data.description = body.description;
-    if (body.prompt !== undefined) data.prompt = body.prompt;
+    if (body.reviewStatus !== undefined) data.reviewStatus = body.reviewStatus;
+    if (body.prompt !== undefined) {
+      data.prompt = body.prompt;
+      data.promptStatus = body.prompt.trim()
+        ? ResourcePromptStatus.READY
+        : ResourcePromptStatus.EMPTY;
+      data.promptTaskId = null;
+      data.promptError = null;
+    }
     if (body.model !== undefined) data.model = body.model;
     if (body.ratio !== undefined) data.ratio = body.ratio;
     if (body.assetId !== undefined) data.assetId = body.assetId;

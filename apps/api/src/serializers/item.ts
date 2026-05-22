@@ -10,6 +10,10 @@ export type ItemDTO = {
   ratio: string | null;
   image: string;
   assetId: string | null;
+  reviewStatus: string;
+  promptStatus: string;
+  promptTaskId: string | null;
+  promptError: string | null;
 };
 
 type ItemWithAsset = Item & { asset: Asset | null };
@@ -24,5 +28,9 @@ export async function serializeItem(item: ItemWithAsset): Promise<ItemDTO> {
     ratio: item.ratio ?? null,
     image: item.asset ? await presignGet(item.asset.bucket, item.asset.key) : '',
     assetId: item.assetId ?? null,
+    reviewStatus: item.reviewStatus,
+    promptStatus: item.promptStatus,
+    promptTaskId: item.promptTaskId ?? null,
+    promptError: item.promptError ?? null,
   };
 }

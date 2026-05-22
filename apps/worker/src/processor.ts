@@ -3,7 +3,11 @@ import { Prisma } from '@prisma/client';
 import { prisma } from './lib/prisma.js';
 import { minioClient, TaskOutputsBucket } from './lib/minio.js';
 import { logger, metrics } from '@oneness/shared/logger';
-import { TaskStatus, type TaskType } from '@oneness/shared/enums';
+import {
+  ResourcePromptStatus,
+  TaskStatus,
+  type TaskType,
+} from '@oneness/shared/enums';
 import {
   providerKindOf,
   type ProviderContext,
@@ -49,6 +53,11 @@ export async function processTask(taskId: string) {
     taskLog.info('lost claim race, another worker took it');
     return;
   }
+  await prisma.resourceImage.updateMany({
+    where: { taskId, status: TaskStatus.QUEUED },
+    data: { status: TaskStatus.RUNNING },
+  });
+  await markResourcePromptTaskRunning(taskId, task.input);
   metrics.incr('task.start', { type: task.type, provider: task.provider });
 
   // 3. AbortController + cancel poller
@@ -138,7 +147,12 @@ export async function processTask(taskId: string) {
         where: { id: taskId },
         data: { completedAt: new Date() },
       }),
+      prisma.resourceImage.updateMany({
+        where: { taskId },
+        data: { status: TaskStatus.CANCELLED },
+      }),
     ]);
+    await markResourcePromptTaskFailed(taskId, task.input, '任务已取消');
     metrics.incr('task.cancel.refunded', {
       type: task.type,
       provider: task.provider,
@@ -161,7 +175,15 @@ export async function processTask(taskId: string) {
           completedAt: new Date(),
         },
       }),
+      prisma.resourceImage.updateMany({
+        where: { taskId },
+        data: {
+          status: TaskStatus.FAILED,
+          error: providerError.message,
+        },
+      }),
     ]);
+    await markResourcePromptTaskFailed(taskId, task.input, providerError.message);
     metrics.incr('task.fail', { type: task.type, provider: task.provider });
     taskLog.warn({ err: providerError.message }, 'task failed');
     throw providerError; // re-throw so BullMQ retries (until attempts exhausted)
@@ -170,6 +192,7 @@ export async function processTask(taskId: string) {
   // 5. Success path — persist outputs.
   const r = result!;
   await persistSuccess(taskId, task.ownerId, task.costCredits, r);
+  await linkResourcePromptTaskResult(taskId, task.input, r.outputJson);
   // If this VIDEO task was generating for a shot, link the produced asset back
   // to the Shot row so the UI can display it without polling assets manually.
   if (task.type === 'VIDEO') {
@@ -186,6 +209,102 @@ function readShotId(input: unknown): string | null {
     if (typeof v === 'string' && v.length > 0) return v;
   }
   return null;
+}
+
+type ResourcePromptTaskInput = {
+  analysisType: 'resource_prompt';
+  kind: 'character-style' | 'scene' | 'item';
+  entityId: string;
+};
+
+function readResourcePromptInput(input: unknown): ResourcePromptTaskInput | null {
+  if (!input || typeof input !== 'object') return null;
+  const obj = input as Record<string, unknown>;
+  if (obj.analysisType !== 'resource_prompt') return null;
+  if (
+    obj.kind !== 'character-style' &&
+    obj.kind !== 'scene' &&
+    obj.kind !== 'item'
+  ) {
+    return null;
+  }
+  if (typeof obj.entityId !== 'string' || obj.entityId.length === 0) return null;
+  return {
+    analysisType: 'resource_prompt',
+    kind: obj.kind,
+    entityId: obj.entityId,
+  };
+}
+
+async function markResourcePromptTaskRunning(taskId: string, input: unknown) {
+  const parsed = readResourcePromptInput(input);
+  if (!parsed) return;
+  await setResourcePromptFields(parsed, {
+    promptStatus: ResourcePromptStatus.RUNNING,
+    promptTaskId: taskId,
+    promptError: null,
+  });
+}
+
+async function markResourcePromptTaskFailed(
+  taskId: string,
+  input: unknown,
+  error: string,
+) {
+  const parsed = readResourcePromptInput(input);
+  if (!parsed) return;
+  await setResourcePromptFields(parsed, {
+    promptStatus: ResourcePromptStatus.FAILED,
+    promptTaskId: taskId,
+    promptError: error,
+  });
+}
+
+async function linkResourcePromptTaskResult(
+  taskId: string,
+  input: unknown,
+  output: Record<string, unknown> | undefined,
+) {
+  const parsed = readResourcePromptInput(input);
+  if (!parsed) return;
+  const prompt = typeof output?.prompt === 'string' ? output.prompt.trim() : '';
+  if (!prompt) {
+    await markResourcePromptTaskFailed(taskId, input, '提示词生成结果为空');
+    return;
+  }
+  await setResourcePromptFields(parsed, {
+    prompt,
+    promptStatus: ResourcePromptStatus.READY,
+    promptTaskId: taskId,
+    promptError: null,
+  });
+}
+
+async function setResourcePromptFields(
+  target: Pick<ResourcePromptTaskInput, 'kind' | 'entityId'>,
+  data: {
+    prompt?: string;
+    promptStatus: ResourcePromptStatus;
+    promptTaskId: string | null;
+    promptError: string | null;
+  },
+) {
+  if (target.kind === 'character-style') {
+    await prisma.characterStyle.update({
+      where: { id: target.entityId },
+      data,
+    });
+  } else if (target.kind === 'scene') {
+    await prisma.scene.update({
+      where: { id: target.entityId },
+      data,
+    });
+  } else {
+    await prisma.item.update({
+      where: { id: target.entityId },
+      data,
+    });
+  }
 }
 
 async function linkShotVideo(
@@ -262,6 +381,9 @@ async function persistSuccess(
   // Reconcile credits: if provider reported a different actual cost, settle the delta.
   const actualCost = result.actualCostCredits;
   const delta = actualCost === undefined ? 0 : reservedCost - actualCost;
+  const outputAssetIds = assetRows
+    .filter((a) => a.role === 'output')
+    .map((a) => a.id);
 
   await prisma.$transaction(async (tx) => {
     if (delta > 0) {
@@ -307,7 +429,52 @@ async function persistSuccess(
         completedAt: new Date(),
       },
     });
+    await linkResourceImageOutputs(tx, taskId, outputAssetIds);
   });
+}
+
+async function linkResourceImageOutputs(
+  tx: Prisma.TransactionClient,
+  taskId: string,
+  outputAssetIds: string[],
+) {
+  const firstOutputAssetId = outputAssetIds[0] ?? null;
+  const rows = await tx.resourceImage.findMany({
+    where: { taskId },
+    select: {
+      id: true,
+      kind: true,
+      characterStyleId: true,
+      sceneId: true,
+      itemId: true,
+    },
+  });
+  for (const row of rows) {
+    await tx.resourceImage.update({
+      where: { id: row.id },
+      data: {
+        status: TaskStatus.SUCCEEDED,
+        ...(firstOutputAssetId ? { assetId: firstOutputAssetId } : {}),
+      },
+    });
+    if (!firstOutputAssetId) continue;
+    if (row.kind === 'character-style' && row.characterStyleId) {
+      await tx.characterStyle.update({
+        where: { id: row.characterStyleId },
+        data: { assetId: firstOutputAssetId },
+      });
+    } else if (row.kind === 'scene' && row.sceneId) {
+      await tx.scene.update({
+        where: { id: row.sceneId },
+        data: { assetId: firstOutputAssetId },
+      });
+    } else if (row.kind === 'item' && row.itemId) {
+      await tx.item.update({
+        where: { id: row.itemId },
+        data: { assetId: firstOutputAssetId },
+      });
+    }
+  }
 }
 
 async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {

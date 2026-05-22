@@ -16,9 +16,7 @@ import { TopBar } from '@/components/layout/TopBar';
 import { ProjectNavSidebar } from '@/components/projects/ProjectNavSidebar';
 import { GenerationProvider } from '@/contexts/GenerationContext';
 import { InfoTabContent } from '@/components/projects/tabs/InfoTabContent';
-import { CharactersTabContent } from '@/components/projects/tabs/CharactersTabContent';
-import { ItemsTabContent } from '@/components/projects/tabs/ItemsTabContent';
-import { ScenesTabContent } from '@/components/projects/tabs/ScenesTabContent';
+import { ResourceWorkspaceTabContent } from '@/components/projects/tabs/ResourceWorkspaceTabContent';
 import { WorkbenchTabContent } from '@/components/projects/tabs/WorkbenchTabContent';
 import { StoryboardTabContent } from '@/components/projects/tabs/StoryboardTabContent';
 import { AnalyticsTabContent } from '@/components/projects/tabs/AnalyticsTabContent';
@@ -158,28 +156,16 @@ export default function ProjectDetailPage() {
               onProjectUpdated={setProject}
             />
           )}
-          {activeTab === 'characters' && (
-            <CharactersTabContent
+          {activeTab === 'resources' && (
+            <ResourceWorkspaceTabContent
               characters={characters}
-              project={project}
-              scriptContent={episodes[0]?.content}
-              onChange={setCharacters}
-            />
-          )}
-          {activeTab === 'items' && (
-            <ItemsTabContent
+              scenes={scenes}
               items={items}
               project={project}
               scriptContent={episodes[0]?.content}
-              onChange={setItems}
-            />
-          )}
-          {activeTab === 'scenes' && (
-            <ScenesTabContent
-              scenes={scenes}
-              project={project}
-              scriptContent={episodes[0]?.content}
-              onChange={setScenes}
+              onCharactersChange={setCharacters}
+              onScenesChange={setScenes}
+              onItemsChange={setItems}
             />
           )}
           {activeTab === 'workbench' && <WorkbenchTabContent />}

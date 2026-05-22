@@ -28,6 +28,28 @@ async function sleep(ms: number, signal: AbortSignal): Promise<void> {
 export const stubTextProvider: TextProvider = {
   name: 'stub',
   async analyze(input: TextInput, ctx: ProviderContext): Promise<ProviderResult> {
+    if ('analysisType' in input && input.analysisType === 'resource_prompt') {
+      await sleep(1000, ctx.abortSignal);
+      if (Math.random() < currentFailRate()) {
+        throw new Error('stub-text: random failure (STUB_FAIL_RATE)');
+      }
+      const label =
+        input.kind === 'character-style'
+          ? '人物造型设定图'
+          : input.kind === 'scene'
+            ? '场景主视觉'
+            : '道具特写';
+      return {
+        outputJson: {
+          kind: 'stub-text',
+          analysisType: 'resource_prompt',
+          resourceKind: input.kind,
+          entityId: input.entityId,
+          prompt: `（stub）${label}，主体清晰，细节明确，电影感光线，符合项目整体视觉风格。`,
+        },
+      };
+    }
+
     if ('subjectType' in input) {
       ctx.log.info(
         { episodeId: input.episodeId, subjectType: input.subjectType },
@@ -184,16 +206,34 @@ async function persistStubEntities(
     return rows.map((r) => r.id);
   }
   if (subjectType === 'items') {
-    const seed = ['旧信', '钢笔', '搪瓷杯', '老花镜'];
+    const seed = [
+      { name: '旧信', description: '贯穿告别仪式的泛黄信件，承载母亲对亡子的多年思念。' },
+      { name: '钢笔', description: '吴雨华写信时使用的旧钢笔，带有长期使用的磨损痕迹。' },
+      { name: '搪瓷杯', description: '老家桌上的日常旧物，提示房间的年代感和生活气息。' },
+      { name: '老花镜', description: '吴雨华看信写信时依赖的物件，体现她的年纪和视力状态。' },
+    ];
     const rows = await ctx.prisma.$transaction(
-      seed.map((name) => ctx.prisma.item.create({ data: { projectId, name } })),
+      seed.map((item) => ctx.prisma.item.create({ data: { projectId, ...item } })),
     );
     return rows.map((r) => r.id);
   }
   // scenes
-  const seed = ['INT. 老旧家属楼 - 午后', 'EXT. 街道 - 黄昏', 'INT. 邮局 - 夜'];
+  const seed = [
+    {
+      name: 'INT. 老旧家属楼 - 午后',
+      description: '初夏强光照进陈旧家属楼室内，桌面摆满旧信、药瓶和生活杂物。',
+    },
+    {
+      name: 'EXT. 街道 - 黄昏',
+      description: '撤离中的老街人群拖着行李穿行，远处气象泡带来异常虹彩光线。',
+    },
+    {
+      name: 'INT. 邮局 - 夜',
+      description: '夜晚邮局灯光冷清，旧邮戳和柜台形成带年代感的告别空间。',
+    },
+  ];
   const rows = await ctx.prisma.$transaction(
-    seed.map((name) => ctx.prisma.scene.create({ data: { projectId, name } })),
+    seed.map((scene) => ctx.prisma.scene.create({ data: { projectId, ...scene } })),
   );
   return rows.map((r) => r.id);
 }

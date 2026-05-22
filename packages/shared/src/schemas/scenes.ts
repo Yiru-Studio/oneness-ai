@@ -1,5 +1,11 @@
 import { z } from 'zod';
 import { CuidSchema } from './common.js';
+import { ResourceReviewStatus } from '../enums.js';
+
+const ResourceReviewStatusSchema = z.enum([
+  ResourceReviewStatus.NEEDS_REVIEW,
+  ResourceReviewStatus.CONFIRMED,
+]);
 
 export const CreateSceneSchema = z.object({
   name: z.string().min(1).max(120),
@@ -8,6 +14,7 @@ export const CreateSceneSchema = z.object({
   model: z.string().max(120).optional().nullable(),
   ratio: z.string().max(16).optional().nullable(),
   assetId: CuidSchema.optional().nullable(),
+  reviewStatus: ResourceReviewStatusSchema.optional(),
 });
 
 export const UpdateSceneSchema = CreateSceneSchema.partial();

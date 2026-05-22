@@ -27,6 +27,23 @@ export const TaskStatus = {
 } as const;
 export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
 
+export const ResourceReviewStatus = {
+  NEEDS_REVIEW: 'NEEDS_REVIEW',
+  CONFIRMED: 'CONFIRMED',
+} as const;
+export type ResourceReviewStatus =
+  typeof ResourceReviewStatus[keyof typeof ResourceReviewStatus];
+
+export const ResourcePromptStatus = {
+  EMPTY: 'EMPTY',
+  QUEUED: 'QUEUED',
+  RUNNING: 'RUNNING',
+  READY: 'READY',
+  FAILED: 'FAILED',
+} as const;
+export type ResourcePromptStatus =
+  typeof ResourcePromptStatus[keyof typeof ResourcePromptStatus];
+
 export const AssetBucket = {
   USER_UPLOADS: 'user-uploads',
   TASK_OUTPUTS: 'task-outputs',

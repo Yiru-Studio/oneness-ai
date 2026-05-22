@@ -11,9 +11,7 @@ export const LANGUAGES = [
 
 export const PROJECT_TABS = [
   { value: 'info' as const, label: '信息' },
-  { value: 'characters' as const, label: '角色' },
-  { value: 'items' as const, label: '物品' },
-  { value: 'scenes' as const, label: '场景' },
+  { value: 'resources' as const, label: '素材' },
   { value: 'workbench' as const, label: '工作台' },
   { value: 'storyboard' as const, label: '分镜' },
   { value: 'analytics' as const, label: '数据分析' },

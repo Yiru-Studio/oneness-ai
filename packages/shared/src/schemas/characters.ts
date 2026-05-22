@@ -1,5 +1,11 @@
 import { z } from 'zod';
 import { CuidSchema } from './common.js';
+import { ResourceReviewStatus } from '../enums.js';
+
+const ResourceReviewStatusSchema = z.enum([
+  ResourceReviewStatus.NEEDS_REVIEW,
+  ResourceReviewStatus.CONFIRMED,
+]);
 
 export const CreateCharacterSchema = z.object({
   name: z.string().min(1).max(80),
@@ -9,6 +15,7 @@ export const CreateCharacterSchema = z.object({
   avatarAssetId: CuidSchema.optional().nullable(),
   avatarPrompt: z.string().max(5000).optional().nullable(),
   markedBlank: z.boolean().optional(),
+  reviewStatus: ResourceReviewStatusSchema.optional(),
 });
 
 export const UpdateCharacterSchema = CreateCharacterSchema.partial();

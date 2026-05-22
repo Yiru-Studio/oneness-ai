@@ -32,6 +32,19 @@ enum TaskStatus {
   CANCELLED
 }
 
+enum ResourceReviewStatus {
+  NEEDS_REVIEW
+  CONFIRMED
+}
+
+enum ResourcePromptStatus {
+  EMPTY
+  QUEUED
+  RUNNING
+  READY
+  FAILED
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -41,10 +54,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  projects      Project[]
-  knowledgeDocs KnowledgeDoc[]
-  tasks         Task[]
-  assets        Asset[]
+  projects       Project[]
+  knowledgeDocs  KnowledgeDoc[]
+  tasks          Task[]
+  assets         Asset[]
+  resourceImages ResourceImage[]
 }
 
 model Project {
@@ -62,30 +76,32 @@ model Project {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  owner      User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  characters Character[]
-  items      Item[]
-  scenes     Scene[]
-  episodes   StoryboardEpisode[]
-  tasks      Task[]
+  owner          User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  characters     Character[]
+  items          Item[]
+  scenes         Scene[]
+  episodes       StoryboardEpisode[]
+  tasks          Task[]
+  resourceImages ResourceImage[]
 
   @@index([ownerId, createdAt])
 }
 
 model Character {
-  id          String   @id @default(cuid())
-  projectId   String
-  name        String
-  description String   @db.Text
-  bio         String   @db.Text
-  voice       String?
+  id            String               @id @default(cuid())
+  projectId     String
+  name          String
+  description   String               @db.Text
+  bio           String               @db.Text
+  voice         String?
   avatarAssetId String?
-  avatarPrompt String? @db.Text
+  avatarPrompt  String?              @db.Text
   /// When true, the user clicked "创建为空白角色" instead of running 分析角色.
   /// Frontend uses this to skip the analyze/blank-create choice screen.
-  markedBlank Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  markedBlank   Boolean              @default(false)
+  reviewStatus  ResourceReviewStatus @default(NEEDS_REVIEW)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 
   project Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   styles  CharacterStyle[]
@@ -95,73 +111,95 @@ model Character {
 }
 
 model CharacterStyle {
-  id          String   @id @default(cuid())
-  characterId String
-  name        String
-  prompt      String   @default("") @db.Text
-  model       String?
-  ratio       String?
-  assetId     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String               @id @default(cuid())
+  characterId  String
+  name         String
+  prompt       String               @default("") @db.Text
+  model        String?
+  ratio        String?
+  assetId      String?
+  promptStatus ResourcePromptStatus @default(EMPTY)
+  promptTaskId String?
+  promptError  String?              @db.Text
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
 
-  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
-  asset     Asset?    @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  character      Character       @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  asset          Asset?          @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  resourceImages ResourceImage[]
 
   @@index([characterId])
+  @@index([promptStatus])
+  @@index([promptTaskId])
 }
 
 model Item {
-  id          String   @id @default(cuid())
-  projectId   String
-  name        String
-  description String   @default("") @db.Text
-  prompt      String   @default("") @db.Text
-  model       String?
-  ratio       String?
-  assetId     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String               @id @default(cuid())
+  projectId    String
+  name         String
+  description  String               @default("") @db.Text
+  prompt       String               @default("") @db.Text
+  model        String?
+  ratio        String?
+  assetId      String?
+  reviewStatus ResourceReviewStatus @default(NEEDS_REVIEW)
+  promptStatus ResourcePromptStatus @default(EMPTY)
+  promptTaskId String?
+  promptError  String?              @db.Text
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  asset   Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  asset          Asset?          @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  resourceImages ResourceImage[]
 
   @@index([projectId])
+  @@index([reviewStatus])
+  @@index([promptStatus])
+  @@index([promptTaskId])
 }
 
 model Scene {
-  id          String   @id @default(cuid())
-  projectId   String
-  name        String
-  description String   @default("") @db.Text
-  prompt      String   @default("") @db.Text
-  model       String?
-  ratio       String?
-  assetId     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String               @id @default(cuid())
+  projectId    String
+  name         String
+  description  String               @default("") @db.Text
+  prompt       String               @default("") @db.Text
+  model        String?
+  ratio        String?
+  assetId      String?
+  reviewStatus ResourceReviewStatus @default(NEEDS_REVIEW)
+  promptStatus ResourcePromptStatus @default(EMPTY)
+  promptTaskId String?
+  promptError  String?              @db.Text
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  asset   Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  asset          Asset?          @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  resourceImages ResourceImage[]
 
   @@index([projectId])
+  @@index([reviewStatus])
+  @@index([promptStatus])
+  @@index([promptTaskId])
 }
 
 model StoryboardEpisode {
-  id        String   @id @default(cuid())
-  projectId String
-  number    Int
-  title     String
-  content   String   @db.Text
-  analyzed  Boolean  @default(false)
+  id         String   @id @default(cuid())
+  projectId  String
+  number     Int
+  title      String
+  content    String   @db.Text
+  analyzed   Boolean  @default(false)
   /// Episode-level summary produced by the storyboard "分析剧集" step.
-  summary   String   @default("") @db.Text
+  summary    String   @default("") @db.Text
   /// Scene breakdown produced by "分析剧集" (likeai's per-episode `scenes`).
   /// Json array of { index, title, content, characters: string[], environment }.
   /// Shots reference a scene by its `index` via Shot.sceneIndex.
-  scenesJson Json    @default("[]")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  scenesJson Json     @default("[]")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   shots   Shot[]
@@ -173,25 +211,25 @@ model StoryboardEpisode {
 /// likeai's `storyboards` array. Phase-1 supports the manual mode only;
 /// `createType` is kept so future AI-assist generated rows can be told apart.
 model Shot {
-  id              String   @id @default(cuid())
-  episodeId       String
-  displayId       Int
+  id            String  @id @default(cuid())
+  episodeId     String
+  displayId     Int
   /// 'new' (a fresh shot) | 'continuation' (continues from another shot's last frame)
-  shotType        String   @default("new")
+  shotType      String  @default("new")
   /// preId points at another Shot.displayId in the same episode whose last
   /// frame seeds this shot. Null when shotType = 'new'.
-  preId           Int?
-  duration        Int      @default(4)
-  prompt          String   @default("") @db.Text
-  model           String   @default("seedance")
-  ratio           String   @default("16:9")
-  resolution      String   @default("720p")
-  generateAudio   Boolean  @default(false)
+  preId         Int?
+  duration      Int     @default(4)
+  prompt        String  @default("") @db.Text
+  model         String  @default("seedance")
+  ratio         String  @default("16:9")
+  resolution    String  @default("720p")
+  generateAudio Boolean @default(false)
   /// 'manual' (user created) | 'assist' (AI-assist batch generated).
-  createType      String   @default("manual")
+  createType    String  @default("manual")
   /// Which episode scene (StoryboardEpisode.scenesJson[].index) this shot belongs to.
   /// Shots are partitioned per scene, matching likeai's /episode/:id/:sceneIndex/storyboards.
-  sceneIndex      Int      @default(0)
+  sceneIndex    Int     @default(0)
 
   sketchAssetId    String?
   videoAssetId     String?
@@ -212,11 +250,11 @@ model Shot {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  episode    StoryboardEpisode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
-  sketch     Asset?            @relation("ShotSketch", fields: [sketchAssetId], references: [id], onDelete: SetNull)
-  video      Asset?            @relation("ShotVideo", fields: [videoAssetId], references: [id], onDelete: SetNull)
-  lastFrame  Asset?            @relation("ShotLastFrame", fields: [lastFrameAssetId], references: [id], onDelete: SetNull)
-  videoTask  Task?             @relation("ShotVideoTask", fields: [videoTaskId], references: [id], onDelete: SetNull)
+  episode   StoryboardEpisode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  sketch    Asset?            @relation("ShotSketch", fields: [sketchAssetId], references: [id], onDelete: SetNull)
+  video     Asset?            @relation("ShotVideo", fields: [videoAssetId], references: [id], onDelete: SetNull)
+  lastFrame Asset?            @relation("ShotLastFrame", fields: [lastFrameAssetId], references: [id], onDelete: SetNull)
+  videoTask Task?             @relation("ShotVideoTask", fields: [videoTaskId], references: [id], onDelete: SetNull)
 
   @@unique([episodeId, displayId])
   @@index([episodeId])
@@ -253,10 +291,11 @@ model Task {
   startedAt   DateTime?
   completedAt DateTime?
 
-  owner   User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  project Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  assets  TaskAsset[]
-  shots   Shot[]      @relation("ShotVideoTask")
+  owner          User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  project        Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  assets         TaskAsset[]
+  shots          Shot[]          @relation("ShotVideoTask")
+  resourceImages ResourceImage[]
 
   @@index([ownerId, status, createdAt])
   @@index([projectId, type])
@@ -274,15 +313,16 @@ model Asset {
   durationMs  Int?
   createdAt   DateTime @default(now())
 
-  owner           User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  characterAvatars Character[]     @relation("CharacterAvatar")
-  characterStyles CharacterStyle[]
-  items           Item[]
-  scenes          Scene[]
-  taskAssets      TaskAsset[]
-  shotSketches    Shot[]           @relation("ShotSketch")
-  shotVideos      Shot[]           @relation("ShotVideo")
-  shotLastFrames  Shot[]           @relation("ShotLastFrame")
+  owner            User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  characterAvatars Character[]      @relation("CharacterAvatar")
+  characterStyles  CharacterStyle[]
+  items            Item[]
+  scenes           Scene[]
+  resourceImages   ResourceImage[]
+  taskAssets       TaskAsset[]
+  shotSketches     Shot[]           @relation("ShotSketch")
+  shotVideos       Shot[]           @relation("ShotVideo")
+  shotLastFrames   Shot[]           @relation("ShotLastFrame")
 
   @@unique([bucket, key])
   @@index([ownerId, createdAt])
@@ -297,4 +337,41 @@ model TaskAsset {
   asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
   @@id([taskId, assetId, role])
+}
+
+model ResourceImage {
+  id               String     @id @default(cuid())
+  ownerId          String
+  projectId        String
+  /// 'character-style' | 'scene' | 'item'. Kept as a string so the API can
+  /// expose product-language names without adding another database enum.
+  kind             String
+  /// 'generated' | 'upload' | 'legacy'
+  source           String     @default("generated")
+  status           TaskStatus @default(SUCCEEDED)
+  prompt           String     @default("") @db.Text
+  model            String?
+  ratio            String?
+  error            String?
+  assetId          String?
+  taskId           String?
+  characterStyleId String?
+  sceneId          String?
+  itemId           String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  owner          User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  asset          Asset?          @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  task           Task?           @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  characterStyle CharacterStyle? @relation(fields: [characterStyleId], references: [id], onDelete: Cascade)
+  scene          Scene?          @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  item           Item?           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, projectId, createdAt])
+  @@index([characterStyleId, createdAt])
+  @@index([sceneId, createdAt])
+  @@index([itemId, createdAt])
+  @@index([taskId])
 }

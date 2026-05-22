@@ -55,22 +55,24 @@ function extractionSystemPrompt(
   if (subjectType === 'items') {
     return (
       'You extract notable physical items/props from a storyboard episode. Return JSON exactly:\n' +
-      '{ "items": [{ "name": string }] }\n' +
+      '{ "items": [{ "name": string, "description": string }] }\n' +
       'Only concrete physical objects that matter to the story. Skip clothing or generic environment. ' +
+      '`description` is one short sentence describing the item\'s story role, appearance, or key visual trait. ' +
       'Use the script\'s native language. No prose outside the JSON object.'
     );
   }
   return (
     'You extract distinct scenes from a storyboard episode. A scene is a continuous time/location. Return JSON exactly:\n' +
-    '{ "scenes": [{ "name": string }] }\n' +
+    '{ "scenes": [{ "name": string, "description": string }] }\n' +
     'Each `name` is a short scene heading like "INT. 老旧家属楼 - 午后" (or English equivalent). ' +
+    '`description` is one concrete sentence about the physical space, lighting, atmosphere, and key visual details. ' +
     'Use the script\'s native language. No prose outside the JSON object.'
   );
 }
 
 type ExtractedCharacter = { name: string; description: string; bio: string };
-type ExtractedItem = { name: string };
-type ExtractedScene = { name: string };
+type ExtractedItem = { name: string; description?: string };
+type ExtractedScene = { name: string; description?: string };
 
 function safeParseAnalysis(raw: string): { summary: string; keyPoints: string[] } {
   const cleaned = extractJsonObject(raw);
@@ -190,8 +192,12 @@ const EXTRACTION_SCHEMAS: Record<
             type: 'object',
             properties: {
               name: { type: 'string', description: 'Item name' },
+              description: {
+                type: 'string',
+                description: 'One short sentence about story role, appearance, or key visual trait',
+              },
             },
-            required: ['name'],
+            required: ['name', 'description'],
             additionalProperties: false,
           },
         },
@@ -213,8 +219,12 @@ const EXTRACTION_SCHEMAS: Record<
             type: 'object',
             properties: {
               name: { type: 'string', description: 'Scene heading / name' },
+              description: {
+                type: 'string',
+                description: 'One concrete sentence about physical space, lighting, atmosphere, and key visual details',
+              },
             },
-            required: ['name'],
+            required: ['name', 'description'],
             additionalProperties: false,
           },
         },
@@ -248,6 +258,10 @@ export const openaiTextProvider: TextProvider = {
   ): Promise<ProviderResult> {
     const client = getOpenAIClient();
     const model = input.model || config.OPENAI_TEXT_MODEL;
+
+    if ('analysisType' in input && input.analysisType === 'resource_prompt') {
+      return generateResourcePrompt({ client, model, input, ctx });
+    }
 
     const ep = await ctx.prisma.storyboardEpisode.findUnique({
       where: { id: input.episodeId },
@@ -408,6 +422,221 @@ export const openaiTextProvider: TextProvider = {
   },
 };
 
+type ResourcePromptInput = Extract<TextInput, { analysisType: 'resource_prompt' }>;
+
+type ResourcePromptContext = {
+  projectId: string;
+  projectName: string;
+  stylePrompt: string;
+  resourceKind: ResourcePromptInput['kind'];
+  resourceName: string;
+  resourceDescription: string;
+  styleName?: string;
+  existingPrompt?: string;
+  scriptText: string;
+};
+
+function resourcePromptSystemPrompt(): string {
+  return [
+    '你是专业影视美术设定师和 AI 图像提示词工程师。',
+    '用户已经从剧本中拆分并确认了一个素材。你的任务是把素材名称、描述和剧本上下文，',
+    '改写成适合图像模型直接生成的中文提示词。',
+    '',
+    '只输出一个严格 JSON 对象，形状必须是：',
+    '{ "prompt": string }',
+    '',
+    '要求：',
+    '- prompt 使用中文，具体、可视化、适合单张图片生成。',
+    '- 保留素材的核心身份和剧情作用，不要发明与剧本冲突的信息。',
+    '- 人物素材输出角色造型设定图，不是头像；描述外貌、发型、服装、体态、气质、光线和简洁背景。',
+    '- 场景素材输出场景全景或主视觉；描述空间结构、年代/时间、光线、氛围和关键物件。',
+    '- 道具素材输出单个道具特写；描述材质、形状、年代感、使用痕迹、构图和光线。',
+    '- 不要包含三视图、分镜、视频、局部修改等未被要求的能力。',
+    '- 不要输出 markdown，不要输出 JSON 以外的文字。',
+  ].join('\n');
+}
+
+async function generateResourcePrompt(args: {
+  client: OpenAI;
+  model: string;
+  input: ResourcePromptInput;
+  ctx: ProviderContext;
+}): Promise<ProviderResult> {
+  const { client, model, input, ctx } = args;
+  const context = await loadResourcePromptContext(ctx, input);
+
+  ctx.log.info(
+    {
+      provider: 'openai',
+      op: 'resource_prompt',
+      model,
+      kind: input.kind,
+      entityId: input.entityId,
+    },
+    'resource prompt generation start',
+  );
+
+  try {
+    const resp = await client.chat.completions.create(
+      {
+        model,
+        messages: [
+          { role: 'system', content: resourcePromptSystemPrompt() },
+          {
+            role: 'user',
+            content: [
+              `项目：${context.projectName}`,
+              context.stylePrompt ? `项目视觉风格：${context.stylePrompt}` : '',
+              `素材类型：${context.resourceKind === 'character-style' ? '人物造型' : context.resourceKind === 'scene' ? '场景' : '道具'}`,
+              `素材名称：${context.resourceName}`,
+              context.styleName ? `造型名称：${context.styleName}` : '',
+              context.resourceDescription ? `确认后的描述：${context.resourceDescription}` : '',
+              context.existingPrompt ? `已有提示词草稿：${context.existingPrompt}` : '',
+              context.scriptText ? `相关剧本上下文：\n${context.scriptText}` : '',
+            ]
+              .filter(Boolean)
+              .join('\n\n'),
+          },
+        ],
+        response_format: { type: 'json_object' },
+        max_tokens: 1600,
+      },
+      { signal: ctx.abortSignal },
+    );
+
+    const raw = resp.choices[0]?.message?.content ?? '{}';
+    const prompt = safeParseResourcePrompt(raw);
+    if (!prompt.trim()) {
+      throw new Error('resource prompt generation produced empty prompt');
+    }
+
+    return {
+      outputJson: {
+        provider: 'openai',
+        model,
+        analysisType: 'resource_prompt',
+        resourceKind: input.kind,
+        entityId: input.entityId,
+        prompt,
+        generationId: resp.id ?? null,
+        usage: resp.usage ?? null,
+      },
+    };
+  } catch (err) {
+    throw normalizeOpenAIError(err);
+  }
+}
+
+function safeParseResourcePrompt(raw: string): string {
+  const cleaned = extractJsonObject(raw);
+  try {
+    const obj = JSON.parse(cleaned) as { prompt?: unknown };
+    return typeof obj.prompt === 'string' ? obj.prompt.trim() : '';
+  } catch {
+    return raw.trim();
+  }
+}
+
+async function loadResourcePromptContext(
+  ctx: ProviderContext,
+  input: ResourcePromptInput,
+): Promise<ResourcePromptContext> {
+  if (input.kind === 'character-style') {
+    const style = await ctx.prisma.characterStyle.findUnique({
+      where: { id: input.entityId },
+      include: {
+        character: {
+          include: { project: true },
+        },
+      },
+    });
+    if (!style) throw new Error(`character style not found: ${input.entityId}`);
+    const scriptText = await loadProjectScriptText(ctx, style.character.projectId, style.character.name);
+    return {
+      projectId: style.character.projectId,
+      projectName: style.character.project.name,
+      stylePrompt: style.character.project.stylePrompt ?? '',
+      resourceKind: input.kind,
+      resourceName: style.character.name,
+      resourceDescription: [style.character.description, style.character.bio]
+        .filter(Boolean)
+        .join('\n'),
+      styleName: style.name,
+      existingPrompt: style.prompt ?? '',
+      scriptText,
+    };
+  }
+
+  if (input.kind === 'scene') {
+    const scene = await ctx.prisma.scene.findUnique({
+      where: { id: input.entityId },
+      include: { project: true },
+    });
+    if (!scene) throw new Error(`scene not found: ${input.entityId}`);
+    const scriptText = await loadProjectScriptText(ctx, scene.projectId, scene.name);
+    return {
+      projectId: scene.projectId,
+      projectName: scene.project.name,
+      stylePrompt: scene.project.stylePrompt ?? '',
+      resourceKind: input.kind,
+      resourceName: scene.name,
+      resourceDescription: scene.description ?? '',
+      existingPrompt: scene.prompt ?? '',
+      scriptText,
+    };
+  }
+
+  const item = await ctx.prisma.item.findUnique({
+    where: { id: input.entityId },
+    include: { project: true },
+  });
+  if (!item) throw new Error(`item not found: ${input.entityId}`);
+  const scriptText = await loadProjectScriptText(ctx, item.projectId, item.name);
+  return {
+    projectId: item.projectId,
+    projectName: item.project.name,
+    stylePrompt: item.project.stylePrompt ?? '',
+    resourceKind: input.kind,
+    resourceName: item.name,
+    resourceDescription: item.description ?? '',
+    existingPrompt: item.prompt ?? '',
+    scriptText,
+  };
+}
+
+async function loadProjectScriptText(
+  ctx: ProviderContext,
+  projectId: string,
+  query: string,
+): Promise<string> {
+  const episodes = await ctx.prisma.storyboardEpisode.findMany({
+    where: { projectId },
+    orderBy: { number: 'asc' },
+    select: { number: true, title: true, content: true, summary: true },
+  });
+  const needle = query.trim();
+  const chunks = episodes
+    .map((ep) => {
+      const content = [ep.summary, ep.content].filter(Boolean).join('\n');
+      return {
+        number: ep.number,
+        title: ep.title,
+        content,
+        matched: needle ? content.includes(needle) || ep.title.includes(needle) : false,
+      };
+    })
+    .filter((ep) => ep.matched)
+    .slice(0, 4);
+  const selected = chunks.length > 0 ? chunks : episodes.slice(0, 2).map((ep) => ({
+    number: ep.number,
+    title: ep.title,
+    content: [ep.summary, ep.content].filter(Boolean).join('\n'),
+  }));
+  return selected
+    .map((ep) => `第${ep.number}集 — ${ep.title}\n${ep.content.slice(0, 1200)}`)
+    .join('\n\n---\n\n');
+}
+
 async function persistExtractedEntities(
   ctx: ProviderContext,
   projectId: string,
@@ -434,20 +663,34 @@ async function persistExtractedEntities(
   }
   if (subjectType === 'items') {
     const items = safeParseEntities<ExtractedItem>(raw, 'items', ctx.log)
-      .map((i) => ({ name: String(i.name ?? '').trim() }))
+      .map((i) => ({
+        name: String(i.name ?? '').trim(),
+        description: String(i.description ?? '').trim(),
+      }))
       .filter((i) => i.name.length > 0);
     if (items.length === 0) return [];
     const rows = await ctx.prisma.$transaction(
-      items.map((i) => ctx.prisma.item.create({ data: { projectId, name: i.name } })),
+      items.map((i) =>
+        ctx.prisma.item.create({
+          data: { projectId, name: i.name, description: i.description },
+        }),
+      ),
     );
     return rows.map((r) => r.id);
   }
   const scenes = safeParseEntities<ExtractedScene>(raw, 'scenes', ctx.log)
-    .map((s) => ({ name: String(s.name ?? '').trim() }))
+    .map((s) => ({
+      name: String(s.name ?? '').trim(),
+      description: String(s.description ?? '').trim(),
+    }))
     .filter((s) => s.name.length > 0);
   if (scenes.length === 0) return [];
   const rows = await ctx.prisma.$transaction(
-    scenes.map((s) => ctx.prisma.scene.create({ data: { projectId, name: s.name } })),
+    scenes.map((s) =>
+      ctx.prisma.scene.create({
+        data: { projectId, name: s.name, description: s.description },
+      }),
+    ),
   );
   return rows.map((r) => r.id);
 }
