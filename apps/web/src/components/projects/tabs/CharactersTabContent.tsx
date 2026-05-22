@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { Character, Project } from '@/types';
 import { User, ImagePlus, Plus, Trash2, Sparkles, Loader2, Pencil } from 'lucide-react';
 import {
@@ -21,7 +21,10 @@ interface Props {
   characters: Character[];
   project: Project;
   scriptContent?: string;
-  onChange: (next: Character[]) => void;
+  // Accepts a functional updater so concurrent updates (e.g. analyzing several
+  // characters in parallel) merge against the latest state instead of a stale
+  // snapshot captured when each analysis started.
+  onChange: Dispatch<SetStateAction<Character[]>>;
 }
 
 /**
@@ -63,9 +66,11 @@ export function CharactersTabContent({ characters, project, onChange }: Props) {
     setActionError(null);
     try {
       await deleteCharacter(charId);
-      const fresh = characters.filter((c) => c.id !== charId);
-      onChange(fresh);
-      if (effectiveId === charId) setPickedId(fresh[0]?.id ?? null);
+      onChange((prev) => prev.filter((c) => c.id !== charId));
+      if (effectiveId === charId) {
+        const remaining = characters.filter((c) => c.id !== charId);
+        setPickedId(remaining[0]?.id ?? null);
+      }
     } catch (e) {
       setActionError(e instanceof Error ? e.message : '删除失败');
     } finally {
@@ -142,7 +147,7 @@ export function CharactersTabContent({ characters, project, onChange }: Props) {
             character={selected}
             project={project}
             onUpdated={(updated) => {
-              onChange(characters.map((c) => (c.id === updated.id ? updated : c)));
+              onChange((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
             }}
             onStyleChanged={() => void reload()}
           />
@@ -178,11 +183,14 @@ function CharacterDetail({ character, project, onUpdated, onStyleChanged }: Deta
   // styles yet — they should also see the analyze/blank choice.
   const isFresh = !character.markedBlank && character.styles.length === 0;
 
-  const [analyzing, setAnalyzing] = useState(false);
-  const { runGeneration } = useGeneration();
+  const { isGenerating, runGeneration } = useGeneration();
+  // Derive the in-progress flag from the shared generation context rather than
+  // local state: this component is keyed by character id, so switching away and
+  // back remounts it and would otherwise reset a local `analyzing` flag to false
+  // while the analysis is still running.
+  const analyzing = isGenerating('character-avatar', character.id);
 
   const handleAnalyze = async () => {
-    setAnalyzing(true);
     try {
       // Reuse the avatar-generation loading channel so the left-panel avatar
       // slot shows the same spinner during script/character analysis.
@@ -193,8 +201,6 @@ function CharacterDetail({ character, project, onUpdated, onStyleChanged }: Deta
     } catch {
       // Keep the character in fresh state so the user can retry; the error is
       // surfaced via the generation context.
-    } finally {
-      setAnalyzing(false);
     }
   };
 
