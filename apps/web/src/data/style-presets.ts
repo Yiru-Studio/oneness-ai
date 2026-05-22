@@ -75,12 +75,15 @@ export type AnalysisModelOption = {
 export const ANALYSIS_MODEL_OPTIONS: AnalysisModelOption[] = [
   { modelId: 'anthropic/claude-sonnet-4.6', label: 'Claude Sonnet 4.6' },
   { modelId: 'anthropic/claude-opus-4.7', label: 'Claude Opus 4.7' },
+  { modelId: 'google/gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+  { modelId: 'openai/gpt-5.5', label: 'GPT-5.5' },
 ];
 
 export const IMAGE_MODEL_OPTIONS: AnalysisModelOption[] = [
   { modelId: 'openai/gpt-image-2', label: 'GPT Image 2' },
   { modelId: 'openai/gpt-image-1.5', label: 'GPT Image 1.5' },
   { modelId: 'google/gemini-2.5-flash-image', label: 'Nano Banana' },
+  { modelId: 'google/gemini-3.1-flash-image-preview', label: 'Gemini 3.1 Flash Image (Preview)' },
   { modelId: 'stub/placeholder', label: 'Stub (开发用)' },
 ];
 
