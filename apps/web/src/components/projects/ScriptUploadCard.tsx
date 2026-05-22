@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Upload } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, Loader2 } from 'lucide-react';
 import { analyzeEpisode, createEpisode } from '@/lib/api';
 import { StoryboardEpisode } from '@/types';
 
@@ -25,10 +25,11 @@ async function readScript(file: File): Promise<string> {
 
 export function ScriptUploadCard({ projectId, onUploaded }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [status, setStatus] = useState<'idle' | 'reading' | 'uploading' | 'analyzing' | 'error'>(
-    'idle',
-  );
+  const [status, setStatus] = useState<
+    'idle' | 'reading' | 'uploading' | 'uploaded' | 'analyzing' | 'error'
+  >('idle');
   const [error, setError] = useState<string | null>(null);
+  const [episode, setEpisode] = useState<StoryboardEpisode | null>(null);
 
   const handlePick = () => inputRef.current?.click();
 
@@ -61,18 +62,31 @@ export function ScriptUploadCard({ projectId, onUploaded }: Props) {
     setStatus('uploading');
     try {
       const title = file.name.replace(/\.(txt|md|docx)$/i, '') || '第1集';
-      const episode = await createEpisode(projectId, {
+      const ep = await createEpisode(projectId, {
         number: 1,
         title,
         content: text,
       });
-      setStatus('analyzing');
+      // Upload only. Analysis now waits for explicit confirmation.
+      setEpisode(ep);
+      setStatus('uploaded');
+    } catch (e) {
+      setStatus('error');
+      setError(e instanceof Error ? e.message : '上传失败');
+    }
+  };
+
+  const handleConfirmAnalysis = async () => {
+    if (!episode) return;
+    setError(null);
+    setStatus('analyzing');
+    try {
       await analyzeEpisode(projectId, episode.id);
       onUploaded(episode);
       setStatus('idle');
     } catch (e) {
       setStatus('error');
-      setError(e instanceof Error ? e.message : '上传失败');
+      setError(e instanceof Error ? e.message : '启动分析失败');
     }
   };
 
@@ -90,15 +104,49 @@ export function ScriptUploadCard({ projectId, onUploaded }: Props) {
 
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => e.preventDefault();
 
-  const busy = status === 'reading' || status === 'uploading' || status === 'analyzing';
+  // Uploaded: show the script for review with a bottom-left "确认分析" button.
+  if (episode && (status === 'uploaded' || status === 'analyzing')) {
+    const analyzing = status === 'analyzing';
+    return (
+      <div className="h-full flex flex-col p-8">
+        <div className="flex-1 min-h-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] flex flex-col overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-[var(--color-border)]">
+            <FileText className="w-4 h-4 text-[var(--color-primary)]" />
+            <span className="text-sm font-medium text-[var(--color-text)]">{episode.title}</span>
+            <span className="text-xs text-[var(--color-text-secondary)]">
+              {episode.content.length.toLocaleString()} 字符
+            </span>
+            <span className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--color-success)]">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              已上传
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 py-4 whitespace-pre-wrap leading-relaxed text-sm text-[var(--color-text)]">
+            {episode.content}
+          </div>
+        </div>
+        {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+
+        {/* Bottom-left confirm-analysis button */}
+        <button
+          onClick={handleConfirmAnalysis}
+          disabled={analyzing}
+          className="fixed bottom-6 left-20 z-20 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium shadow-lg hover:opacity-90 disabled:opacity-60 disabled:cursor-wait transition-opacity"
+        >
+          {analyzing && <Loader2 className="w-4 h-4 animate-spin" />}
+          {analyzing ? '正在启动分析…' : '确认分析'}
+        </button>
+      </div>
+    );
+  }
+
+  const busy = status === 'reading' || status === 'uploading';
   const label =
     status === 'reading'
       ? '正在读取文件…'
       : status === 'uploading'
         ? '正在上传剧本…'
-        : status === 'analyzing'
-          ? '正在启动分析…'
-          : '上传剧本';
+        : '上传剧本';
 
   return (
     <div className="h-full flex items-center justify-center p-8">
