@@ -149,6 +149,121 @@ export interface Shot {
   updatedAt: string;
 }
 
+export interface CompositionCandidate {
+  id: string;
+  taskId: string;
+  gridRunId: string | null;
+  gridIndex: number;
+  angleLabel: string | null;
+  image: ShotAssetRef | null;
+  selected: boolean;
+  syncedShotId: string | null;
+  status: 'READY' | 'APPLIED' | 'SYNCED' | string;
+  appliedMode: 'create_shots' | 'replace_existing_shots' | 'add_to_storyboard_assets' | string | null;
+  appliedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CompositionImageRun {
+  id: string;
+  taskId: string;
+  prompt: string;
+  negativePrompt: string;
+  model: string;
+  ratio: string;
+  quality: '1080p' | '2k' | '4k' | 'standard' | 'hd' | string;
+  outputCount: number;
+  seed: string | null;
+  characterConsistency: number;
+  sceneConsistency: number;
+  itemConsistency: number;
+  params: unknown;
+  referenceAssetIds: string[];
+  characterStyleIds: string[];
+  sceneIds: string[];
+  itemIds: string[];
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | string;
+  error: string | null;
+  costCredits: number;
+  taskJobId: string | null;
+  taskJobStatus: ShotVideoTaskStatus | null;
+  image: ShotAssetRef | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CompositionGridRun {
+  id: string;
+  taskId: string;
+  imageRunId: string;
+  model: string;
+  ratio: string;
+  specification: '3x3' | string;
+  variationMode: 'auto_angles' | 'fixed_angles' | string;
+  consistency: number;
+  inheritStyle: boolean;
+  inheritSeed: boolean;
+  params: unknown;
+  status: 'QUEUED' | 'RUNNING' | 'READY' | 'FAILED' | 'CANCELLED' | string;
+  error: string | null;
+  costCredits: number;
+  taskJobId: string | null;
+  taskJobStatus: ShotVideoTaskStatus | null;
+  gridImage: ShotAssetRef | null;
+  candidates: CompositionCandidate[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CompositionTaskRuns {
+  taskId: string;
+  currentImageRunId: string | null;
+  currentGridRunId: string | null;
+  imageRuns: CompositionImageRun[];
+  gridRuns: CompositionGridRun[];
+}
+
+export interface CompositionTask {
+  id: string;
+  projectId: string;
+  episodeId: string;
+  sceneIndex: number;
+  title: string;
+  scriptExcerpt: string;
+  prompt: string;
+  characterStyleIds: string[];
+  sceneIds: string[];
+  itemIds: string[];
+  status:
+    | 'DRAFT'
+    | 'IMAGE_QUEUED'
+    | 'IMAGE_RUNNING'
+    | 'IMAGE_READY'
+    | 'IMAGE_FAILED'
+    | 'GRID_QUEUED'
+    | 'GRID_RUNNING'
+    | 'GRID_READY'
+    | 'GRID_FAILED'
+    | 'APPLIED'
+    | 'SYNCED'
+    | string;
+  error: string | null;
+  currentImageRunId: string | null;
+  currentGridRunId: string | null;
+  image: ShotAssetRef | null;
+  imageTaskId: string | null;
+  imageTaskStatus: ShotVideoTaskStatus | null;
+  gridImage: ShotAssetRef | null;
+  candidates: CompositionCandidate[];
+  imageRunCount: number;
+  gridRunCount: number;
+  candidateCount: number;
+  syncedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AnalyticsData {
   totalCredits: number;
   imageCount: number;

@@ -16,4 +16,5 @@ export { PrismaClient };
 export type {
   User, Project, Character, CharacterStyle, Item, Scene,
   StoryboardEpisode, Shot, KnowledgeDoc, Task, Asset, TaskAsset, ResourceImage,
+  CompositionTask, CompositionImageRun, CompositionGridRun, CompositionCandidate,
 } from '@prisma/client';

@@ -9,6 +9,8 @@ import {
   ResourceImageKind,
   StoryboardEpisode,
   Shot,
+  CompositionTask,
+  CompositionTaskRuns,
   AnalyticsData,
 } from '@/types';
 import { apiFetch, setAuthToken, ApiError } from './api-client';
@@ -23,6 +25,8 @@ type ItemDTO = Item;
 type SceneDTO = Scene;
 type ResourceImageDTO = ResourceImage;
 type EpisodeDTO = StoryboardEpisode;
+type CompositionTaskDTO = CompositionTask;
+type CompositionTaskRunsDTO = CompositionTaskRuns;
 type KnowledgeDocDTO = KnowledgeDoc;
 type UserDTO = User;
 type AnalyticsDTO = AnalyticsData;
@@ -531,6 +535,117 @@ export async function generateSceneShots(
     { method: 'POST', body: { sceneIndex } },
   );
   return res.task;
+}
+
+// -- Composition shots --------------------------------------------------
+
+export async function getCompositionTasks(projectId: string): Promise<CompositionTask[]> {
+  return await apiFetch<CompositionTaskDTO[]>(`/api/projects/${projectId}/composition-tasks`);
+}
+
+export async function analyzeCompositionTasks(
+  projectId: string,
+  body: { episodeId?: string } = {},
+): Promise<CompositionTask[]> {
+  return await apiFetch<CompositionTaskDTO[]>(
+    `/api/projects/${projectId}/composition-tasks/analyze`,
+    { method: 'POST', body },
+  );
+}
+
+export async function updateCompositionTask(
+  taskId: string,
+  body: Partial<{
+    prompt: string;
+    characterStyleIds: string[];
+    sceneIds: string[];
+    itemIds: string[];
+    selectedCandidateIds: string[];
+  }>,
+): Promise<CompositionTask> {
+  return await apiFetch<CompositionTaskDTO>(`/api/composition-tasks/${taskId}`, {
+    method: 'PATCH',
+    body,
+  });
+}
+
+export type CompositionImageGenerationSettings = Partial<{
+  model: string;
+  ratio: string;
+  quality: '1080p' | '2k' | '4k';
+  outputCount: number;
+  seed: string | null;
+  characterConsistency: number;
+  sceneConsistency: number;
+  itemConsistency: number;
+  negativePrompt: string;
+}>;
+
+export type CompositionGridGenerationSettings = Partial<{
+  model: string;
+  ratio: string;
+  specification: '3x3';
+  variationMode: 'auto_angles' | 'fixed_angles';
+  consistency: number;
+  inheritStyle: boolean;
+  inheritSeed: boolean;
+}>;
+
+export type ApplyCompositionMode =
+  | 'create_shots'
+  | 'replace_existing_shots'
+  | 'add_to_storyboard_assets';
+
+export async function getCompositionTaskRuns(taskId: string): Promise<CompositionTaskRuns> {
+  return await apiFetch<CompositionTaskRunsDTO>(`/api/composition-tasks/${taskId}/runs`);
+}
+
+export async function generateCompositionImage(
+  taskId: string,
+  body: CompositionImageGenerationSettings = {},
+): Promise<CompositionTask> {
+  return await apiFetch<CompositionTaskDTO>(`/api/composition-tasks/${taskId}/generate-image`, {
+    method: 'POST',
+    body,
+  });
+}
+
+export async function setCurrentCompositionImageRun(runId: string): Promise<CompositionTask> {
+  return await apiFetch<CompositionTaskDTO>(`/api/composition-image-runs/${runId}/set-current`, {
+    method: 'POST',
+    body: {},
+  });
+}
+
+export async function generateCompositionGrid(
+  imageRunId: string,
+  body: CompositionGridGenerationSettings = {},
+): Promise<CompositionTask> {
+  return await apiFetch<CompositionTaskDTO>(`/api/composition-image-runs/${imageRunId}/generate-grid`, {
+    method: 'POST',
+    body,
+  });
+}
+
+export async function setCurrentCompositionGridRun(runId: string): Promise<CompositionTask> {
+  return await apiFetch<CompositionTaskDTO>(`/api/composition-grid-runs/${runId}/set-current`, {
+    method: 'POST',
+    body: {},
+  });
+}
+
+export async function applyCompositionGridToShots(
+  gridRunId: string,
+  body: {
+    candidateIds: string[];
+    mode: ApplyCompositionMode;
+    targetShotIds?: string[];
+  },
+): Promise<CompositionTask> {
+  return await apiFetch<CompositionTaskDTO>(`/api/composition-grid-runs/${gridRunId}/apply-to-shots`, {
+    method: 'POST',
+    body,
+  });
 }
 
 export async function getProjectAnalytics(projectId: string): Promise<AnalyticsData> {

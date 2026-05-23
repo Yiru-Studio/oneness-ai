@@ -68,6 +68,7 @@ model Project {
   items      Item[]
   scenes     Scene[]
   episodes   StoryboardEpisode[]
+  compositionTasks CompositionTask[]
   tasks      Task[]
   resourceImages ResourceImage[]
 
@@ -204,6 +205,7 @@ model StoryboardEpisode {
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   shots   Shot[]
+  compositionTasks CompositionTask[]
 
   @@unique([projectId, number])
 }
@@ -256,6 +258,7 @@ model Shot {
   video      Asset?            @relation("ShotVideo", fields: [videoAssetId], references: [id], onDelete: SetNull)
   lastFrame  Asset?            @relation("ShotLastFrame", fields: [lastFrameAssetId], references: [id], onDelete: SetNull)
   videoTask  Task?             @relation("ShotVideoTask", fields: [videoTaskId], references: [id], onDelete: SetNull)
+  compositionCandidates CompositionCandidate[]
 
   @@unique([episodeId, displayId])
   @@index([episodeId])
@@ -297,6 +300,10 @@ model Task {
   assets  TaskAsset[]
   shots   Shot[]      @relation("ShotVideoTask")
   resourceImages ResourceImage[]
+  compositionImageTasks CompositionTask[] @relation("CompositionImageTask")
+  compositionGridTasks CompositionTask[]  @relation("CompositionGridTask")
+  compositionImageRunJobs CompositionImageRun[] @relation("CompositionImageRunTask")
+  compositionGridRunJobs CompositionGridRun[] @relation("CompositionGridRunTask")
 
   @@index([ownerId, status, createdAt])
   @@index([projectId, type])
@@ -324,6 +331,11 @@ model Asset {
   shotSketches    Shot[]           @relation("ShotSketch")
   shotVideos      Shot[]           @relation("ShotVideo")
   shotLastFrames  Shot[]           @relation("ShotLastFrame")
+  compositionTaskImages CompositionTask[] @relation("CompositionTaskImage")
+  compositionTaskGrids  CompositionTask[] @relation("CompositionTaskGrid")
+  compositionImageRunOutputs CompositionImageRun[] @relation("CompositionImageRunOutput")
+  compositionGridRunOutputs  CompositionGridRun[]  @relation("CompositionGridRunOutput")
+  compositionCandidates CompositionCandidate[]
 
   @@unique([bucket, key])
   @@index([ownerId, createdAt])
@@ -338,4 +350,146 @@ model TaskAsset {
   asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
   @@id([taskId, assetId, role])
+}
+
+/// A generated "合成镜头" task. It bridges analyzed剧情场景 with the
+/// existing character / scene素材 / item references, then produces a
+/// composited first-frame image and 3x3 storyboard candidates.
+model CompositionTask {
+  id             String   @id @default(cuid())
+  projectId      String
+  episodeId      String
+  sceneIndex     Int
+  title          String
+  scriptExcerpt  String   @db.Text
+  prompt         String   @default("") @db.Text
+  status         String   @default("DRAFT")
+  error          String?  @db.Text
+  characterStyleIds Json  @default("[]")
+  sceneIds       Json     @default("[]")
+  itemIds        Json     @default("[]")
+  imageAssetId   String?
+  imageTaskId    String?
+  gridAssetId    String?
+  gridTaskId     String?
+  currentImageRunId String?
+  currentGridRunId  String?
+  syncedAt       DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  episode    StoryboardEpisode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  imageAsset Asset?            @relation("CompositionTaskImage", fields: [imageAssetId], references: [id], onDelete: SetNull)
+  imageTask  Task?             @relation("CompositionImageTask", fields: [imageTaskId], references: [id], onDelete: SetNull)
+  gridAsset  Asset?            @relation("CompositionTaskGrid", fields: [gridAssetId], references: [id], onDelete: SetNull)
+  gridTask   Task?             @relation("CompositionGridTask", fields: [gridTaskId], references: [id], onDelete: SetNull)
+  currentImageRun CompositionImageRun? @relation("CompositionTaskCurrentImageRun", fields: [currentImageRunId], references: [id], onDelete: SetNull)
+  currentGridRun  CompositionGridRun?  @relation("CompositionTaskCurrentGridRun", fields: [currentGridRunId], references: [id], onDelete: SetNull)
+  imageRuns CompositionImageRun[] @relation("CompositionTaskImageRuns")
+  gridRuns  CompositionGridRun[]  @relation("CompositionTaskGridRuns")
+  candidates CompositionCandidate[]
+
+  @@unique([episodeId, sceneIndex])
+  @@index([projectId, status, createdAt])
+  @@index([imageTaskId])
+  @@index([gridTaskId])
+  @@index([currentImageRunId])
+  @@index([currentGridRunId])
+}
+
+model CompositionImageRun {
+  id             String   @id @default(cuid())
+  taskId         String
+  prompt         String   @db.Text
+  negativePrompt String  @default("") @db.Text
+  model          String
+  ratio          String
+  quality        String   @default("1080p")
+  outputCount    Int      @default(1)
+  seed           String?
+  characterConsistency Int @default(50)
+  sceneConsistency     Int @default(50)
+  itemConsistency      Int @default(50)
+  params         Json     @default("{}")
+  referenceAssetIds Json  @default("[]")
+  characterStyleIds Json  @default("[]")
+  sceneIds       Json     @default("[]")
+  itemIds        Json     @default("[]")
+  status         String   @default("QUEUED")
+  error          String?  @db.Text
+  costCredits    Int      @default(0)
+  taskJobId      String?
+  outputAssetId  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  task        CompositionTask @relation("CompositionTaskImageRuns", fields: [taskId], references: [id], onDelete: Cascade)
+  taskJob     Task?           @relation("CompositionImageRunTask", fields: [taskJobId], references: [id], onDelete: SetNull)
+  outputAsset Asset?          @relation("CompositionImageRunOutput", fields: [outputAssetId], references: [id], onDelete: SetNull)
+  gridRuns    CompositionGridRun[]
+  currentForTasks CompositionTask[] @relation("CompositionTaskCurrentImageRun")
+
+  @@index([taskId, createdAt])
+  @@index([taskJobId])
+  @@index([outputAssetId])
+}
+
+model CompositionGridRun {
+  id             String   @id @default(cuid())
+  taskId         String
+  imageRunId     String
+  model          String
+  ratio          String
+  specification  String   @default("3x3")
+  variationMode  String   @default("auto_angles")
+  consistency    Int      @default(80)
+  inheritStyle   Boolean  @default(true)
+  inheritSeed    Boolean  @default(false)
+  params         Json     @default("{}")
+  status         String   @default("READY")
+  error          String?  @db.Text
+  costCredits    Int      @default(0)
+  taskJobId      String?
+  gridAssetId    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  task      CompositionTask    @relation("CompositionTaskGridRuns", fields: [taskId], references: [id], onDelete: Cascade)
+  imageRun  CompositionImageRun @relation(fields: [imageRunId], references: [id], onDelete: Cascade)
+  taskJob   Task?               @relation("CompositionGridRunTask", fields: [taskJobId], references: [id], onDelete: SetNull)
+  gridAsset Asset?             @relation("CompositionGridRunOutput", fields: [gridAssetId], references: [id], onDelete: SetNull)
+  candidates CompositionCandidate[]
+  currentForTasks CompositionTask[] @relation("CompositionTaskCurrentGridRun")
+
+  @@index([taskId, createdAt])
+  @@index([imageRunId])
+  @@index([taskJobId])
+  @@index([gridAssetId])
+}
+
+model CompositionCandidate {
+  id           String   @id @default(cuid())
+  taskId       String
+  gridRunId    String?
+  gridIndex    Int
+  angleLabel   String?
+  assetId      String?
+  selected     Boolean  @default(false)
+  status       String   @default("READY")
+  appliedMode  String?
+  appliedAt    DateTime?
+  syncedShotId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  task       CompositionTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  gridRun    CompositionGridRun? @relation(fields: [gridRunId], references: [id], onDelete: Cascade)
+  asset      Asset?          @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  syncedShot Shot?           @relation(fields: [syncedShotId], references: [id], onDelete: SetNull)
+
+  @@unique([gridRunId, gridIndex])
+  @@index([taskId, selected])
+  @@index([gridRunId, selected])
+  @@index([syncedShotId])
 }
