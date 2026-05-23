@@ -14,7 +14,7 @@ export const PROJECT_TABS = [
   { value: 'characters' as const, label: '角色' },
   { value: 'items' as const, label: '物品' },
   { value: 'scenes' as const, label: '场景' },
-  { value: 'workbench' as const, label: '工作台' },
+  { value: 'workbench' as const, label: '合成镜头' },
   { value: 'storyboard' as const, label: '分镜' },
   { value: 'analytics' as const, label: '数据分析' },
 ] as const;

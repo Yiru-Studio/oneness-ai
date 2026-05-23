@@ -19,7 +19,7 @@ import { InfoTabContent } from '@/components/projects/tabs/InfoTabContent';
 import { CharactersTabContent } from '@/components/projects/tabs/CharactersTabContent';
 import { ItemsTabContent } from '@/components/projects/tabs/ItemsTabContent';
 import { ScenesTabContent } from '@/components/projects/tabs/ScenesTabContent';
-import { WorkbenchTabContent } from '@/components/projects/tabs/WorkbenchTabContent';
+import { CompositionShotsTabContent } from '@/components/projects/tabs/CompositionShotsTabContent';
 import { StoryboardTabContent } from '@/components/projects/tabs/StoryboardTabContent';
 import { AnalyticsTabContent } from '@/components/projects/tabs/AnalyticsTabContent';
 
@@ -182,7 +182,15 @@ export default function ProjectDetailPage() {
               onChange={setScenes}
             />
           )}
-          {activeTab === 'workbench' && <WorkbenchTabContent />}
+          {activeTab === 'workbench' && (
+            <CompositionShotsTabContent
+              project={project}
+              episodes={episodes}
+              characters={characters}
+              scenes={scenes}
+              items={items}
+            />
+          )}
           {activeTab === 'storyboard' && (
             <StoryboardTabContent
               episodes={episodes}
