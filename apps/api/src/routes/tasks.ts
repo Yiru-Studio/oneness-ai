@@ -19,6 +19,7 @@ import {
   InternalUpdateTaskSchema,
   IdParamSchema,
 } from '@oneness/shared/schemas';
+import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 import { TaskStatus } from '@oneness/shared/enums';
 import { config } from '../config.js';
 
@@ -61,13 +62,16 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
 
   // If a characterId is provided, auto-inject its avatar as a reference image.
   const input = { ...body.input } as Record<string, unknown>;
+  const characterIdHint =
+    body.type === 'IMAGE' && typeof input.characterId === 'string'
+      ? input.characterId
+      : null;
   if (
     body.type === 'IMAGE' &&
-    input.characterId &&
-    typeof input.characterId === 'string'
+    characterIdHint
   ) {
     const character = await prisma.character.findFirst({
-      where: { id: input.characterId, project: { ownerId: user.id } },
+      where: { id: characterIdHint, project: { ownerId: user.id } },
       select: { avatarAssetId: true },
     });
     if (character?.avatarAssetId) {
@@ -79,6 +83,16 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
     }
     // Don't persist characterId into the task input — it's a routing hint only.
     delete input.characterId;
+  }
+  if (body.type === 'IMAGE' && typeof input.prompt === 'string') {
+    input.prompt = await governImagePrompt({
+      prompt: input.prompt,
+      userId: user.id,
+      resourceTarget: body.resourceTarget ?? null,
+      characterIdHint,
+      ratio: typeof input.ratio === 'string' ? input.ratio : null,
+      projectId: resourceTarget?.projectId ?? body.projectId ?? null,
+    });
   }
 
   const task = await prisma.$transaction(async (tx) => {
@@ -137,6 +151,133 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
 
   return c.json(await serializeTask(task), 201);
 });
+
+const THREE_VIEW_MARKER = '@三视图';
+
+function splitThreeViewMarker(prompt: string): { marker: boolean; body: string } {
+  const trimmed = prompt.trimStart();
+  if (!trimmed.startsWith(THREE_VIEW_MARKER)) return { marker: false, body: prompt };
+  return {
+    marker: true,
+    body: trimmed.slice(THREE_VIEW_MARKER.length).replace(/^\s*\n?/, '').trim(),
+  };
+}
+
+async function governImagePrompt(args: {
+  prompt: string;
+  userId: string;
+  resourceTarget: { kind: 'character-style' | 'scene' | 'item'; entityId: string } | null;
+  characterIdHint: string | null;
+  ratio: string | null;
+  projectId: string | null;
+}): Promise<string> {
+  const { marker, body } = splitThreeViewMarker(args.prompt);
+  const governed = await buildGovernedImagePrompt({
+    ...args,
+    prompt: body,
+  });
+  if (!governed) return args.prompt;
+  return marker ? `${THREE_VIEW_MARKER}\n${governed}` : governed;
+}
+
+async function projectStylePrompt(projectId: string | null): Promise<string> {
+  if (!projectId) return '';
+  const project = await prisma.project.findFirst({
+    where: { id: projectId },
+    select: { stylePrompt: true, style: true },
+  });
+  return project?.stylePrompt?.trim() || project?.style?.trim() || '';
+}
+
+async function buildGovernedImagePrompt(args: {
+  prompt: string;
+  userId: string;
+  resourceTarget: { kind: 'character-style' | 'scene' | 'item'; entityId: string } | null;
+  characterIdHint: string | null;
+  ratio: string | null;
+  projectId: string | null;
+}): Promise<string | null> {
+  const stylePrompt = await projectStylePrompt(args.projectId);
+
+  if (args.resourceTarget?.kind === 'item') {
+    const item = await prisma.item.findFirst({
+      where: { id: args.resourceTarget.entityId, project: { ownerId: args.userId } },
+      select: { name: true, description: true },
+    });
+    if (!item) return null;
+    return buildResourceImagePrompt({
+      kind: 'item',
+      name: item.name,
+      description: item.description,
+      userPrompt: args.prompt,
+      projectStylePrompt: stylePrompt,
+      ratio: args.ratio,
+    });
+  }
+
+  if (args.resourceTarget?.kind === 'scene') {
+    const scene = await prisma.scene.findFirst({
+      where: { id: args.resourceTarget.entityId, project: { ownerId: args.userId } },
+      select: { name: true, description: true },
+    });
+    if (!scene) return null;
+    return buildResourceImagePrompt({
+      kind: 'scene',
+      name: scene.name,
+      description: scene.description,
+      userPrompt: args.prompt,
+      projectStylePrompt: stylePrompt,
+      ratio: args.ratio,
+    });
+  }
+
+  if (args.resourceTarget?.kind === 'character-style') {
+    const style = await prisma.characterStyle.findFirst({
+      where: { id: args.resourceTarget.entityId, character: { project: { ownerId: args.userId } } },
+      select: {
+        name: true,
+        prompt: true,
+        character: {
+          select: {
+            name: true,
+            description: true,
+            bio: true,
+          },
+        },
+      },
+    });
+    if (!style) return null;
+    return buildResourceImagePrompt({
+      kind: 'character-style',
+      name: style.character.name,
+      description: style.character.description,
+      bio: style.character.bio,
+      styleName: style.name,
+      userPrompt: args.prompt || style.prompt,
+      projectStylePrompt: stylePrompt,
+      ratio: args.ratio,
+    });
+  }
+
+  if (args.characterIdHint) {
+    const character = await prisma.character.findFirst({
+      where: { id: args.characterIdHint, project: { ownerId: args.userId } },
+      select: { name: true, description: true, bio: true, avatarPrompt: true },
+    });
+    if (!character) return null;
+    return buildResourceImagePrompt({
+      kind: 'character-avatar',
+      name: character.name,
+      description: character.description,
+      bio: character.bio,
+      userPrompt: args.prompt || character.avatarPrompt,
+      projectStylePrompt: stylePrompt,
+      ratio: args.ratio,
+    });
+  }
+
+  return null;
+}
 
 // GET /api/tasks/:id
 taskRoutes.get(

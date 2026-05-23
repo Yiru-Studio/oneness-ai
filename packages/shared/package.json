@@ -14,7 +14,8 @@
     "./schemas": "./src/schemas/index.ts",
     "./queues": "./src/queues.ts",
     "./pricing": "./src/pricing.ts",
-    "./providers": "./src/providers/types.ts"
+    "./providers": "./src/providers/types.ts",
+    "./resource-prompts": "./src/resource-prompts.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

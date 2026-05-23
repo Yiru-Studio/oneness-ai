@@ -9,6 +9,7 @@ import {
   UpdateCharacterSchema,
   IdParamSchema,
 } from '@oneness/shared/schemas';
+import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 
 export const characterRoutes = new Hono();
 
@@ -261,8 +262,9 @@ async function analyzeCharacterWithLLM(
     '为该角色生成一段用于 AI 绘画的「头像提示词」，' +
     '并结合该角色在剧中可能出现的不同场景、身份、阶段，推断出 2 到 5 个该角色在剧中实际可能出现的造型，' +
     '为每个造型生成一段用于 AI 绘画的中文提示词。' +
-    '头像提示词应聚焦于角色的面部特征、发型、神态、气质，适合生成半身像或头像。' +
+    '头像提示词应聚焦于角色的面部特征、发型、神态、气质，适合生成半身像或头像，不要包含剧情场景背景。' +
     '造型的命名要紧扣剧情场景或身份，例如「年轻时消防员制服造型」「暖阳回忆训练服造型」「现代日常居家造型」等，避免使用「正面/侧面/背面」这类视角词。' +
+    '造型提示词必须是纯角色参考图，只允许角色本体、服装、发型和固定穿戴，不要把街道、房间、球场等剧情场景或手持独立道具写进去。' +
     '你必须只输出一个严格合法的 JSON 对象，不要包含 markdown 代码块、不要包含任何解释文字。' +
     '字段值内部严禁使用英文双引号(")，如需引用一律改用中文引号「」或单引号，否则 JSON 会解析失败。';
 
@@ -283,7 +285,7 @@ ${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : 
   "styles": [
     {
       "name": "造型名称（中文，紧扣剧情场景或身份，例如：年轻时消防员制服造型 / 暖阳回忆训练服造型 / 现代日常居家造型）",
-      "prompt": "用于生成该造型全身图的中文 AI 绘画提示词，需包含：年龄段、外貌特征、发型、服装细节、姿态、神态、所处场景或背景、光线氛围等；300 字以内"
+      "prompt": "用于生成该造型全身角色参考图的中文 AI 绘画提示词，需包含：年龄段、外貌特征、发型、服装细节、姿态、神态、干净影棚背景、光线氛围等；不要包含剧情场景、手持独立道具、角色互动；300 字以内"
     }
   ]
 }
@@ -351,7 +353,19 @@ ${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : 
       s.name.trim().length > 0 &&
       s.prompt.trim().length > 0,
     )
-    .slice(0, 5);
+    .slice(0, 5)
+    .map((s) => ({
+      name: s.name.trim(),
+      prompt: buildResourceImagePrompt({
+        kind: 'character-style',
+        name: characterName,
+        description: parsed.description ?? existingDescription,
+        bio: parsed.bio ?? '',
+        styleName: s.name,
+        userPrompt: s.prompt,
+        projectStylePrompt,
+      }),
+    }));
 
   // Fallback: if LLM returned fewer than 2 usable looks, pad with generic
   // Chinese prompts so the user still sees something actionable.
@@ -361,16 +375,33 @@ ${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : 
     const fallbackName = fallbackNames[idx] ?? `造型${idx + 1}`;
     styles.push({
       name: fallbackName,
-      prompt: `${characterName} 的${fallbackName}全身图：根据剧情设定还原年龄、外貌、发型与服装，姿态自然，光线柔和，单人，简洁背景。`,
+      prompt: buildResourceImagePrompt({
+        kind: 'character-style',
+        name: characterName,
+        description: parsed.description ?? existingDescription,
+        bio: parsed.bio ?? '',
+        styleName: fallbackName,
+        userPrompt: `${characterName} 的${fallbackName}全身图：根据剧情设定还原年龄、外貌、发型与服装，姿态自然，光线柔和，单人，简洁背景。`,
+        projectStylePrompt,
+      }),
     });
   }
 
   const rawAvatarPrompt = typeof parsed.avatarPrompt === 'string' ? parsed.avatarPrompt.trim() : '';
+  const description = typeof parsed.description === 'string' ? parsed.description : '';
+  const bio = typeof parsed.bio === 'string' ? parsed.bio : '';
 
   return {
-    description: typeof parsed.description === 'string' ? parsed.description : '',
-    bio: typeof parsed.bio === 'string' ? parsed.bio : '',
-    avatarPrompt: rawAvatarPrompt || `${characterName} 的头像：根据剧情设定还原面部特征、发型与神态，正面半身像，光线自然，简洁背景。`,
+    description,
+    bio,
+    avatarPrompt: buildResourceImagePrompt({
+      kind: 'character-avatar',
+      name: characterName,
+      description: description || existingDescription,
+      bio,
+      userPrompt: rawAvatarPrompt || `${characterName} 的头像：根据剧情设定还原面部特征、发型与神态，正面半身像，光线自然，简洁背景。`,
+      projectStylePrompt,
+    }),
     styles,
   };
 }

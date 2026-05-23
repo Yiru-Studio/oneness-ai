@@ -16,6 +16,7 @@ import {
 import { AddCharacterModal } from '@/components/modals/AddCharacterModal';
 import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
 import { useGeneration } from '@/contexts/GenerationContext';
+import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 
 interface Props {
   characters: Character[];
@@ -262,15 +263,14 @@ function CharacterEditableDetail({
 
   const buildAvatarAutoPrompt = () => {
     if (character.avatarPrompt) return character.avatarPrompt;
-    return [
-      `角色：${character.name}`,
-      character.description ? `描述：${character.description}` : '',
-      character.bio ? `背景：${character.bio}` : '',
-      '输出：单人头像，半身像，正面，正常表情，光线自然',
-      project.stylePrompt ? `风格指引：${project.stylePrompt}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
+    return buildResourceImagePrompt({
+      kind: 'character-avatar',
+      name: character.name,
+      description: character.description,
+      bio: character.bio,
+      projectStylePrompt: project.stylePrompt,
+      ratio: project.ratio,
+    });
   };
 
   return (
@@ -333,6 +333,7 @@ function CharacterEditableDetail({
           image: character.avatar,
         }}
         project={project}
+        characterId={character.id}
         buildAutoPrompt={buildAvatarAutoPrompt}
         onSave={async (patch) => {
           const data: Partial<{
@@ -477,16 +478,16 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
   const opened = openStyleId ? character.styles.find((s) => s.id === openStyleId) ?? null : null;
 
   const buildStyleAutoPrompt = (style: NonNullable<typeof opened>): string => {
-    return [
-      `角色：${character.name}`,
-      character.description ? `描述：${character.description}` : '',
-      character.bio ? `背景：${character.bio}` : '',
-      `造型：${style.name}`,
-      '输出：全身造型图，单人，纯色背景，光线自然，比例标准',
-      project.stylePrompt ? `风格指引：${project.stylePrompt}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
+    return buildResourceImagePrompt({
+      kind: 'character-style',
+      name: character.name,
+      description: character.description,
+      bio: character.bio,
+      styleName: style.name,
+      userPrompt: style.prompt,
+      projectStylePrompt: project.stylePrompt,
+      ratio: style.ratio || project.ratio,
+    });
   };
 
   return (

@@ -9,6 +9,7 @@ import {
   updateItem,
   getProjectItems,
 } from '@/lib/api';
+import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
 import { useGeneration } from '@/contexts/GenerationContext';
 
@@ -78,15 +79,14 @@ export function ItemsTabContent({ items, project, scriptContent, onChange }: Pro
           .slice(0, 6)
           .join('\n')
       : '';
-    return [
-      `物品：${item.name}`,
-      item.description ? `描述：${item.description}` : '',
-      ctxLines ? `剧本节选：\n${ctxLines}` : '',
-      '输出：单个物品特写，纯色背景，光线柔和，构图居中',
-      project.stylePrompt ? `风格：${project.stylePrompt}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
+    return buildResourceImagePrompt({
+      kind: 'item',
+      name: item.name,
+      description: item.description,
+      userPrompt: ctxLines ? `剧本节选：\n${ctxLines}` : '',
+      projectStylePrompt: project.stylePrompt,
+      ratio: project.ratio,
+    });
   };
 
   return (

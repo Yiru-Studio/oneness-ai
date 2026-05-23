@@ -11,6 +11,11 @@ import {
   getOpenAIClient,
   normalizeOpenAIError,
 } from '../lib/openai-client.js';
+import {
+  normalizeExtractedCharacters,
+  normalizeExtractedItems,
+  normalizeExtractedScenes,
+} from '@oneness/shared/resource-prompts';
 
 /**
  * System prompt scaled to the requested analysis depth. Both modes ask for
@@ -43,34 +48,41 @@ function extractionSystemPrompt(
   if (subjectType === 'characters') {
     return (
       'You extract characters from a storyboard episode. Return JSON exactly:\n' +
-      '{ "characters": [{ "name": string, "description": string, "bio": string }] }\n' +
+      '{ "characters": [{ "name": string, "description": string, "bio": string, "avatarPrompt": string }] }\n' +
       'Use the script\'s native language for the fields. ' +
       'NEVER use double quote characters (") inside any field values — ' +
       'use single quotes (\') or Chinese quotes（"..."）instead. ' +
-      '`description` is one short sentence about their role. ' +
+      '`description` is one short sentence about identity, age, appearance, and role. ' +
       '`bio` is 1–2 sentences on personality/background. ' +
+      '`avatarPrompt` is a clean pure-character portrait prompt: face, hair, body type, fixed clothing, temperament only. ' +
+      'Do not put locations, plot actions, hand-held props, or scene backgrounds into character fields. ' +
       'No prose outside the JSON object.'
     );
   }
   if (subjectType === 'items') {
     return (
       'You extract notable physical items/props from a storyboard episode. Return JSON exactly:\n' +
-      '{ "items": [{ "name": string }] }\n' +
-      'Only concrete physical objects that matter to the story. Skip clothing or generic environment. ' +
+      '{ "items": [{ "name": string, "description": string, "prompt": string }] }\n' +
+      'Only concrete physical objects that matter to the story. Skip clothing, body parts, and generic environment. ' +
+      'Each item must be one standalone object. Split composite names like A and B into separate items. ' +
+      '`description` should describe one object only: appearance, material, color, and narrative function. ' +
+      '`prompt` should be a single-object prop reference prompt with a clean studio background. ' +
       'Use the script\'s native language. No prose outside the JSON object.'
     );
   }
   return (
     'You extract distinct scenes from a storyboard episode. A scene is a continuous time/location. Return JSON exactly:\n' +
-    '{ "scenes": [{ "name": string }] }\n' +
+    '{ "scenes": [{ "name": string, "description": string, "prompt": string }] }\n' +
     'Each `name` is a short scene heading like "INT. 老旧家属楼 - 午后" (or English equivalent). ' +
+    '`description` is one concise sentence describing the physical environment, lighting, time, and mood. ' +
+    '`prompt` should be an environment-only scene reference prompt. Do not make a character or prop the subject. ' +
     'Use the script\'s native language. No prose outside the JSON object.'
   );
 }
 
-type ExtractedCharacter = { name: string; description: string; bio: string };
-type ExtractedItem = { name: string };
-type ExtractedScene = { name: string };
+type ExtractedCharacter = { name: string; description: string; bio: string; avatarPrompt?: string };
+type ExtractedItem = { name: string; description?: string; prompt?: string };
+type ExtractedScene = { name: string; description?: string; prompt?: string };
 
 function safeParseAnalysis(raw: string): { summary: string; keyPoints: string[] } {
   const cleaned = extractJsonObject(raw);
@@ -167,8 +179,12 @@ const EXTRACTION_SCHEMAS: Record<
                 type: 'string',
                 description: '1-2 sentences on personality/background',
               },
+              avatarPrompt: {
+                type: 'string',
+                description: 'Clean pure-character portrait prompt without scene/action/props',
+              },
             },
-            required: ['name', 'description', 'bio'],
+            required: ['name', 'description', 'bio', 'avatarPrompt'],
             additionalProperties: false,
           },
         },
@@ -190,8 +206,16 @@ const EXTRACTION_SCHEMAS: Record<
             type: 'object',
             properties: {
               name: { type: 'string', description: 'Item name' },
+              description: {
+                type: 'string',
+                description: 'One standalone prop only: appearance, material, color, and narrative function',
+              },
+              prompt: {
+                type: 'string',
+                description: 'Single-object clean prop reference prompt',
+              },
             },
-            required: ['name'],
+            required: ['name', 'description', 'prompt'],
             additionalProperties: false,
           },
         },
@@ -213,8 +237,16 @@ const EXTRACTION_SCHEMAS: Record<
             type: 'object',
             properties: {
               name: { type: 'string', description: 'Scene heading / name' },
+              description: {
+                type: 'string',
+                description: 'Physical environment, lighting, time, and mood',
+              },
+              prompt: {
+                type: 'string',
+                description: 'Environment-only scene reference prompt',
+              },
             },
-            required: ['name'],
+            required: ['name', 'description', 'prompt'],
             additionalProperties: false,
           },
         },
@@ -415,39 +447,59 @@ async function persistExtractedEntities(
   raw: string,
 ): Promise<string[]> {
   if (subjectType === 'characters') {
-    const chars = safeParseEntities<ExtractedCharacter>(raw, 'characters', ctx.log)
-      .map((c) => ({
-        name: String(c.name ?? '').trim(),
-        description: String(c.description ?? '').trim(),
-        bio: String(c.bio ?? '').trim(),
-      }))
-      .filter((c) => c.name.length > 0);
+    const chars = normalizeExtractedCharacters(
+      safeParseEntities<ExtractedCharacter>(raw, 'characters', ctx.log),
+    );
     if (chars.length === 0) return [];
     const rows = await ctx.prisma.$transaction(
       chars.map((c) =>
         ctx.prisma.character.create({
-          data: { projectId, name: c.name, description: c.description, bio: c.bio },
+          data: {
+            projectId,
+            name: c.name,
+            description: c.description,
+            bio: c.bio,
+            avatarPrompt: c.avatarPrompt,
+          },
         }),
       ),
     );
     return rows.map((r) => r.id);
   }
   if (subjectType === 'items') {
-    const items = safeParseEntities<ExtractedItem>(raw, 'items', ctx.log)
-      .map((i) => ({ name: String(i.name ?? '').trim() }))
-      .filter((i) => i.name.length > 0);
+    const items = normalizeExtractedItems(
+      safeParseEntities<ExtractedItem>(raw, 'items', ctx.log),
+    );
     if (items.length === 0) return [];
     const rows = await ctx.prisma.$transaction(
-      items.map((i) => ctx.prisma.item.create({ data: { projectId, name: i.name } })),
+      items.map((i) =>
+        ctx.prisma.item.create({
+          data: {
+            projectId,
+            name: i.name,
+            description: i.description,
+            prompt: i.prompt,
+          },
+        }),
+      ),
     );
     return rows.map((r) => r.id);
   }
-  const scenes = safeParseEntities<ExtractedScene>(raw, 'scenes', ctx.log)
-    .map((s) => ({ name: String(s.name ?? '').trim() }))
-    .filter((s) => s.name.length > 0);
+  const scenes = normalizeExtractedScenes(
+    safeParseEntities<ExtractedScene>(raw, 'scenes', ctx.log),
+  );
   if (scenes.length === 0) return [];
   const rows = await ctx.prisma.$transaction(
-    scenes.map((s) => ctx.prisma.scene.create({ data: { projectId, name: s.name } })),
+    scenes.map((s) =>
+      ctx.prisma.scene.create({
+        data: {
+          projectId,
+          name: s.name,
+          description: s.description,
+          prompt: s.prompt,
+        },
+      }),
+    ),
   );
   return rows.map((r) => r.id);
 }

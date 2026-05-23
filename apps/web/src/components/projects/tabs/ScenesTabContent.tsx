@@ -11,6 +11,7 @@ import {
 } from '@/lib/api';
 import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
 import { useGeneration } from '@/contexts/GenerationContext';
+import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 
 interface Props {
   scenes: Scene[];
@@ -81,15 +82,14 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
           .slice(0, 8)
           .join('\n')
       : '';
-    return [
-      `场景：${scene.name}`,
-      scene.description ? `描述：${scene.description}` : '',
-      ctxLines ? `剧本节选：\n${ctxLines}` : '',
-      '输出：场景全景，光线明确，环境细节丰富',
-      project.stylePrompt ? `风格：${project.stylePrompt}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n');
+    return buildResourceImagePrompt({
+      kind: 'scene',
+      name: scene.name,
+      description: scene.description,
+      userPrompt: ctxLines ? `剧本节选：\n${ctxLines}` : '',
+      projectStylePrompt: project.stylePrompt,
+      ratio: project.ratio,
+    });
   };
 
   return (
