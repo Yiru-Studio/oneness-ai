@@ -57,6 +57,7 @@ export function ShotCard({
 
   const isGenerating =
     shot.videoTaskStatus === 'QUEUED' || shot.videoTaskStatus === 'RUNNING';
+  const promptReady = prompt.trim().length > 0;
 
   const handlePromptBlur = () => {
     if (prompt === savedPromptRef.current) return;
@@ -66,6 +67,12 @@ export function ShotCard({
 
   // Build the list of resource thumbnails (sketch + characters + scenes + items).
   const resourceThumbs = buildResourceThumbs(shot, characters, scenes, items);
+  const hasVideoReference = resourceThumbs.length > 0;
+  const videoDisabledReason = !promptReady
+    ? '请先填写视频提示词'
+    : !hasVideoReference
+      ? '请先选择草图或参考资产'
+      : null;
 
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-white shadow-sm overflow-hidden">
@@ -233,7 +240,7 @@ export function ShotCard({
           </div>
           <button
             onClick={() => onGenerate(shot.id)}
-            disabled={busy || isGenerating || prompt.trim().length === 0}
+            disabled={busy || isGenerating || Boolean(videoDisabledReason)}
             className="px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
             {isGenerating ? (
@@ -253,6 +260,9 @@ export function ShotCard({
               </>
             )}
           </button>
+          {!isGenerating && videoDisabledReason && (
+            <div className="text-xs text-gray-500 text-center">{videoDisabledReason}</div>
+          )}
           {shot.videoTaskStatus === 'FAILED' && (
             <div className="text-xs text-red-600 text-center">上次生成失败，可重试。</div>
           )}
