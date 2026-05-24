@@ -12,13 +12,19 @@ export type ProjectDTO = {
   videoModel: string;
   generalAnalysis: 'pending' | 'completed';
   basicAnalysis: 'pending' | 'completed';
+  analysisStarted: boolean;
+  analysisState: 'idle' | 'running' | 'failed' | 'completed';
 };
 
 export type AnalysisSummary = {
-  /** at least one TEXT_ANALYZE task exists for this project */
+  /** at least one subject-extraction TEXT_ANALYZE task exists for this project */
   hasTasks: boolean;
-  /** every TEXT_ANALYZE task is in SUCCEEDED state */
+  /** the latest character, item, and scene extraction tasks all succeeded */
   allSucceeded: boolean;
+  /** at least one relevant analysis task is queued or running */
+  hasInFlight?: boolean;
+  /** at least one relevant analysis task failed or was cancelled */
+  hasFailed?: boolean;
 };
 
 /**
@@ -29,6 +35,19 @@ export type AnalysisSummary = {
  */
 export function serializeProject(p: Project, summary?: AnalysisSummary): ProjectDTO {
   const derived = summary && summary.hasTasks && summary.allSucceeded ? 'completed' : null;
+  const fallbackCompleted =
+    p.generalAnalysis === 'COMPLETED' && p.basicAnalysis === 'COMPLETED';
+  const analysisStarted = Boolean(summary?.hasTasks || fallbackCompleted);
+  const analysisState: ProjectDTO['analysisState'] = derived
+    ? 'completed'
+    : summary?.hasInFlight
+      ? 'running'
+      : summary?.hasFailed
+        ? 'failed'
+        : fallbackCompleted
+          ? 'completed'
+          : 'idle';
+
   return {
     id: p.id,
     name: p.name,
@@ -43,5 +62,7 @@ export function serializeProject(p: Project, summary?: AnalysisSummary): Project
       derived ?? (p.generalAnalysis.toLowerCase() as 'pending' | 'completed'),
     basicAnalysis:
       derived ?? (p.basicAnalysis.toLowerCase() as 'pending' | 'completed'),
+    analysisStarted,
+    analysisState,
   };
 }
