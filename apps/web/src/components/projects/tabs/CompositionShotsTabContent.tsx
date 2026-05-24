@@ -28,6 +28,7 @@ import {
   CompositionTaskRuns,
   Item,
   Project,
+  ProjectTab,
   Scene,
   StoryboardEpisode,
 } from '@/types';
@@ -52,6 +53,7 @@ interface Props {
   characters: Character[];
   scenes: Scene[];
   items: Item[];
+  onOpenTab?: (tab: ProjectTab) => void;
 }
 
 type FilterValue = 'all' | 'draft' | 'running' | 'image' | 'grid' | 'applied' | 'failed';
@@ -101,12 +103,63 @@ function defaultImageSettings(project: Project): ImageSettings {
   };
 }
 
+function getCompositionGate(
+  project: Project,
+  episodes: StoryboardEpisode[],
+): {
+  ready: boolean;
+  title: string;
+  description: string;
+  actionLabel: string;
+  tab?: ProjectTab;
+} {
+  if (episodes.length === 0) {
+    return {
+      ready: false,
+      title: '还没有剧本',
+      description: '先上传剧本，再进入解析、拆分和合成镜头任务。',
+      actionLabel: '上传剧本',
+      tab: 'info',
+    };
+  }
+  if (project.analysisState !== 'completed') {
+    const running = project.analysisState === 'running';
+    const failed = project.analysisState === 'failed';
+    return {
+      ready: false,
+      title: running ? '剧本正在解析' : failed ? '剧本解析失败' : '剧本尚未解析',
+      description: running
+        ? '剧本解析完成后，角色、场景和道具引用会用于合成镜头任务。'
+        : '先完成角色、场景和道具解析，再生成合成镜头任务。',
+      actionLabel: running ? '查看解析状态' : failed ? '重新解析剧本' : '开始解析剧本',
+      tab: 'info',
+    };
+  }
+  if (!episodes.some((episode) => episode.analyzed && episode.scenes.length > 0)) {
+    return {
+      ready: false,
+      title: '剧集还未拆分场景',
+      description: '先在分镜页完成剧集分析，合成镜头会按拆分后的场景创建。',
+      actionLabel: '分析剧集场景',
+      tab: 'storyboard',
+    };
+  }
+  return {
+    ready: true,
+    title: '可以生成合成镜头任务',
+    description:
+      '系统会读取已分析的剧情场景，并预填角色造型、场景素材和道具引用。首版只创建任务，不会自动生成图片。',
+    actionLabel: '生成合成镜头任务',
+  };
+}
+
 export function CompositionShotsTabContent({
   project,
   episodes,
   characters,
   scenes,
   items,
+  onOpenTab,
 }: Props) {
   const router = useRouter();
   const [tasks, setTasks] = useState<CompositionTask[]>([]);
@@ -164,6 +217,10 @@ export function CompositionShotsTabContent({
   const imageSettings = selectedTask
     ? imageSettingsByTask[selectedTask.id] ?? defaultImageSettings(project)
     : defaultImageSettings(project);
+  const compositionGate = useMemo(
+    () => getCompositionGate(project, episodes),
+    [project, episodes],
+  );
 
   const reloadTasks = useCallback(async () => {
     const fresh = await getCompositionTasks(project.id);
@@ -248,6 +305,10 @@ export function CompositionShotsTabContent({
   };
 
   const handleAnalyze = async () => {
+    if (!compositionGate.ready) {
+      if (compositionGate.tab) onOpenTab?.(compositionGate.tab);
+      return;
+    }
     setBusy('analyze');
     setError(null);
     try {
@@ -255,7 +316,7 @@ export function CompositionShotsTabContent({
       setTasks(fresh);
       setSelectedId(fresh[0]?.id ?? null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '分析剧情失败');
+      setError(e instanceof Error ? e.message : '生成合成镜头任务失败');
     } finally {
       setBusy(null);
     }
@@ -417,7 +478,7 @@ export function CompositionShotsTabContent({
           </div>
           <h2 className="text-xl font-semibold text-[var(--color-text)] mb-2">生成合成镜头任务</h2>
           <p className="max-w-[560px] text-sm leading-6 text-[var(--color-text-secondary)] mb-5">
-            系统会读取已分析的剧情场景，并预填角色造型、场景素材和道具引用。首版只创建任务，不会自动生成图片。
+            {compositionGate.description}
           </p>
           <div className="flex items-center gap-3 text-xs text-gray-500 mb-6">
             <span>{episodes.length} 个剧集</span>
@@ -427,14 +488,14 @@ export function CompositionShotsTabContent({
           </div>
           <button
             onClick={handleAnalyze}
-            disabled={busy === 'analyze' || episodes.length === 0}
+            disabled={busy === 'analyze' || (!compositionGate.ready && !compositionGate.tab)}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
           >
             {busy === 'analyze' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {busy === 'analyze' ? '分析中...' : '分析剧情'}
+            {busy === 'analyze' ? '生成中...' : compositionGate.actionLabel}
           </button>
-          {episodes.length === 0 && (
-            <div className="text-xs text-red-500 mt-3">请先在信息页上传或创建剧集。</div>
+          {!compositionGate.ready && (
+            <div className="text-xs text-red-500 mt-3">{compositionGate.title}</div>
           )}
           {error && <div className="text-sm text-red-600 mt-4">{error}</div>}
         </div>
@@ -453,11 +514,12 @@ export function CompositionShotsTabContent({
         </div>
         <button
           onClick={handleAnalyze}
-          disabled={busy === 'analyze'}
+          disabled={busy === 'analyze' || !compositionGate.ready}
+          title={compositionGate.ready ? '重新生成合成镜头任务' : compositionGate.title}
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
         >
           {busy === 'analyze' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
-          重新分析
+          重新生成任务
         </button>
       </div>
 

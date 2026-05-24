@@ -205,6 +205,7 @@ export default function ProjectDetailPage() {
               characters={characters}
               scenes={scenes}
               items={items}
+              onOpenTab={setActiveTab}
             />
           )}
           {activeTab === 'storyboard' && (
