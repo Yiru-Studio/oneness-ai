@@ -1,9 +1,14 @@
 import { prisma } from './prisma.js';
 import { TaskStatus, TaskType } from '@oneness/shared/enums';
-import type { AnalysisSummary } from '../serializers/project.js';
+import type {
+  AnalysisSubjectState,
+  AnalysisSubjects,
+  AnalysisSummary,
+} from '../serializers/project.js';
 
-const SUBJECT_TYPES = new Set(['characters', 'items', 'scenes']);
-type SubjectType = 'characters' | 'items' | 'scenes';
+const SUBJECT_TYPES = ['characters', 'scenes', 'items'] as const;
+const SUBJECT_TYPE_SET = new Set<string>(SUBJECT_TYPES);
+type SubjectType = (typeof SUBJECT_TYPES)[number];
 
 /**
  * Aggregate latest subject-extraction TEXT_ANALYZE task status for a set of
@@ -47,19 +52,18 @@ export async function summarizeAnalysisForProjects(
 
   const out = new Map<string, AnalysisSummary>();
   for (const [pid, bySubject] of latestByProject) {
-    const statuses = [...bySubject.values()].map((entry) => entry.status);
-    const succeeded = statuses.filter((status) => status === TaskStatus.SUCCEEDED).length;
-    const inFlight = statuses.filter(
-      (status) => status === TaskStatus.QUEUED || status === TaskStatus.RUNNING,
-    ).length;
-    const failed = statuses.filter(
-      (status) => status === TaskStatus.FAILED || status === TaskStatus.CANCELLED,
-    ).length;
+    const subjects = emptySubjects();
+    for (const subjectType of SUBJECT_TYPES) {
+      const entry = bySubject.get(subjectType);
+      if (entry) subjects[subjectType] = toSubjectState(entry.status);
+    }
+    const statuses = Object.values(subjects);
     out.set(pid, {
-      hasTasks: statuses.length > 0,
-      allSucceeded: bySubject.size === SUBJECT_TYPES.size && succeeded === SUBJECT_TYPES.size,
-      hasInFlight: inFlight > 0,
-      hasFailed: failed > 0,
+      hasTasks: bySubject.size > 0,
+      allSucceeded: statuses.every((status) => status === 'completed'),
+      hasInFlight: statuses.some((status) => status === 'running'),
+      hasFailed: statuses.some((status) => status === 'failed'),
+      subjects,
     });
   }
   return out;
@@ -74,13 +78,28 @@ export async function summarizeAnalysisForProject(
     allSucceeded: false,
     hasInFlight: false,
     hasFailed: false,
+    subjects: emptySubjects(),
   };
 }
 
 function getSubjectExtractionType(input: unknown): SubjectType | null {
   if (!input || typeof input !== 'object' || !('subjectType' in input)) return null;
   const subjectType = (input as { subjectType?: unknown }).subjectType;
-  return typeof subjectType === 'string' && SUBJECT_TYPES.has(subjectType)
+  return typeof subjectType === 'string' && SUBJECT_TYPE_SET.has(subjectType)
     ? (subjectType as SubjectType)
     : null;
+}
+
+function emptySubjects(): AnalysisSubjects {
+  return {
+    characters: 'idle',
+    scenes: 'idle',
+    items: 'idle',
+  };
+}
+
+function toSubjectState(status: TaskStatus): AnalysisSubjectState {
+  if (status === TaskStatus.SUCCEEDED) return 'completed';
+  if (status === TaskStatus.QUEUED || status === TaskStatus.RUNNING) return 'running';
+  return 'failed';
 }

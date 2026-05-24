@@ -131,6 +131,11 @@ export default function ProjectDetailPage() {
       ...currentProject,
       analysisStarted: true,
       analysisState: 'running',
+      analysisSubjects: {
+        characters: 'running',
+        scenes: 'running',
+        items: 'running',
+      },
     });
     try {
       await analyzeEpisode(currentProject.id, ep.id);

@@ -20,6 +20,11 @@ export interface Project {
   basicAnalysis: 'pending' | 'completed';
   analysisStarted: boolean;
   analysisState: 'idle' | 'running' | 'failed' | 'completed';
+  analysisSubjects: {
+    characters: 'idle' | 'running' | 'failed' | 'completed';
+    scenes: 'idle' | 'running' | 'failed' | 'completed';
+    items: 'idle' | 'running' | 'failed' | 'completed';
+  };
 }
 
 export type ProjectTab = 'info' | 'characters' | 'items' | 'scenes' | 'workbench' | 'storyboard' | 'analytics';

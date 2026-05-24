@@ -22,6 +22,11 @@ export const mockProjects: Project[] = [
     basicAnalysis: 'completed',
     analysisStarted: true,
     analysisState: 'completed',
+    analysisSubjects: {
+      characters: 'completed',
+      scenes: 'completed',
+      items: 'completed',
+    },
   },
   {
     id: '6a042d2e79ad459e57137733',
@@ -37,6 +42,11 @@ export const mockProjects: Project[] = [
     basicAnalysis: 'completed',
     analysisStarted: true,
     analysisState: 'completed',
+    analysisSubjects: {
+      characters: 'completed',
+      scenes: 'completed',
+      items: 'completed',
+    },
   },
 ];
 

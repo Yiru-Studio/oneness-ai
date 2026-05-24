@@ -1,5 +1,12 @@
 import type { Project } from '@oneness/shared/prisma';
 
+export type AnalysisSubjectState = 'idle' | 'running' | 'failed' | 'completed';
+export type AnalysisSubjects = {
+  characters: AnalysisSubjectState;
+  scenes: AnalysisSubjectState;
+  items: AnalysisSubjectState;
+};
+
 export type ProjectDTO = {
   id: string;
   name: string;
@@ -14,6 +21,7 @@ export type ProjectDTO = {
   basicAnalysis: 'pending' | 'completed';
   analysisStarted: boolean;
   analysisState: 'idle' | 'running' | 'failed' | 'completed';
+  analysisSubjects: AnalysisSubjects;
 };
 
 export type AnalysisSummary = {
@@ -25,6 +33,20 @@ export type AnalysisSummary = {
   hasInFlight?: boolean;
   /** at least one relevant analysis task failed or was cancelled */
   hasFailed?: boolean;
+  /** latest status for each subject-extraction task */
+  subjects: AnalysisSubjects;
+};
+
+const idleSubjects: AnalysisSubjects = {
+  characters: 'idle',
+  scenes: 'idle',
+  items: 'idle',
+};
+
+const completedSubjects: AnalysisSubjects = {
+  characters: 'completed',
+  scenes: 'completed',
+  items: 'completed',
 };
 
 /**
@@ -37,16 +59,22 @@ export function serializeProject(p: Project, summary?: AnalysisSummary): Project
   const derived = summary && summary.hasTasks && summary.allSucceeded ? 'completed' : null;
   const fallbackCompleted =
     p.generalAnalysis === 'COMPLETED' && p.basicAnalysis === 'COMPLETED';
+  const analysisSubjects = summary?.hasTasks
+    ? summary.subjects
+    : fallbackCompleted
+      ? completedSubjects
+      : idleSubjects;
   const analysisStarted = Boolean(summary?.hasTasks || fallbackCompleted);
-  const analysisState: ProjectDTO['analysisState'] = derived
+  const subjectStates = Object.values(analysisSubjects);
+  const analysisState: ProjectDTO['analysisState'] = subjectStates.every(
+    (state) => state === 'completed',
+  )
     ? 'completed'
-    : summary?.hasInFlight
+    : subjectStates.some((state) => state === 'running')
       ? 'running'
-      : summary?.hasFailed
+      : subjectStates.some((state) => state === 'failed')
         ? 'failed'
-        : fallbackCompleted
-          ? 'completed'
-          : 'idle';
+        : 'idle';
 
   return {
     id: p.id,
@@ -64,5 +92,6 @@ export function serializeProject(p: Project, summary?: AnalysisSummary): Project
       derived ?? (p.basicAnalysis.toLowerCase() as 'pending' | 'completed'),
     analysisStarted,
     analysisState,
+    analysisSubjects,
   };
 }

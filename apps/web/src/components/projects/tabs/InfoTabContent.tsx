@@ -26,6 +26,15 @@ const toOption = (m: { modelId: string; label: string }) => ({
   label: m.label,
 });
 
+type AnalysisSubjectState =
+  Project['analysisSubjects'][keyof Project['analysisSubjects']];
+
+const MATERIAL_ANALYSIS_ROWS = [
+  { key: 'characters', label: '角色解析' },
+  { key: 'scenes', label: '场景解析' },
+  { key: 'items', label: '道具解析' },
+] as const;
+
 export function InfoTabContent({
   project,
   episodes,
@@ -40,6 +49,7 @@ export function InfoTabContent({
   const canRequestAnalysis =
     Boolean(firstEpisode) &&
     (project.analysisState === 'idle' || project.analysisState === 'failed');
+  const isAnalysisRunning = project.analysisState === 'running' || analysisBusy;
 
   const save = async (patch: UpdateProjectInput) => {
     const updated = await updateProject(project.id, patch);
@@ -113,42 +123,40 @@ export function InfoTabContent({
 
           {scriptUploaded && (
             <div className="pt-2 space-y-3">
-              <div className="space-y-2">
-                <AnalysisStatusRow
-                  label="通用分析"
-                  status={project.generalAnalysis}
-                  analysisState={project.analysisState}
-                />
-                <AnalysisStatusRow
-                  label="基础分析"
-                  status={project.basicAnalysis}
-                  analysisState={project.analysisState}
-                />
+              <div>
+                <div className="text-sm font-semibold text-[var(--color-text)]">素材解析</div>
+                <p className="mt-1 text-xs leading-5 text-[var(--color-text-secondary)]">
+                  解析剧本，生成角色、场景和道具素材，用于后续分镜与合成镜头。
+                </p>
               </div>
 
-              {canRequestAnalysis && (
+              <div className="space-y-2">
+                {MATERIAL_ANALYSIS_ROWS.map((row) => (
+                  <AnalysisStatusRow
+                    key={row.key}
+                    label={row.label}
+                    state={project.analysisSubjects[row.key]}
+                  />
+                ))}
+              </div>
+
+              {canRequestAnalysis && !isAnalysisRunning && (
                 <button
                   onClick={handleAnalyze}
                   disabled={analysisBusy}
                   className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
                 >
-                  {analysisBusy ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Play className="h-4 w-4" />
-                  )}
-                  {analysisBusy
-                    ? '启动中...'
-                    : project.analysisState === 'failed'
-                      ? '重新解析剧本'
-                      : '开始解析剧本'}
+                  <Play className="h-4 w-4" />
+                  {project.analysisState === 'failed'
+                    ? '重新解析角色、场景和道具'
+                    : '解析角色、场景和道具'}
                 </button>
               )}
 
-              {project.analysisState === 'running' && (
+              {isAnalysisRunning && (
                 <div className="flex items-start gap-2 text-xs leading-5 text-blue-600">
                   <Loader2 className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 animate-spin" />
-                  <span>正在解析剧本，完成后会自动刷新角色、场景和道具。</span>
+                  <span>正在解析剧本素材，完成后会填充角色、场景和道具。</span>
                 </div>
               )}
 
@@ -189,14 +197,12 @@ export function InfoTabContent({
 
 function AnalysisStatusRow({
   label,
-  status,
-  analysisState,
+  state,
 }: {
   label: string;
-  status: 'pending' | 'completed';
-  analysisState: Project['analysisState'];
+  state: AnalysisSubjectState;
 }) {
-  const meta = analysisStatusMeta(status, analysisState);
+  const meta = analysisStatusMeta(state);
   return (
     <div className="flex items-center justify-between">
       <span className="text-sm">{label}</span>
@@ -208,25 +214,22 @@ function AnalysisStatusRow({
   );
 }
 
-function analysisStatusMeta(
-  status: 'pending' | 'completed',
-  analysisState: Project['analysisState'],
-) {
-  if (status === 'completed' || analysisState === 'completed') {
+function analysisStatusMeta(state: AnalysisSubjectState) {
+  if (state === 'completed') {
     return {
       label: '已完成',
       className: 'text-[var(--color-success)]',
       icon: <CheckCircle2 className="w-3 h-3" />,
     };
   }
-  if (analysisState === 'running') {
+  if (state === 'running') {
     return {
-      label: '分析中',
+      label: '解析中',
       className: 'text-blue-600',
       icon: <span className="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse" />,
     };
   }
-  if (analysisState === 'failed') {
+  if (state === 'failed') {
     return {
       label: '失败可重试',
       className: 'text-red-600',

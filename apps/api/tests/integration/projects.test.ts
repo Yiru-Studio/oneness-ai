@@ -58,20 +58,27 @@ describe('projects CRUD', () => {
       generalAnalysis: string;
       analysisStarted: boolean;
       analysisState: string;
+      analysisSubjects: AnalysisSubjects;
     };
     expect(body.name).toBe('测试项目');
     expect(body.generalAnalysis).toBe('pending');
     expect(body.analysisStarted).toBe(false);
     expect(body.analysisState).toBe('idle');
+    expect(body.analysisSubjects).toEqual(idleSubjects());
     createdId = body.id;
   });
 
   it('GET /projects/:id returns the created project', async () => {
     const res = await app.request(`/api/projects/${createdId}`, { headers: auth });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { id: string; analysisState: string };
+    const body = (await res.json()) as {
+      id: string;
+      analysisState: string;
+      analysisSubjects: AnalysisSubjects;
+    };
     expect(body.id).toBe(createdId);
     expect(body.analysisState).toBe('idle');
+    expect(body.analysisSubjects).toEqual(idleSubjects());
   });
 
   it('PATCH /projects/:id updates name', async () => {
@@ -141,10 +148,12 @@ describe('projects CRUD', () => {
         generalAnalysis: string;
         analysisStarted: boolean;
         analysisState: string;
+        analysisSubjects: AnalysisSubjects;
       };
       expect(sceneOnlyBody.generalAnalysis).toBe('pending');
       expect(sceneOnlyBody.analysisStarted).toBe(false);
       expect(sceneOnlyBody.analysisState).toBe('idle');
+      expect(sceneOnlyBody.analysisSubjects).toEqual(idleSubjects());
 
       await prisma.task.create({
         data: {
@@ -156,6 +165,45 @@ describe('projects CRUD', () => {
           input: { subjectType: 'characters' },
           costCredits: 0,
         },
+      });
+
+      const failed = await app.request(`/api/projects/${fresh.id}`, { headers: auth });
+      expect(failed.status).toBe(200);
+      const failedBody = (await failed.json()) as {
+        analysisStarted: boolean;
+        analysisState: string;
+        analysisSubjects: AnalysisSubjects;
+      };
+      expect(failedBody.analysisStarted).toBe(true);
+      expect(failedBody.analysisState).toBe('failed');
+      expect(failedBody.analysisSubjects).toEqual({
+        ...idleSubjects(),
+        characters: 'failed',
+      });
+
+      await prisma.task.create({
+        data: {
+          ownerId: user.id,
+          projectId: fresh.id,
+          type: TaskType.TEXT_ANALYZE,
+          provider: 'stub',
+          status: TaskStatus.RUNNING,
+          input: { subjectType: 'items' },
+          costCredits: 0,
+        },
+      });
+
+      const running = await app.request(`/api/projects/${fresh.id}`, { headers: auth });
+      expect(running.status).toBe(200);
+      const runningBody = (await running.json()) as {
+        analysisState: string;
+        analysisSubjects: AnalysisSubjects;
+      };
+      expect(runningBody.analysisState).toBe('running');
+      expect(runningBody.analysisSubjects).toEqual({
+        ...idleSubjects(),
+        characters: 'failed',
+        items: 'running',
       });
 
       for (const subjectType of ['characters', 'items', 'scenes']) {
@@ -179,11 +227,13 @@ describe('projects CRUD', () => {
         basicAnalysis: string;
         analysisStarted: boolean;
         analysisState: string;
+        analysisSubjects: AnalysisSubjects;
       };
       expect(completedBody.generalAnalysis).toBe('completed');
       expect(completedBody.basicAnalysis).toBe('completed');
       expect(completedBody.analysisStarted).toBe(true);
       expect(completedBody.analysisState).toBe('completed');
+      expect(completedBody.analysisSubjects).toEqual(completedSubjects());
     } finally {
       await prisma.task.deleteMany({ where: { projectId: fresh.id } });
       await prisma.project.delete({ where: { id: fresh.id } });
@@ -227,3 +277,18 @@ describe('projects CRUD', () => {
     }
   });
 });
+
+type AnalysisSubjectState = 'idle' | 'running' | 'failed' | 'completed';
+type AnalysisSubjects = {
+  characters: AnalysisSubjectState;
+  scenes: AnalysisSubjectState;
+  items: AnalysisSubjectState;
+};
+
+function idleSubjects(): AnalysisSubjects {
+  return { characters: 'idle', scenes: 'idle', items: 'idle' };
+}
+
+function completedSubjects(): AnalysisSubjects {
+  return { characters: 'completed', scenes: 'completed', items: 'completed' };
+}
