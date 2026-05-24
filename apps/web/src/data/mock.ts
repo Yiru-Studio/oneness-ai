@@ -20,6 +20,8 @@ export const mockProjects: Project[] = [
     videoModel: 'Seedance 2.0',
     generalAnalysis: 'completed',
     basicAnalysis: 'completed',
+    analysisStarted: true,
+    analysisState: 'completed',
   },
   {
     id: '6a042d2e79ad459e57137733',
@@ -33,6 +35,8 @@ export const mockProjects: Project[] = [
     videoModel: 'Seedance 2.0',
     generalAnalysis: 'completed',
     basicAnalysis: 'completed',
+    analysisStarted: true,
+    analysisState: 'completed',
   },
 ];
 

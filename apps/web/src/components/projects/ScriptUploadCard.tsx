@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
-import { analyzeEpisode, createEpisode } from '@/lib/api';
+import { createEpisode } from '@/lib/api';
 import { StoryboardEpisode } from '@/types';
 
 interface Props {
@@ -25,7 +25,7 @@ async function readScript(file: File): Promise<string> {
 
 export function ScriptUploadCard({ projectId, onUploaded }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [status, setStatus] = useState<'idle' | 'reading' | 'uploading' | 'analyzing' | 'error'>(
+  const [status, setStatus] = useState<'idle' | 'reading' | 'uploading' | 'error'>(
     'idle',
   );
   const [error, setError] = useState<string | null>(null);
@@ -66,8 +66,6 @@ export function ScriptUploadCard({ projectId, onUploaded }: Props) {
         title,
         content: text,
       });
-      setStatus('analyzing');
-      await analyzeEpisode(projectId, episode.id);
       onUploaded(episode);
       setStatus('idle');
     } catch (e) {
@@ -90,15 +88,13 @@ export function ScriptUploadCard({ projectId, onUploaded }: Props) {
 
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => e.preventDefault();
 
-  const busy = status === 'reading' || status === 'uploading' || status === 'analyzing';
+  const busy = status === 'reading' || status === 'uploading';
   const label =
     status === 'reading'
       ? '正在读取文件…'
       : status === 'uploading'
         ? '正在上传剧本…'
-        : status === 'analyzing'
-          ? '正在启动分析…'
-          : '上传剧本';
+        : '上传剧本';
 
   return (
     <div className="h-full flex items-center justify-center p-8">

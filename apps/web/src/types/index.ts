@@ -18,6 +18,8 @@ export interface Project {
   videoModel: string;
   generalAnalysis: 'pending' | 'completed';
   basicAnalysis: 'pending' | 'completed';
+  analysisStarted: boolean;
+  analysisState: 'idle' | 'running' | 'failed' | 'completed';
 }
 
 export type ProjectTab = 'info' | 'characters' | 'items' | 'scenes' | 'workbench' | 'storyboard' | 'analytics';

@@ -58,22 +58,28 @@ export function ProjectCard({ project, isCreateCard, onCreate, onDelete }: Proje
 }
 
 function ProjectStatusPill({ project }: { project: Project }) {
-  // Derive status from analysis flags:
-  // - both completed: 已立项
-  // - in progress: 测试中
-  // - pending: 未开始
-  const isReady = project.generalAnalysis === 'completed' && project.basicAnalysis === 'completed';
-  const isInProgress =
-    project.generalAnalysis === 'completed' || project.basicAnalysis === 'completed';
-  const label = isReady ? '已立项' : isInProgress ? '测试中' : '未开始';
-  const cls = isReady
-    ? 'bg-green-50 text-green-700 border-green-200'
-    : isInProgress
-      ? 'bg-blue-50 text-blue-700 border-blue-200'
-      : 'bg-gray-50 text-gray-500 border-gray-200';
+  const meta = {
+    idle: {
+      label: '未开始',
+      cls: 'bg-gray-50 text-gray-500 border-gray-200',
+    },
+    running: {
+      label: '解析中',
+      cls: 'bg-blue-50 text-blue-700 border-blue-200',
+    },
+    failed: {
+      label: '解析失败',
+      cls: 'bg-red-50 text-red-700 border-red-200',
+    },
+    completed: {
+      label: '已立项',
+      cls: 'bg-green-50 text-green-700 border-green-200',
+    },
+  }[project.analysisState];
+
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${cls}`}>
-      {label}
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${meta.cls}`}>
+      {meta.label}
     </span>
   );
 }

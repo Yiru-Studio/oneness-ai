@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Project, ProjectTab, Character, Item, Scene, StoryboardEpisode, AnalyticsData } from '@/types';
 import {
+  analyzeEpisode,
   getProject,
   getProjectCharacters,
   getProjectItems,
@@ -73,8 +74,8 @@ export default function ProjectDetailPage() {
           return;
         }
         const { proj } = await refreshEntities(id);
-        // Stop once analysis status both flipped to completed.
-        if (proj && proj.generalAnalysis === 'completed' && proj.basicAnalysis === 'completed') {
+        // Stop once the project leaves the active entity-analysis state.
+        if (proj && proj.analysisState !== 'running') {
           stopPolling();
         }
       }, POLL_MS);
@@ -108,11 +109,7 @@ export default function ProjectDetailPage() {
       setEpisodes(eps);
       setAnalytics(anal);
       setIsLoading(false);
-      const analysisIncomplete =
-        !proj ||
-        proj.generalAnalysis !== 'completed' ||
-        proj.basicAnalysis !== 'completed';
-      if (eps.length > 0 && analysisIncomplete) {
+      if (eps.length > 0 && proj?.analysisState === 'running') {
         startPolling(id);
       }
     });
@@ -125,7 +122,25 @@ export default function ProjectDetailPage() {
 
   const handleEpisodeUploaded = (ep: StoryboardEpisode) => {
     setEpisodes((prev) => [...prev, ep]);
-    if (project) startPolling(project.id);
+  };
+
+  const handleEpisodeAnalysisRequested = async (ep: StoryboardEpisode) => {
+    if (!project) return;
+    const currentProject = project;
+    setProject({
+      ...currentProject,
+      analysisStarted: true,
+      analysisState: 'running',
+    });
+    try {
+      await analyzeEpisode(currentProject.id, ep.id);
+      await refreshEntities(currentProject.id);
+      startPolling(currentProject.id);
+    } catch (error) {
+      const fresh = await getProject(currentProject.id);
+      setProject(fresh ?? currentProject);
+      throw error;
+    }
   };
 
   if (authLoading || isLoading) {
@@ -155,6 +170,7 @@ export default function ProjectDetailPage() {
               project={project}
               episodes={episodes}
               onEpisodeUploaded={handleEpisodeUploaded}
+              onEpisodeAnalysisRequested={handleEpisodeAnalysisRequested}
               onProjectUpdated={setProject}
             />
           )}
