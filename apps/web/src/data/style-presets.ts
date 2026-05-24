@@ -73,6 +73,7 @@ export type AnalysisModelOption = {
 };
 
 export const ANALYSIS_MODEL_OPTIONS: AnalysisModelOption[] = [
+  { modelId: 'gpt-5.5', label: 'GPT 5.5' },
   { modelId: 'anthropic/claude-sonnet-4.6', label: 'Claude Sonnet 4.6' },
   { modelId: 'anthropic/claude-opus-4.7', label: 'Claude Opus 4.7' },
 ];
@@ -90,7 +91,7 @@ export const VIDEO_MODEL_OPTIONS: AnalysisModelOption[] = [
   { modelId: 'stub/placeholder', label: 'Stub (开发用)' },
 ];
 
-export const DEFAULT_ANALYSIS_MODEL = 'anthropic/claude-sonnet-4.6';
+export const DEFAULT_ANALYSIS_MODEL = 'gpt-5.5';
 export const DEFAULT_IMAGE_MODEL = 'openai/gpt-image-2';
 export const DEFAULT_VIDEO_MODEL = 'doubao-seedance-2-0-fast-260128';
 
