@@ -46,6 +46,7 @@ import {
   type CompositionImageGenerationSettings,
 } from '@/lib/api';
 import { IMAGE_MODEL_OPTIONS, imageModelLabel } from '@/data/style-presets';
+import { CompositionCanvasView } from './CompositionCanvasView';
 
 interface Props {
   project: Project;
@@ -59,6 +60,7 @@ interface Props {
 type FilterValue = 'all' | 'draft' | 'running' | 'image' | 'grid' | 'applied' | 'failed';
 type DetailView = 'current' | 'history';
 type ResultView = 'image' | 'grid';
+type CompositionViewMode = 'panel' | 'canvas';
 type ReferenceKind = 'characters' | 'scenes' | 'items';
 type HistoryPreview =
   | { type: 'image'; run: CompositionImageRun }
@@ -178,6 +180,7 @@ export function CompositionShotsTabContent({
   const [historyPreview, setHistoryPreview] = useState<HistoryPreview>(null);
   const [showApplyPanel, setShowApplyPanel] = useState(false);
   const [applyMode, setApplyMode] = useState<ApplyCompositionMode>('create_shots');
+  const [viewMode, setViewMode] = useState<CompositionViewMode>('panel');
 
   const characterOptions = useMemo(
     () =>
@@ -221,6 +224,18 @@ export function CompositionShotsTabContent({
     () => getCompositionGate(project, episodes),
     [project, episodes],
   );
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(`oneness:composition-view-mode:${project.id}`);
+    if (stored !== 'panel' && stored !== 'canvas') return;
+    const frame = window.requestAnimationFrame(() => setViewMode(stored));
+    return () => window.cancelAnimationFrame(frame);
+  }, [project.id]);
+
+  const handleViewModeChange = useCallback((mode: CompositionViewMode) => {
+    setViewMode(mode);
+    window.localStorage.setItem(`oneness:composition-view-mode:${project.id}`, mode);
+  }, [project.id]);
 
   const reloadTasks = useCallback(async () => {
     const fresh = await getCompositionTasks(project.id);
@@ -512,15 +527,37 @@ export function CompositionShotsTabContent({
             版本化保存镜头图和分镜网格，候选图从当前网格或历史网格中按需应用
           </div>
         </div>
-        <button
-          onClick={handleAnalyze}
-          disabled={busy === 'analyze' || !compositionGate.ready}
-          title={compositionGate.ready ? '重新生成合成镜头任务' : compositionGate.title}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
-        >
-          {busy === 'analyze' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
-          重新生成任务
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="inline-flex rounded-lg border border-[var(--color-border)] p-1">
+            <button
+              onClick={() => handleViewModeChange('panel')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm ${
+                viewMode === 'panel' ? 'bg-[var(--color-dark)] text-white' : 'text-gray-600'
+              }`}
+            >
+              <Grid3X3 className="w-4 h-4" />
+              面板
+            </button>
+            <button
+              onClick={() => handleViewModeChange('canvas')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm ${
+                viewMode === 'canvas' ? 'bg-[var(--color-dark)] text-white' : 'text-gray-600'
+              }`}
+            >
+              <Layers3 className="w-4 h-4" />
+              画布
+            </button>
+          </div>
+          <button
+            onClick={handleAnalyze}
+            disabled={busy === 'analyze' || !compositionGate.ready}
+            title={compositionGate.ready ? '重新生成合成镜头任务' : compositionGate.title}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
+          >
+            {busy === 'analyze' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
+            重新生成任务
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -530,6 +567,34 @@ export function CompositionShotsTabContent({
         </div>
       )}
 
+      {viewMode === 'canvas' && selectedTask ? (
+        <div className="flex-1 min-h-0">
+          <CompositionCanvasView
+            projectId={project.id}
+            tasks={tasks}
+            selectedTask={selectedTask}
+            runs={runs}
+            characterOptions={characterOptions}
+            sceneOptions={sceneOptions}
+            itemOptions={itemOptions}
+            promptDraft={promptDraft}
+            imageSettings={imageSettings}
+            busy={busy}
+            onSelectTask={(taskId) => {
+              setSelectedId(taskId);
+              setDetailView('current');
+              setResultView('image');
+            }}
+            onPatch={patchSelected}
+            onPromptChange={(next) => setPromptDrafts((prev) => ({ ...prev, [selectedTask.id]: next }))}
+            onImageSettingsChange={(next) => setImageSettingsByTask((prev) => ({
+              ...prev,
+              [selectedTask.id]: next,
+            }))}
+            onGenerateImage={handleGenerateImage}
+          />
+        </div>
+      ) : (
       <div className="flex-1 min-h-0 grid grid-cols-[340px_minmax(0,1fr)]">
         <aside className="border-r border-[var(--color-border)] min-h-0 flex flex-col">
           <div className="px-4 py-3 border-b border-[var(--color-border)]">
@@ -663,6 +728,7 @@ export function CompositionShotsTabContent({
           )}
         </main>
       </div>
+      )}
 
       {candidateDialogRun && selectedTask && (
         <CandidateDialog
