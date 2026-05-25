@@ -86,7 +86,11 @@ type CompositionNodeData = {
 type ResourceCanvasNode = Node<ResourceNodeData, 'resource'>;
 type CompositionCanvasNode = Node<CompositionNodeData, 'composition'>;
 type CanvasNode = ResourceCanvasNode | CompositionCanvasNode;
-type CanvasEdge = Edge;
+type CanvasEdge = Edge & {
+  pathOptions?: {
+    curvature?: number;
+  };
+};
 
 type Props = {
   projectId: string;
@@ -414,11 +418,18 @@ function buildEdges(
         sourceHandle: 'out',
         target: taskNodeId(task.id),
         targetHandle: 'image-input',
-        type: 'smoothstep',
+        type: 'default',
         animated,
+        interactionWidth: 18,
+        focusable: false,
+        pathOptions: {
+          curvature: 0.28,
+        },
         style: {
-          stroke: '#4f8fd8',
-          strokeWidth: 1.8,
+          stroke: '#4d84bd',
+          strokeOpacity: 0.78,
+          strokeWidth: 1.6,
+          strokeLinecap: 'round',
         },
       })),
   );
