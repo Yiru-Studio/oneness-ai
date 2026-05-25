@@ -20,8 +20,25 @@ export const queues: Record<QueueName, Queue<TaskJobData>> = {
   [QueueNames.TEXT]:  new Queue<TaskJobData>(QueueNames.TEXT,  queueOptions),
 };
 
-export async function enqueueTaskJob(queueName: QueueName, taskId: string) {
-  await queues[queueName].add('process-task', { taskId }, { jobId: taskId });
+export const QueueJobPriority = {
+  INTERACTIVE_IMAGE: 1,
+  NORMAL: 5,
+  BACKGROUND: 20,
+} as const;
+
+type EnqueueTaskJobOptions = {
+  priority?: number;
+};
+
+export async function enqueueTaskJob(
+  queueName: QueueName,
+  taskId: string,
+  options: EnqueueTaskJobOptions = {},
+) {
+  await queues[queueName].add('process-task', { taskId }, {
+    jobId: taskId,
+    ...(options.priority === undefined ? {} : { priority: options.priority }),
+  });
 }
 
 export async function removeTaskJob(queueName: QueueName, taskId: string) {

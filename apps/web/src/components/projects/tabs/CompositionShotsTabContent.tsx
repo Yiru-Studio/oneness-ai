@@ -638,6 +638,7 @@ export function CompositionShotsTabContent({
                     promptDraft={promptDraft}
                     imageSettings={imageSettings}
                     currentImageRun={currentImageRun}
+                    currentGridRun={currentGridRun}
                     busy={busy}
                     onPatch={patchSelected}
                     onPromptChange={(next) => setPromptDrafts((prev) => ({ ...prev, [selectedTask.id]: next }))}
@@ -735,6 +736,8 @@ function CurrentResultPanel({
 }) {
   const isImageRunning = IMAGE_RUNNING_TASK_STATUSES.has(task.status) || (imageRun && RUNNING_RUN_STATUSES.has(imageRun.status));
   const isGridRunning = Boolean(gridRun && RUNNING_RUN_STATUSES.has(gridRun.status));
+  const imageRunningLabel = imageGenerationStatusLabel(task, imageRun);
+  const gridRunningLabel = gridGenerationStatusLabel(task, gridRun);
   const selectedCount = gridRun?.candidates.filter((candidate) => candidate.selected).length ?? 0;
   const hasApplied = gridRun?.candidates.some((candidate) => candidate.status === 'APPLIED' || candidate.syncedShotId) ?? false;
   return (
@@ -759,7 +762,7 @@ function CurrentResultPanel({
             isGridRunning ? (
               <span className="inline-flex items-center gap-1.5 text-blue-600">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                分镜网格生成中
+                {gridRunningLabel}
               </span>
             ) : (
               <>
@@ -784,7 +787,7 @@ function CurrentResultPanel({
           ) : isImageRunning ? (
             <div className="flex flex-col items-center gap-2 text-white text-sm">
               <Loader2 className="w-7 h-7 animate-spin" />
-              合成镜头图生成中
+              {imageRunningLabel}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 text-gray-400 text-sm">
@@ -1031,6 +1034,7 @@ function CompositionInputsPanel({
   promptDraft,
   imageSettings,
   currentImageRun,
+  currentGridRun,
   busy,
   onPatch,
   onPromptChange,
@@ -1046,6 +1050,7 @@ function CompositionInputsPanel({
   promptDraft: string;
   imageSettings: ImageSettings;
   currentImageRun: CompositionImageRun | null;
+  currentGridRun: CompositionGridRun | null;
   busy: string | null;
   onPatch: (patch: Parameters<typeof updateCompositionTask>[1]) => void;
   onPromptChange: (next: string) => void;
@@ -1054,6 +1059,30 @@ function CompositionInputsPanel({
   onGenerateImage: () => void;
   onGenerateGrid: () => void;
 }) {
+  const imageSubmitting = busy === `image-${selectedTask.id}`;
+  const imageQueued = selectedTask.status === 'IMAGE_QUEUED' || currentImageRun?.status === 'QUEUED';
+  const imageRunning = selectedTask.status === 'IMAGE_RUNNING' || currentImageRun?.status === 'RUNNING';
+  const imageBusy = imageSubmitting || imageQueued || imageRunning;
+  const imageButtonLabel = imageSubmitting
+    ? '提交中…'
+    : imageQueued
+      ? '排队中…'
+      : imageRunning
+        ? '生成中…'
+        : selectedTask.image
+          ? '重新生成'
+          : '生成镜头图';
+  const gridSubmitting = currentImageRun ? busy === `grid-${currentImageRun.id}` : false;
+  const gridQueued = selectedTask.status === 'GRID_QUEUED' || currentGridRun?.status === 'QUEUED';
+  const gridRunning = selectedTask.status === 'GRID_RUNNING' || currentGridRun?.status === 'RUNNING';
+  const gridBusy = gridSubmitting || gridQueued || gridRunning;
+  const gridButtonLabel = gridSubmitting
+    ? '提交中…'
+    : gridQueued
+      ? '网格排队中…'
+      : gridRunning
+        ? '网格生成中…'
+        : '生成网格';
   return (
     <section className="rounded-xl border border-[var(--color-border)] bg-white p-3">
       <div className="grid grid-cols-[220px_minmax(0,1fr)_320px] gap-3 items-start">
@@ -1127,25 +1156,49 @@ function CompositionInputsPanel({
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button
               onClick={onGenerateImage}
-              disabled={busy === `image-${selectedTask.id}`}
+              disabled={imageBusy}
               className="inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-[var(--color-primary)] text-white text-xs font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
             >
-              {busy === `image-${selectedTask.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
-              {selectedTask.image ? '重新生成' : '生成镜头图'}
+              {imageBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
+              {imageButtonLabel}
             </button>
             <button
               onClick={onGenerateGrid}
-              disabled={!currentImageRun?.image || busy === `grid-${currentImageRun?.id}`}
+              disabled={!currentImageRun?.image || gridBusy}
               className="inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border border-[var(--color-border)] text-xs font-medium hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
             >
-              {busy === `grid-${currentImageRun?.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Grid3X3 className="w-4 h-4" />}
-              生成网格
+              {gridBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Grid3X3 className="w-4 h-4" />}
+              {gridButtonLabel}
             </button>
           </div>
+          {(imageBusy || gridBusy) && (
+            <div className="flex items-center gap-1.5 text-xs text-blue-600">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              {imageBusy ? imageButtonLabel : gridButtonLabel}
+            </div>
+          )}
         </div>
       </div>
     </section>
   );
+}
+
+function imageGenerationStatusLabel(
+  task: CompositionTask,
+  imageRun: CompositionImageRun | null,
+): string {
+  if (task.status === 'IMAGE_QUEUED' || imageRun?.status === 'QUEUED') return '合成镜头图排队中';
+  if (task.status === 'IMAGE_RUNNING' || imageRun?.status === 'RUNNING') return '合成镜头图生成中';
+  return '合成镜头图生成中';
+}
+
+function gridGenerationStatusLabel(
+  task: CompositionTask,
+  gridRun: CompositionGridRun | null,
+): string {
+  if (task.status === 'GRID_QUEUED' || gridRun?.status === 'QUEUED') return '分镜网格排队中';
+  if (task.status === 'GRID_RUNNING' || gridRun?.status === 'RUNNING') return '分镜网格生成中';
+  return '分镜网格生成中';
 }
 
 function CandidateDialog({

@@ -35,6 +35,11 @@ function loadDotEnv(path: string): Record<string, string> {
 const env = {
   ...loadDotEnv(resolve(repoRoot, '.env')),
   ...loadDotEnv(resolve(repoRoot, '.env.local')),
+  ...Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => (
+      typeof entry[1] === 'string'
+    )),
+  ),
 };
 
 export default defineConfig({

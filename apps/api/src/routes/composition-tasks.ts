@@ -6,7 +6,7 @@ import sharp from 'sharp';
 import { prisma } from '../lib/prisma.js';
 import { minioClient, Buckets } from '../lib/minio.js';
 import { tryReadUser, requireUser } from '../middleware/auth.js';
-import { enqueueTaskJob } from '../lib/queues.js';
+import { enqueueTaskJob, QueueJobPriority } from '../lib/queues.js';
 import {
   serializeCompositionTask,
   serializeCompositionTaskRuns,
@@ -489,7 +489,9 @@ async function createImageRunForTask(
     return job;
   });
 
-  await enqueueTaskJob(queueForTaskType(TaskType.IMAGE), task.id);
+  await enqueueTaskJob(queueForTaskType(TaskType.IMAGE), task.id, {
+    priority: QueueJobPriority.INTERACTIVE_IMAGE,
+  });
   return row.id;
 }
 
@@ -576,7 +578,9 @@ async function createGridRunForImageRun(
     return job;
   });
 
-  await enqueueTaskJob(queueForTaskType(TaskType.IMAGE), task.id);
+  await enqueueTaskJob(queueForTaskType(TaskType.IMAGE), task.id, {
+    priority: QueueJobPriority.INTERACTIVE_IMAGE,
+  });
   return imageRun.taskId;
 }
 

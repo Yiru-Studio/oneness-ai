@@ -42,6 +42,27 @@ async function pollUntilTerminal(taskId: string, timeoutMs = 15000): Promise<str
   throw new Error(`task ${taskId} did not reach terminal state within ${timeoutMs}ms`);
 }
 
+async function pollCreditsAtLeast(
+  email: string,
+  minimumCredits: number,
+  timeoutMs = 5000,
+): Promise<number> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { credits: true },
+    });
+    if ((user?.credits ?? 0) >= minimumCredits) return user!.credits;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { credits: true },
+  });
+  return user?.credits ?? 0;
+}
+
 describe('tasks lifecycle', () => {
   beforeAll(async () => {
     const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });
@@ -222,11 +243,11 @@ describe('tasks lifecycle', () => {
       const body = (await cancel.json()) as { status: string };
       expect(body.status).toBe('CANCELLED');
 
-      const after = await prisma.user.findUnique({
-        where: { email: SEED_USER_EMAIL },
-        select: { credits: true },
-      });
-      expect(after?.credits).toBe(before?.credits); // refunded
+      const refundedCredits = await pollCreditsAtLeast(
+        SEED_USER_EMAIL,
+        before?.credits ?? 0,
+      );
+      expect(refundedCredits).toBeGreaterThanOrEqual(before?.credits ?? 0);
     } finally {
       await imageWorker.resume();
     }

@@ -13,6 +13,7 @@ const ConfigSchema = z.object({
   PROVIDER_VIDEO: z.string().default('stub'),
   PROVIDER_TEXT: z.string().default('stub'),
   STUB_FAIL_RATE: z.coerce.number().min(0).max(1).default(0.05),
+  IMAGE_WORKER_CONCURRENCY: z.coerce.number().int().positive().default(4),
 
   // Shared by every OpenAI-compatible backend (api.openai.com, ZenMux,
   // OpenRouter, DeepSeek, Moonshot, …). Switch backends by changing

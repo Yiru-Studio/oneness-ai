@@ -2,16 +2,17 @@ import { Worker } from 'bullmq';
 import { logger } from '@oneness/shared/logger';
 import {
   QueueNames,
-  WorkerConcurrency,
   type QueueName,
   type TaskJobData,
 } from '@oneness/shared/queues';
 import { config } from './config.js';
 import { processTask } from './processor.js';
+import { workerConcurrencyForQueue } from './lib/concurrency.js';
 
 const connection = { url: config.REDIS_URL };
 
 function startWorker(name: QueueName): Worker<TaskJobData> {
+  const concurrency = workerConcurrencyForQueue(name);
   const w = new Worker<TaskJobData>(
     name,
     async (job) => {
@@ -19,7 +20,7 @@ function startWorker(name: QueueName): Worker<TaskJobData> {
     },
     {
       connection,
-      concurrency: WorkerConcurrency[name],
+      concurrency,
     },
   );
   w.on('failed', (job, err) => {
@@ -32,7 +33,7 @@ function startWorker(name: QueueName): Worker<TaskJobData> {
     logger.error({ queue: name, err: err.message }, 'worker error');
   });
   logger.info(
-    { queue: name, concurrency: WorkerConcurrency[name] },
+    { queue: name, concurrency },
     'worker started',
   );
   return w;

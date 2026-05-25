@@ -21,6 +21,7 @@ import {
   getResourceImages,
   pollTaskUntilDone,
   updateResourceImage,
+  type TaskDTO,
 } from '@/lib/api';
 import {
   IMAGE_MODEL_OPTIONS,
@@ -104,6 +105,24 @@ const KIND_LABEL: Record<EntityKind, string> = {
   'character-avatar': '角色头像',
 };
 
+type ImageGenerationPhase = 'idle' | 'queueing' | 'queued' | 'running' | 'saving' | 'failed';
+
+const IMAGE_GENERATION_LABEL: Record<ImageGenerationPhase, string> = {
+  idle: '',
+  queueing: '提交任务中…',
+  queued: '排队中…',
+  running: '生成中…',
+  saving: '保存结果中…',
+  failed: '生成失败',
+};
+
+function phaseForTaskStatus(status: TaskDTO['status']): ImageGenerationPhase {
+  if (status === 'QUEUED') return 'queued';
+  if (status === 'RUNNING') return 'running';
+  if (status === 'FAILED' || status === 'CANCELLED') return 'failed';
+  return 'saving';
+}
+
 function resourceKindForEntity(kind: EntityKind): ResourceImageKind | null {
   if (kind === 'style') return 'character-style';
   if (kind === 'scene') return 'scene';
@@ -145,6 +164,7 @@ export function EntityDetailDrawer({
   const [history, setHistory] = useState<ResourceImage[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyBusy, setHistoryBusy] = useState<string | null>(null);
+  const [generationPhase, setGenerationPhase] = useState<ImageGenerationPhase>('idle');
   const fileRef = useRef<HTMLInputElement>(null);
   const activeHistoryKeyRef = useRef<string | null>(null);
 
@@ -167,6 +187,7 @@ export function EntityDetailDrawer({
     setImage(entity.image || '');
     setAssetId(entity.assetId ?? null);
     setError(null);
+    setGenerationPhase('idle');
     setPreviewOpen(false);
   }, [entity.id, entity.name, entity.description, entity.prompt, entity.model, entity.ratio, entity.image, entity.assetId, project.imageModel, project.ratio, kind]);
 
@@ -257,6 +278,7 @@ export function EntityDetailDrawer({
       return;
     }
     setError(null);
+    setGenerationPhase('queueing');
     clearError(kind, entity.id);
     try {
       await runGeneration(kind, entity.id, async () => {
@@ -283,10 +305,12 @@ export function EntityDetailDrawer({
           imageProviderForModel(model || project.imageModel),
           resourceKind ? { kind: resourceKind, entityId: entity.id } : undefined,
         );
+        setGenerationPhase(phaseForTaskStatus(task.status));
         if (resourceKind) await refreshHistory(resourceKind, entity.id);
         const final = await pollTaskUntilDone(task.id, {
           intervalMs: 2000,
-          onTick: () => {
+          onTick: (tick) => {
+            setGenerationPhase(phaseForTaskStatus(tick.status));
             if (resourceKind) void refreshHistory(resourceKind, entity.id);
           },
         });
@@ -294,11 +318,14 @@ export function EntityDetailDrawer({
         if (final.status !== 'SUCCEEDED' || !final.outputAssets?.[0]) {
           throw new Error(final.error || '生成失败');
         }
+        setGenerationPhase('saving');
         const fresh = await onSave({ assetId: final.outputAssets[0].id });
         setImage(fresh.image || '');
         setAssetId(fresh.assetId ?? final.outputAssets[0].id);
+        setGenerationPhase('idle');
       });
     } catch (e) {
+      setGenerationPhase('failed');
       setError(e instanceof Error ? e.message : '生成失败');
     }
   };
@@ -379,6 +406,9 @@ export function EntityDetailDrawer({
       : ratio === '1:1'
         ? 'w-[min(100%,520px)]'
         : 'w-full';
+  const generationLabel = IMAGE_GENERATION_LABEL[
+    generating && generationPhase === 'idle' ? 'queueing' : generationPhase
+  ];
 
   return (
     <div className="fixed inset-0 z-[1900] flex justify-end bg-black/30" onClick={onClose}>
@@ -465,7 +495,7 @@ export function EntityDetailDrawer({
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white">
                     <Loader2 className="w-7 h-7 animate-spin" />
                     <span className="ml-2 text-sm">
-                      {generating ? '生成中…' : '上传中…'}
+                      {generating ? generationLabel || '生成中…' : '上传中…'}
                     </span>
                   </div>
                 )}
@@ -620,9 +650,15 @@ export function EntityDetailDrawer({
                   ) : (
                     <Sparkles className="w-4 h-4" />
                   )}
-                  {image ? '重新生成' : '生成图片'}
+                  {generating ? generationLabel || '生成中…' : image ? '重新生成' : '生成图片'}
                 </button>
               </div>
+              {generating && generationLabel && (
+                <div className="px-4 pb-3 text-xs text-blue-600 flex items-center gap-1.5">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  {generationLabel}
+                </div>
+              )}
             </div>
 
             {(error || remoteError) && (

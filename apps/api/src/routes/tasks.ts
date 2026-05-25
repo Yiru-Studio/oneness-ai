@@ -3,7 +3,7 @@ import { zValidator } from '../middleware/validator';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { tryReadUser, requireUser } from '../middleware/auth.js';
-import { enqueueTaskJob, removeTaskJob } from '../lib/queues.js';
+import { enqueueTaskJob, QueueJobPriority, removeTaskJob } from '../lib/queues.js';
 import {
   linkResourceImageTaskResult,
   loadOwnedResourceTarget,
@@ -20,7 +20,7 @@ import {
   IdParamSchema,
 } from '@oneness/shared/schemas';
 import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
-import { TaskStatus } from '@oneness/shared/enums';
+import { TaskStatus, TaskType } from '@oneness/shared/enums';
 import { config } from '../config.js';
 
 export const taskRoutes = new Hono();
@@ -147,7 +147,11 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
   });
 
   // Enqueue AFTER transaction commits so worker can't observe a half-created Task.
-  await enqueueTaskJob(queueForTaskType(body.type), task.id);
+  await enqueueTaskJob(queueForTaskType(body.type), task.id, {
+    ...(body.type === TaskType.IMAGE
+      ? { priority: QueueJobPriority.INTERACTIVE_IMAGE }
+      : {}),
+  });
 
   return c.json(await serializeTask(task), 201);
 });
