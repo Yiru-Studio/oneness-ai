@@ -247,6 +247,7 @@ model Shot {
   characterStyleIds Json @default("[]")
   sceneIds          Json @default("[]")
   itemIds           Json @default("[]")
+  compositionTaskIds Json @default("[]")
   /// Character/role names produced by AI-assist (likeai's `roles`). Display-only;
   /// resolved to characterStyleIds when a matching styled character exists.
   roleNames         Json @default("[]")

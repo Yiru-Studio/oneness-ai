@@ -437,6 +437,7 @@ export type CreateShotInput = {
   characterStyleIds?: string[];
   sceneIds?: string[];
   itemIds?: string[];
+  compositionTaskIds?: string[];
 };
 
 export async function createShot(
@@ -463,6 +464,7 @@ export type UpdateShotInput = Partial<{
   characterStyleIds: string[];
   sceneIds: string[];
   itemIds: string[];
+  compositionTaskIds: string[];
 }>;
 
 export async function updateShot(shotId: string, body: UpdateShotInput): Promise<Shot> {

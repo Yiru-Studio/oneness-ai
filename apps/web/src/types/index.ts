@@ -153,6 +153,7 @@ export interface Shot {
   characterStyleIds: string[];
   sceneIds: string[];
   itemIds: string[];
+  compositionTaskIds: string[];
   roleNames: string[];
   createdAt: string;
   updatedAt: string;

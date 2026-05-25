@@ -33,6 +33,7 @@ export type ShotDTO = {
   characterStyleIds: string[];
   sceneIds: string[];
   itemIds: string[];
+  compositionTaskIds: string[];
   roleNames: string[];
   createdAt: string;
   updatedAt: string;
@@ -72,6 +73,7 @@ export async function serializeShot(s: ShotWithAssets): Promise<ShotDTO> {
     characterStyleIds: jsonArray(s.characterStyleIds),
     sceneIds: jsonArray(s.sceneIds),
     itemIds: jsonArray(s.itemIds),
+    compositionTaskIds: jsonArray(s.compositionTaskIds),
     roleNames: jsonArray(s.roleNames),
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),

@@ -1,0 +1,1 @@
+ALTER TABLE "Shot" ADD COLUMN "compositionTaskIds" JSONB NOT NULL DEFAULT '[]';

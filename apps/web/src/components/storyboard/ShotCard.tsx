@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Trash2, Loader2, Play, Image as ImageIcon, Plus, RotateCcw } from 'lucide-react';
-import { Shot, Character, Scene, Item } from '@/types';
+import { Shot, Character, Scene, Item, CompositionTask } from '@/types';
 import { ImagePreview } from '@/components/ImagePreview';
 import { ReferencePickerDialog } from './ReferencePickerDialog';
 
@@ -28,6 +28,7 @@ interface Props {
   characters: Character[];
   scenes: Scene[];
   items: Item[];
+  compositionTasks: CompositionTask[];
   /** displayId of every other shot in the episode, for the "续写镜头" preId picker. */
   siblingDisplayIds: number[];
   busy: boolean;
@@ -41,6 +42,7 @@ export function ShotCard({
   characters,
   scenes,
   items,
+  compositionTasks,
   siblingDisplayIds,
   busy,
   onUpdate,
@@ -70,8 +72,8 @@ export function ShotCard({
     void onUpdate(shot.id, { prompt });
   };
 
-  // Build the list of resource thumbnails (sketch + characters + scenes + items).
-  const resourceThumbs = buildResourceThumbs(shot, characters, scenes, items);
+  // Build the list of resource thumbnails (sketch + composition shots + resources).
+  const resourceThumbs = buildResourceThumbs(shot, characters, scenes, items, compositionTasks);
   const hasVideoReference = resourceThumbs.length > 0;
   const videoDisabledReason = !promptReady
     ? '请先填写视频提示词'
@@ -302,7 +304,9 @@ export function ShotCard({
         characters={characters}
         scenes={scenes}
         items={items}
+        compositionTasks={compositionTasks}
         selected={{
+          compositionTaskIds: shot.compositionTaskIds,
           characterStyleIds: shot.characterStyleIds,
           sceneIds: shot.sceneIds,
           itemIds: shot.itemIds,
@@ -358,10 +362,21 @@ function buildResourceThumbs(
   characters: Character[],
   scenes: Scene[],
   items: Item[],
+  compositionTasks: CompositionTask[],
 ): Array<{ key: string; label: string; url: string | null }> {
   const out: Array<{ key: string; label: string; url: string | null }> = [];
   if (shot.sketch) {
     out.push({ key: `sketch-${shot.id}`, label: '合成镜头图', url: shot.sketch.url });
+  }
+  for (const taskId of shot.compositionTaskIds) {
+    const task = compositionTasks.find((t) => t.id === taskId);
+    if (task) {
+      out.push({
+        key: `ct-${taskId}`,
+        label: `合成镜头：${task.title}`,
+        url: task.image?.url ?? null,
+      });
+    }
   }
   for (const sid of shot.characterStyleIds) {
     const c = characters.find((c) => c.styles.some((s) => s.id === sid));

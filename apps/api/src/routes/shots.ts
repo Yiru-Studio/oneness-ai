@@ -124,6 +124,7 @@ shotRoutes.post(
           characterStyleIds: body.characterStyleIds as Prisma.InputJsonValue,
           sceneIds: body.sceneIds as Prisma.InputJsonValue,
           itemIds: body.itemIds as Prisma.InputJsonValue,
+          compositionTaskIds: body.compositionTaskIds as Prisma.InputJsonValue,
         },
         include: SHOT_INCLUDE,
       });
@@ -163,6 +164,8 @@ shotRoutes.patch(
       data.sceneIds = body.sceneIds as Prisma.InputJsonValue;
     if (body.itemIds !== undefined)
       data.itemIds = body.itemIds as Prisma.InputJsonValue;
+    if (body.compositionTaskIds !== undefined)
+      data.compositionTaskIds = body.compositionTaskIds as Prisma.InputJsonValue;
 
     const updated = await prisma.shot.update({
       where: { id },
@@ -289,13 +292,13 @@ shotRoutes.post(
 );
 
 /**
- * Resolves the shot's characterStyleIds / sceneIds / itemIds (and optional
- * continuation source) into the VideoReference array the worker passes to the
- * Seedance provider.
+ * Resolves the shot's selected references (and optional continuation source)
+ * into the VideoReference array the worker passes to the Seedance provider.
  *
  * - CharacterStyle.assetId (when present) → reference_image
  * - Scene.assetId           → reference_image
  * - Item.assetId            → reference_image
+ * - CompositionTask current image          → reference_image
  * - sketchAssetId           → reference_image
  * - When shotType='continuation' & preId set: the referenced shot's
  *   lastFrameAssetId → first_frame
@@ -309,6 +312,7 @@ async function resolveReferences(
     characterStyle: jsonArr(shot.characterStyleIds),
     scene: jsonArr(shot.sceneIds),
     item: jsonArr(shot.itemIds),
+    compositionTask: jsonArr(shot.compositionTaskIds),
   };
 
   if (ids.characterStyle.length > 0) {
@@ -340,6 +344,36 @@ async function resolveReferences(
     });
     for (const i of items) {
       if (i.assetId) refs.push({ assetId: i.assetId, role: 'reference_image' });
+    }
+  }
+  if (ids.compositionTask.length > 0) {
+    const compositionTasks = await prisma.compositionTask.findMany({
+      where: { id: { in: ids.compositionTask }, projectId: shot.episode.projectId },
+      select: {
+        imageAssetId: true,
+        currentImageRun: {
+          select: {
+            outputAssetId: true,
+            taskJob: {
+              select: {
+                assets: {
+                  where: { role: 'output' },
+                  select: { assetId: true },
+                  take: 1,
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    for (const task of compositionTasks) {
+      const assetId =
+        task.currentImageRun?.outputAssetId ??
+        task.currentImageRun?.taskJob?.assets[0]?.assetId ??
+        task.imageAssetId ??
+        null;
+      if (assetId) refs.push({ assetId, role: 'reference_image' });
     }
   }
   if (shot.sketchAssetId) {

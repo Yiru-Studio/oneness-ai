@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { X, Check } from 'lucide-react';
-import { Character, Item, Scene } from '@/types';
+import { Character, CompositionTask, Item, Scene } from '@/types';
+
+type PickerTab = 'composition' | 'characters' | 'scenes' | 'items';
 
 type PickerOption = {
   id: string;
@@ -17,12 +19,15 @@ interface Props {
   characters: Character[];
   items: Item[];
   scenes: Scene[];
+  compositionTasks: CompositionTask[];
   selected: {
+    compositionTaskIds: string[];
     characterStyleIds: string[];
     sceneIds: string[];
     itemIds: string[];
   };
   onConfirm: (next: {
+    compositionTaskIds: string[];
     characterStyleIds: string[];
     sceneIds: string[];
     itemIds: string[];
@@ -30,10 +35,10 @@ interface Props {
 }
 
 /**
- * One dialog that lets the user pick the character styles, scenes, and items
- * to attach to a shot as reference images. Each selected ID becomes a
- * `reference_image` in the Seedance call. Picking a *character* picks a
- * character STYLE row (which is what carries an assetId).
+ * One dialog that lets the user pick composition shots, character styles,
+ * scenes, and items to attach to a shot as reference images. Each selected ID
+ * becomes a `reference_image` in the Seedance call. Picking a *character*
+ * picks a character STYLE row (which is what carries an assetId).
  */
 export function ReferencePickerDialog({
   isOpen,
@@ -41,21 +46,32 @@ export function ReferencePickerDialog({
   characters,
   items,
   scenes,
+  compositionTasks,
   selected,
   onConfirm,
 }: Props) {
-  const [tab, setTab] = useState<'characters' | 'scenes' | 'items'>('characters');
+  const [tab, setTab] = useState<PickerTab>('composition');
+  const [compositionTaskIds, setCompositionTaskIds] = useState<string[]>(
+    selected.compositionTaskIds,
+  );
   const [styleIds, setStyleIds] = useState<string[]>(selected.characterStyleIds);
   const [sceneIds, setSceneIds] = useState<string[]>(selected.sceneIds);
   const [itemIds, setItemIds] = useState<string[]>(selected.itemIds);
 
   useEffect(() => {
     if (!isOpen) return;
+    setCompositionTaskIds(selected.compositionTaskIds);
     setStyleIds(selected.characterStyleIds);
     setSceneIds(selected.sceneIds);
     setItemIds(selected.itemIds);
-    setTab('characters');
-  }, [isOpen, selected.characterStyleIds, selected.sceneIds, selected.itemIds]);
+    setTab('composition');
+  }, [
+    isOpen,
+    selected.compositionTaskIds,
+    selected.characterStyleIds,
+    selected.sceneIds,
+    selected.itemIds,
+  ]);
 
   if (!isOpen) return null;
 
@@ -79,6 +95,14 @@ export function ReferencePickerDialog({
     label: i.name,
     thumb: i.image || null,
   }));
+  const compositionOptions: PickerOption[] = compositionTasks
+    .filter((task) => Boolean(task.image?.url))
+    .map((task) => ({
+      id: task.id,
+      label: `第${task.sceneIndex + 1}场 · ${task.title}`,
+      sub: '合成镜头图',
+      thumb: task.image?.url ?? null,
+    }));
 
   const toggle = (ids: string[], setIds: (next: string[]) => void, id: string) => {
     if (ids.includes(id)) setIds(ids.filter((x) => x !== id));
@@ -86,10 +110,36 @@ export function ReferencePickerDialog({
   };
 
   const currentOptions =
-    tab === 'characters' ? characterOptions : tab === 'scenes' ? sceneOptions : itemOptions;
-  const currentSelected = tab === 'characters' ? styleIds : tab === 'scenes' ? sceneIds : itemIds;
+    tab === 'composition'
+      ? compositionOptions
+      : tab === 'characters'
+        ? characterOptions
+        : tab === 'scenes'
+          ? sceneOptions
+          : itemOptions;
+  const currentSelected =
+    tab === 'composition'
+      ? compositionTaskIds
+      : tab === 'characters'
+        ? styleIds
+        : tab === 'scenes'
+          ? sceneIds
+          : itemIds;
   const setCurrentSelected =
-    tab === 'characters' ? setStyleIds : tab === 'scenes' ? setSceneIds : setItemIds;
+    tab === 'composition'
+      ? setCompositionTaskIds
+      : tab === 'characters'
+        ? setStyleIds
+        : tab === 'scenes'
+          ? setSceneIds
+          : setItemIds;
+
+  const tabs: Array<{ key: PickerTab; label: string; count: number }> = [
+    { key: 'composition', label: '合成镜头', count: compositionTaskIds.length },
+    { key: 'characters', label: '角色造型', count: styleIds.length },
+    { key: 'scenes', label: '场景', count: sceneIds.length },
+    { key: 'items', label: '物品', count: itemIds.length },
+  ];
 
   return (
     <div
@@ -108,20 +158,18 @@ export function ReferencePickerDialog({
         </div>
 
         <div className="flex gap-2 mb-3 text-sm">
-          {(['characters', 'scenes', 'items'] as const).map((k) => (
+          {tabs.map(({ key, label, count }) => (
             <button
-              key={k}
-              onClick={() => setTab(k)}
+              key={key}
+              onClick={() => setTab(key)}
               className={`px-3 py-1.5 rounded-full ${
-                tab === k
+                tab === key
                   ? 'bg-[var(--color-dark)] text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              {k === 'characters' ? '角色造型' : k === 'scenes' ? '场景' : '物品'}
-              <span className="ml-1.5 text-xs opacity-70">
-                ({(k === 'characters' ? styleIds : k === 'scenes' ? sceneIds : itemIds).length})
-              </span>
+              {label}
+              <span className="ml-1.5 text-xs opacity-70">({count})</span>
             </button>
           ))}
         </div>
@@ -185,6 +233,7 @@ export function ReferencePickerDialog({
           <button
             onClick={() => {
               onConfirm({
+                compositionTaskIds,
                 characterStyleIds: styleIds,
                 sceneIds,
                 itemIds,

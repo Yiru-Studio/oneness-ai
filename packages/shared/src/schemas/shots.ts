@@ -22,6 +22,7 @@ export const CreateShotSchema = z.object({
   characterStyleIds: z.array(z.string()).default([]),
   sceneIds: z.array(z.string()).default([]),
   itemIds: z.array(z.string()).default([]),
+  compositionTaskIds: z.array(z.string()).default([]),
 });
 
 export const UpdateShotSchema = z
@@ -38,6 +39,7 @@ export const UpdateShotSchema = z
     characterStyleIds: z.array(z.string()),
     sceneIds: z.array(z.string()),
     itemIds: z.array(z.string()),
+    compositionTaskIds: z.array(z.string()),
   })
   .partial();
 

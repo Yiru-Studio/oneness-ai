@@ -10,6 +10,7 @@ import {
   Character,
   Item,
   Scene,
+  CompositionTask,
   StoryboardEpisode,
 } from '@/types';
 import {
@@ -18,6 +19,7 @@ import {
   getProjectItems,
   getProjectScenes,
   getProjectStoryboard,
+  getCompositionTasks,
   getEpisodeShots,
   createShot,
   updateShot,
@@ -51,6 +53,7 @@ export default function StoryboardEpisodePage() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
+  const [compositionTasks, setCompositionTasks] = useState<CompositionTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyShot, setBusyShot] = useState<string | null>(null);
@@ -89,8 +92,9 @@ export default function StoryboardEpisodePage() {
       getProjectCharacters(projectId),
       getProjectItems(projectId),
       getProjectScenes(projectId),
+      getCompositionTasks(projectId),
     ])
-      .then(([proj, eps, sh, chars, itms, scns]) => {
+      .then(([proj, eps, sh, chars, itms, scns, comps]) => {
         if (cancelled) return;
         if (!proj) {
           setError('项目不存在');
@@ -110,6 +114,7 @@ export default function StoryboardEpisodePage() {
         setCharacters(chars);
         setItems(itms);
         setScenes(scns);
+        setCompositionTasks(comps);
         setIsLoading(false);
       })
       .catch((e) => {
@@ -189,6 +194,7 @@ export default function StoryboardEpisodePage() {
       await reloadShots();
       try {
         await generateShotSketches(projectId, { episodeId, sceneIndex });
+        setCompositionTasks(await getCompositionTasks(projectId));
         await reloadShots();
       } catch (sketchError) {
         setError(
@@ -339,6 +345,7 @@ export default function StoryboardEpisodePage() {
                     characters={characters}
                     scenes={scenes}
                     items={items}
+                    compositionTasks={compositionTasks}
                     siblingDisplayIds={siblingIds}
                     busy={busyShot === shot.id}
                     onUpdate={handleUpdate}
