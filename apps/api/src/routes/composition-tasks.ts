@@ -1183,7 +1183,7 @@ function scenesForEpisode(
     return fallbackScenes.map((scene, index) => ({
       index,
       title: scene.name,
-      content: scene.description.trim() || excerptForScene(episode.content, scene.name),
+      content: fallbackSceneContent(episode.content, scene),
       characters: [],
       environment: scene.name,
       referenceSceneId: scene.id,
@@ -1198,10 +1198,32 @@ function scenesForEpisode(
   }];
 }
 
+function fallbackSceneContent(script: string, scene: ReferenceLibrary['scenes'][number]): string {
+  const description = scene.description.trim();
+  const excerpt = excerptForScene(script, scene.name);
+  if (!description) return excerpt;
+  if (!excerpt.trim()) return description;
+  return `${description}\n\n${excerpt}`;
+}
+
 function excerptForScene(script: string, sceneName: string): string {
-  const idx = script.indexOf(sceneName);
+  const idx = sceneSearchTerms(sceneName)
+    .map((term) => script.indexOf(term))
+    .filter((index) => index >= 0)
+    .sort((a, b) => a - b)[0] ?? -1;
   if (idx < 0) return script.slice(0, 1800);
   return script.slice(idx, idx + 1800);
+}
+
+function sceneSearchTerms(sceneName: string): string[] {
+  const trimmed = sceneName.trim();
+  const terms = [trimmed];
+  const withoutScenePrefix = trimmed
+    .replace(/^(?:INT|EXT|INT\.\/EXT|EXT\.\/INT)\.\s*/i, '')
+    .replace(/\s*[-－—]\s*(?:清晨|上午|中午|下午|傍晚|黄昏|夜晚|晚上|深夜|凌晨)\s*$/u, '')
+    .trim();
+  if (withoutScenePrefix && withoutScenePrefix !== trimmed) terms.push(withoutScenePrefix);
+  return Array.from(new Set(terms.filter(Boolean)));
 }
 
 async function loadReferenceLibrary(projectId: string) {
