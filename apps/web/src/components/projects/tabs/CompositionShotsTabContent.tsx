@@ -592,6 +592,7 @@ export function CompositionShotsTabContent({
               ...prev,
               [selectedTask.id]: next,
             }))}
+            onOpenReferenceDialog={setReferenceDialog}
             onGenerateImage={handleGenerateImage}
           />
         </div>

@@ -5,7 +5,6 @@ import {
   Background,
   Controls,
   Handle,
-  MiniMap,
   Panel,
   Position,
   ReactFlow,
@@ -19,15 +18,11 @@ import {
   useNodesState,
 } from '@xyflow/react';
 import {
-  Box,
-  CheckCircle2,
   Clapperboard,
-  Image as ImageIcon,
   Loader2,
-  Map as MapIcon,
+  Plus,
   Settings2,
   Sparkles,
-  UserRound,
   X,
 } from 'lucide-react';
 import {
@@ -69,7 +64,6 @@ type ResourceNodeData = {
   kind: CanvasResourceKind;
   label: string;
   image: string;
-  selected: boolean;
 };
 
 type CompositionNodeData = {
@@ -77,11 +71,14 @@ type CompositionNodeData = {
   promptDraft: string;
   imageSettings: ImageSettings;
   selectedResources: CanvasResource[];
+  visibleResources: CanvasResource[];
+  hiddenResourceCount: number;
   currentImageRun: CompositionImageRun | null;
   busy: string | null;
   onPromptChange: (next: string) => void;
   onPromptBlur: (next: string) => void;
   onImageSettingsChange: (next: ImageSettings) => void;
+  onOpenReferencePicker: () => void;
   onOpenSettings: () => void;
   onGenerateImage: () => void;
 };
@@ -106,6 +103,7 @@ type Props = {
   onPatch: (patch: CompositionPatch) => void | Promise<void>;
   onPromptChange: (next: string) => void;
   onImageSettingsChange: (next: ImageSettings) => void;
+  onOpenReferenceDialog: (kind: 'characters' | 'scenes' | 'items') => void;
   onGenerateImage: () => void;
 };
 
@@ -150,6 +148,7 @@ function CompositionCanvasInner({
   onPatch,
   onPromptChange,
   onImageSettingsChange,
+  onOpenReferenceDialog,
   onGenerateImage,
 }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -178,6 +177,11 @@ function CompositionCanvasInner({
         .filter((resource): resource is CanvasResource => Boolean(resource)),
     );
   }, [allResources, selectedTask]);
+  const visibleResources = useMemo(
+    () => selectedResources.filter((resource) => resource.image).slice(0, 8),
+    [selectedResources],
+  );
+  const hiddenResourceCount = selectedResources.length - Math.min(visibleResources.length, 7);
 
   const currentImageRun =
     runs?.imageRuns.find((run) => run.id === selectedTask.currentImageRunId) ??
@@ -189,8 +193,9 @@ function CompositionCanvasInner({
       const previousPositions = new Map(previous.map((node) => [node.id, node.position]));
       return buildNodes({
         task: selectedTask,
-        resources,
         selectedResources,
+        visibleResources,
+        hiddenResourceCount,
         promptDraft,
         imageSettings,
         currentImageRun,
@@ -201,6 +206,7 @@ function CompositionCanvasInner({
           if (next !== selectedTask.prompt) void onPatch({ prompt: next });
         },
         onImageSettingsChange,
+        onOpenReferencePicker: () => onOpenReferenceDialog('characters'),
         onOpenSettings: () => setSettingsOpen(true),
         onGenerateImage,
       });
@@ -211,18 +217,20 @@ function CompositionCanvasInner({
     imageSettings,
     onGenerateImage,
     onImageSettingsChange,
+    onOpenReferenceDialog,
     onPatch,
     onPromptChange,
     promptDraft,
-    resources,
+    hiddenResourceCount,
     selectedResources,
+    visibleResources,
     selectedTask,
     setNodes,
   ]);
 
   useEffect(() => {
-    setEdges(buildEdges(selectedTask, allResources, Boolean(currentImageRun && isRunInFlight(currentImageRun.status))));
-  }, [allResources, currentImageRun, selectedTask, setEdges]);
+    setEdges(buildEdges(selectedTask, visibleResources, Boolean(currentImageRun && isRunInFlight(currentImageRun.status))));
+  }, [currentImageRun, selectedTask, setEdges, visibleResources]);
 
   const handleNodesChange = useCallback<OnNodesChange<CanvasNode>>(
     (changes) => onNodesChange(changes),
@@ -284,12 +292,6 @@ function CompositionCanvasInner({
       >
         <Background color="#303642" gap={24} size={1} />
         <Controls position="bottom-left" />
-        <MiniMap
-          position="bottom-right"
-          pannable
-          zoomable
-          nodeColor={(node) => (node.type === 'composition' ? '#d7ff14' : '#1f2937')}
-        />
         <Panel position="top-left" className="rounded-xl border border-white/10 bg-[#171a20]/95 p-3 shadow-2xl">
           <label className="block">
             <span className="mb-1 block text-xs text-white/55">当前任务</span>
@@ -321,8 +323,9 @@ function CompositionCanvasInner({
 
 function buildNodes({
   task,
-  resources,
   selectedResources,
+  visibleResources,
+  hiddenResourceCount,
   promptDraft,
   imageSettings,
   currentImageRun,
@@ -331,12 +334,14 @@ function buildNodes({
   onPromptChange,
   onPromptBlur,
   onImageSettingsChange,
+  onOpenReferencePicker,
   onOpenSettings,
   onGenerateImage,
 }: {
   task: CompositionTask;
-  resources: Record<CanvasResourceKind, CanvasResource[]>;
   selectedResources: CanvasResource[];
+  visibleResources: CanvasResource[];
+  hiddenResourceCount: number;
   promptDraft: string;
   imageSettings: ImageSettings;
   currentImageRun: CompositionImageRun | null;
@@ -345,29 +350,27 @@ function buildNodes({
   onPromptChange: (next: string) => void;
   onPromptBlur: (next: string) => void;
   onImageSettingsChange: (next: ImageSettings) => void;
+  onOpenReferencePicker: () => void;
   onOpenSettings: () => void;
   onGenerateImage: () => void;
 }): CanvasNode[] {
   const nodes: CanvasNode[] = [];
   let y = 40;
 
-  for (const kind of KIND_ORDER) {
-    for (const resource of resources[kind]) {
-      const id = resourceNodeId(kind, resource.id);
-      nodes.push({
-        id,
-        type: 'resource',
-        position: previousPositions.get(id) ?? { x: 40, y },
-        data: {
-          kind,
-          label: resource.label,
-          image: resource.image,
-          selected: selectedIdsForKind(task, kind).includes(resource.id),
-        },
-      });
-      y += 154;
-    }
-    y += 28;
+  for (const resource of visibleResources) {
+    const id = resourceNodeId(resource.kind, resource.id);
+    const size = resourceNodeSize(resource.kind);
+    nodes.push({
+      id,
+      type: 'resource',
+      position: previousPositions.get(id) ?? { x: 40, y },
+      data: {
+        kind: resource.kind,
+        label: resource.label,
+        image: resource.image,
+      },
+    });
+    y += size.height + 34;
   }
 
   const compositionNodeId = taskNodeId(task.id);
@@ -380,11 +383,14 @@ function buildNodes({
       promptDraft,
       imageSettings,
       selectedResources,
+      visibleResources,
+      hiddenResourceCount,
       currentImageRun,
       busy,
       onPromptChange,
       onPromptBlur,
       onImageSettingsChange,
+      onOpenReferencePicker,
       onOpenSettings,
       onGenerateImage,
     },
@@ -407,50 +413,32 @@ function buildEdges(
         source: resourceNodeId(kind, id),
         sourceHandle: 'out',
         target: taskNodeId(task.id),
-        targetHandle: kind,
+        targetHandle: 'image-input',
         type: 'smoothstep',
         animated,
         style: {
-          stroke: edgeColor(kind),
-          strokeWidth: 2,
+          stroke: '#4f8fd8',
+          strokeWidth: 1.8,
         },
       })),
   );
 }
 
 function ResourceNode({ data }: NodeProps<ResourceCanvasNode>) {
-  const Icon = data.kind === 'character' ? UserRound : data.kind === 'item' ? Box : MapIcon;
+  const size = resourceNodeSize(data.kind);
   return (
     <div
-      className={`w-[156px] overflow-hidden rounded-xl border bg-[#191d24] shadow-2xl ${
-        data.selected ? 'border-[#d7ff14]' : 'border-white/10'
-      }`}
+      className="group overflow-hidden rounded-xl border border-white/10 bg-[#11151b] shadow-2xl transition-colors hover:border-[#4f8fd8]"
+      style={{ width: size.width, height: size.height }}
+      title={`${KIND_META[data.kind].label} · ${data.label}`}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2.5 py-2">
-        <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-white/80">
-          <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-          <span className="truncate">{KIND_META[data.kind].label}</span>
-        </div>
-        {data.selected && <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-[#d7ff14]" />}
-      </div>
-      <div className="h-[106px] bg-[#0f1115]">
-        {data.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={data.image} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full items-center justify-center text-white/35">
-            <ImageIcon className="h-6 w-6" />
-          </div>
-        )}
-      </div>
-      <div className="px-2.5 py-2 text-xs text-white/75">
-        <div className="line-clamp-2 min-h-[32px] leading-4">{data.label}</div>
-      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={data.image} alt="" className="h-full w-full object-cover" />
       <Handle
         type="source"
         id="out"
         position={Position.Right}
-        className="!h-3 !w-3 !border-2 !border-[#0f1115] !bg-[#60a5fa]"
+        className="!h-3.5 !w-3.5 !border-2 !border-[#0f1115] !bg-[#4f8fd8] opacity-90"
       />
     </div>
   );
@@ -474,16 +462,13 @@ function CompositionNode({ data }: NodeProps<CompositionCanvasNode>) {
 
   return (
     <div className="relative w-[470px] rounded-xl border border-[#d7ff14] bg-[#1a1e24] text-white shadow-2xl">
-      {KIND_ORDER.map((kind, index) => (
-        <Handle
-          key={kind}
-          type="target"
-          id={kind}
-          position={Position.Left}
-          style={{ top: 122 + index * 34 }}
-          className="!h-3 !w-3 !border-2 !border-[#0f1115]"
-        />
-      ))}
+      <Handle
+        type="target"
+        id="image-input"
+        position={Position.Left}
+        style={{ top: 184 }}
+        className="!h-4 !w-4 !border-2 !border-[#0f1115] !bg-[#4f8fd8]"
+      />
 
       <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
         <div className="min-w-0">
@@ -508,29 +493,35 @@ function CompositionNode({ data }: NodeProps<CompositionCanvasNode>) {
         />
 
         <div className="flex items-center gap-2 overflow-hidden">
-          {data.selectedResources.slice(0, 7).map((resource) => (
+          <button
+            type="button"
+            onClick={data.onOpenReferencePicker}
+            className="nodrag flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-white/10 bg-[#252b33] text-white/70 hover:border-[#d7ff14] hover:text-[#d7ff14]"
+            aria-label="添加引用资产"
+            title="添加引用资产"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          {data.visibleResources.slice(0, 7).map((resource) => (
             <div
               key={`${resource.kind}-${resource.id}`}
               className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[#11151b]"
               title={`${KIND_META[resource.kind].label} · ${resource.label}`}
             >
-              {resource.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={resource.image} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full items-center justify-center text-white/35">
-                  <ImageIcon className="h-4 w-4" />
-                </div>
-              )}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={resource.image} alt="" className="h-full w-full object-cover" />
             </div>
           ))}
-          {data.selectedResources.length > 7 && (
+          {data.hiddenResourceCount > 0 && (
             <span className="rounded-lg border border-white/10 px-2 py-2 text-xs text-white/60">
-              +{data.selectedResources.length - 7}
+              +{data.hiddenResourceCount}
             </span>
           )}
           {data.selectedResources.length === 0 && (
             <span className="text-xs text-white/40">暂无引用资产</span>
+          )}
+          {data.selectedResources.length > 0 && data.visibleResources.length === 0 && (
+            <span className="text-xs text-white/40">引用资产暂无图片</span>
           )}
         </div>
 
@@ -699,12 +690,6 @@ function isCanvasResourceKind(value: string): value is CanvasResourceKind {
   return value === 'character' || value === 'item' || value === 'scene';
 }
 
-function edgeColor(kind: CanvasResourceKind) {
-  if (kind === 'character') return '#60a5fa';
-  if (kind === 'item') return '#f59e0b';
-  return '#34d399';
-}
-
 function isRunInFlight(status: string) {
   return status === 'QUEUED' || status === 'RUNNING';
 }
@@ -739,4 +724,10 @@ function qualityLabel(value: string) {
   if (value === 'hd') return '2K';
   if (value === 'standard') return '1080p';
   return value;
+}
+
+function resourceNodeSize(kind: CanvasResourceKind) {
+  if (kind === 'scene') return { width: 240, height: 140 };
+  if (kind === 'character') return { width: 160, height: 230 };
+  return { width: 190, height: 150 };
 }
