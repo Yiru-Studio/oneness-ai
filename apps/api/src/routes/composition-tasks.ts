@@ -1219,7 +1219,7 @@ function sceneSearchTerms(sceneName: string): string[] {
   const trimmed = sceneName.trim();
   const terms = [trimmed];
   const withoutScenePrefix = trimmed
-    .replace(/^(?:INT|EXT|INT\.\/EXT|EXT\.\/INT)\.\s*/i, '')
+    .replace(/^(?:INT\.\/EXT|EXT\.\/INT|INT|EXT)\.\s*/i, '')
     .replace(/\s*[-－—]\s*(?:清晨|上午|中午|下午|傍晚|黄昏|夜晚|晚上|深夜|凌晨)\s*$/u, '')
     .trim();
   if (withoutScenePrefix && withoutScenePrefix !== trimmed) terms.push(withoutScenePrefix);
