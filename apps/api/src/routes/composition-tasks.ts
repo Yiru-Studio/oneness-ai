@@ -20,11 +20,13 @@ import {
   ApplyCompositionCandidatesSchema,
   GenerateCompositionGridSchema,
   GenerateCompositionImageSchema,
+  GenerateShotSketchesSchema,
   IdParamSchema,
   UpdateCompositionTaskSchema,
   type ApplyCompositionCandidatesInput,
   type GenerateCompositionGridInput,
   type GenerateCompositionImageInput,
+  type GenerateShotSketchesInput,
 } from '@oneness/shared/schemas';
 import { config } from '../config.js';
 
@@ -175,6 +177,18 @@ compositionTaskRoutes.post(
       orderBy: [{ episode: { number: 'asc' } }, { sceneIndex: 'asc' }],
     });
     return c.json(await Promise.all(rows.map(serializeCompositionTask)));
+  },
+);
+
+compositionTaskRoutes.post(
+  '/projects/:id/composition-tasks/generate-shot-sketches',
+  zValidator('json', GenerateShotSketchesSchema),
+  async (c) => {
+    const user = c.var.user!;
+    const projectId = c.req.param('id');
+    const body = c.req.valid('json');
+    const result = await createShotSketchTasks(projectId, user.id, body);
+    return c.json(result, 201);
   },
 );
 
@@ -701,6 +715,135 @@ async function applyGridRunToShots(
   return gridRun.taskId;
 }
 
+async function createShotSketchTasks(
+  projectId: string,
+  userId: string,
+  body: GenerateShotSketchesInput,
+) {
+  const project = await assertOwnedProject(projectId, userId);
+  const episode = await prisma.storyboardEpisode.findFirst({
+    where: { id: body.episodeId, projectId },
+    select: { id: true, number: true, title: true, content: true, scenesJson: true },
+  });
+  if (!episode) {
+    throw AppError.notFound(ErrorCodes.EPISODE_NOT_FOUND, 'episode not found');
+  }
+
+  const library = await loadReferenceLibrary(projectId);
+  const scene = scenesForEpisode(episode, library.scenes).find((item) => item.index === body.sceneIndex);
+  if (!scene) {
+    throw AppError.badRequest(ErrorCodes.VALIDATION_FAILED, 'sceneIndex out of range');
+  }
+
+  const compositionTaskId = await ensureCompositionTaskForScene(project, episode, scene, library);
+  const compositionTask = await loadCompositionTask(compositionTaskId);
+  const compositionImageAssetId = currentCompositionImageAssetId(compositionTask);
+
+  const shots = await prisma.shot.findMany({
+    where: {
+      episodeId: body.episodeId,
+      sceneIndex: body.sceneIndex,
+      createType: 'assist',
+      episode: { project: { ownerId: userId } },
+    },
+    include: { sketchTask: true },
+    orderBy: { displayId: 'asc' },
+  });
+  const targetShots = shots.filter((shot) => shouldCreateShotSketch(shot, body.force));
+  const skippedShotIds = shots
+    .filter((shot) => !targetShots.some((target) => target.id === shot.id))
+    .map((shot) => shot.id);
+
+  if (targetShots.length === 0) {
+    return {
+      compositionTaskId,
+      createdTaskIds: [] as string[],
+      targetShotIds: [] as string[],
+      skippedShotIds,
+      createdCount: 0,
+      skippedCount: skippedShotIds.length,
+    };
+  }
+
+  const workItems = await Promise.all(
+    targetShots.map(async (shot) => {
+      const referenceAssetIds = await buildShotSketchReferenceAssetIds(projectId, compositionTask, shot, compositionImageAssetId);
+      return {
+        shotId: shot.id,
+        prompt: buildShotSketchPrompt(project, scene, shot, Boolean(compositionImageAssetId)),
+        referenceAssetIds,
+      };
+    }),
+  );
+
+  const costPerTask = estimateCost(TaskType.IMAGE);
+  const totalCost = costPerTask * workItems.length;
+  const provider = providerForImageModel(project.imageModel);
+
+  const createdTaskIds = await prisma.$transaction(async (tx) => {
+    const account = await tx.user.findUnique({
+      where: { id: userId },
+      select: { credits: true },
+    });
+    if (!account) throw AppError.unauthorized();
+    if (account.credits < totalCost) {
+      throw AppError.badRequest(
+        ErrorCodes.INSUFFICIENT_CREDITS,
+        `requires ${totalCost} credits, have ${account.credits}`,
+        { required: totalCost, available: account.credits },
+      );
+    }
+    await tx.user.update({ where: { id: userId }, data: { credits: { decrement: totalCost } } });
+
+    const ids: string[] = [];
+    for (const item of workItems) {
+      const job = await tx.task.create({
+        data: {
+          ownerId: userId,
+          projectId,
+          type: TaskType.IMAGE,
+          provider,
+          status: TaskStatus.QUEUED,
+          costCredits: costPerTask,
+          input: {
+            prompt: item.prompt,
+            ratio: project.ratio,
+            model: project.imageModel,
+            referenceAssetIds: item.referenceAssetIds,
+            n: 1,
+            shotSketch: true,
+            shotId: item.shotId,
+            compositionTaskId,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      await tx.shot.update({
+        where: { id: item.shotId },
+        data: { sketchTaskId: job.id },
+      });
+      ids.push(job.id);
+    }
+    return ids;
+  });
+
+  await Promise.all(
+    createdTaskIds.map((taskId) =>
+      enqueueTaskJob(queueForTaskType(TaskType.IMAGE), taskId, {
+        priority: QueueJobPriority.INTERACTIVE_IMAGE,
+      }),
+    ),
+  );
+
+  return {
+    compositionTaskId,
+    createdTaskIds,
+    targetShotIds: targetShots.map((shot) => shot.id),
+    skippedShotIds,
+    createdCount: createdTaskIds.length,
+    skippedCount: skippedShotIds.length,
+  };
+}
+
 async function assertOwnedProject(projectId: string, userId: string) {
   const project = await prisma.project.findFirst({ where: { id: projectId, ownerId: userId } });
   if (!project) throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
@@ -1011,7 +1154,7 @@ function normalizeGridSettings(
 
 function providerForImageModel(model: string): string {
   if (model.startsWith('google/')) return 'nanobanana';
-  if (model.startsWith('stub/')) return 'stub';
+  if (model === 'stub' || model.startsWith('stub/')) return 'stub';
   return config.PROVIDER_IMAGE || 'openai';
 }
 
@@ -1098,6 +1241,74 @@ function textMentions(text: string, term: string): boolean {
   return text.includes(needle) || needle.includes(text.trim());
 }
 
+async function ensureCompositionTaskForScene(
+  project: { id: string; stylePrompt: string; ratio: string },
+  episode: { id: string; number: number },
+  scene: EpisodeScene,
+  library: ReferenceLibrary,
+): Promise<string> {
+  const refs = prefillReferences(scene, library);
+  const title = `第${episode.number}集 · ${scene.title || `场景 ${scene.index + 1}`}`;
+  const where = {
+    episodeId_sceneIndex: {
+      episodeId: episode.id,
+      sceneIndex: scene.index,
+    },
+  };
+  const existing = await prisma.compositionTask.findUnique({
+    where,
+    select: {
+      id: true,
+      status: true,
+      currentImageRunId: true,
+      imageAssetId: true,
+      imageTaskId: true,
+    },
+  });
+  if (!existing) {
+    const created = await prisma.compositionTask.create({
+      data: {
+        projectId: project.id,
+        episodeId: episode.id,
+        sceneIndex: scene.index,
+        title,
+        scriptExcerpt: scene.content,
+        prompt: buildCompositionPrompt(project, scene, refs),
+        characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
+        sceneIds: refs.sceneIds as Prisma.InputJsonValue,
+        itemIds: refs.itemIds as Prisma.InputJsonValue,
+      },
+      select: { id: true },
+    });
+    return created.id;
+  }
+
+  const canRefreshDraft =
+    existing.status === 'DRAFT' &&
+    !existing.currentImageRunId &&
+    !existing.imageAssetId &&
+    !existing.imageTaskId;
+  await prisma.compositionTask.update({
+    where: { id: existing.id },
+    data: {
+      projectId: project.id,
+      episodeId: episode.id,
+      sceneIndex: scene.index,
+      title,
+      scriptExcerpt: scene.content,
+      ...(canRefreshDraft
+        ? {
+            prompt: buildCompositionPrompt(project, scene, refs),
+            characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
+            sceneIds: refs.sceneIds as Prisma.InputJsonValue,
+            itemIds: refs.itemIds as Prisma.InputJsonValue,
+          }
+        : {}),
+    },
+  });
+  return existing.id;
+}
+
 function buildCompositionPrompt(
   project: { stylePrompt: string; ratio: string },
   scene: EpisodeScene,
@@ -1112,6 +1323,39 @@ function buildCompositionPrompt(
     `画面要求：生成一张可作为镜头首帧的合成镜头图，人物、道具与环境需要自然同框，构图清晰，光线统一，比例 ${project.ratio}。`,
     project.stylePrompt ? `风格要求：${project.stylePrompt}` : '',
   ].filter(Boolean).join('\n\n');
+}
+
+function buildShotSketchPrompt(
+  project: { stylePrompt: string; ratio: string },
+  scene: EpisodeScene,
+  shot: { displayId: number; shotType: string; duration: number; prompt: string },
+  hasCompositionImage: boolean,
+): string {
+  const prompt = [
+    '请生成一张单张电影分镜/合成镜头图，用作后续视频生成的参考首帧。',
+    '',
+    '强制要求：',
+    '- 只输出一张完整画面，不要九宫格、拼贴、分屏或 contact sheet。',
+    '- 不要在图片中写字幕、编号、角度标签、水印、logo 或任何说明文字。',
+    '- 画面必须是电影镜头感，而不是海报、设定图、UI 或纯素材展示。',
+    '- 人物、道具和环境需要自然同框；构图、光线、色彩保持统一。',
+    `- 输出比例按 ${project.ratio} 构图。`,
+    hasCompositionImage
+      ? '- 已提供的合成镜头图是空间、角色、服装、光线和画风锚点；请在保持一致的基础上，根据本 Shot 重新构图。'
+      : '',
+    '',
+    `Shot：#${shot.displayId}`,
+    `镜头类型：${shot.shotType === 'continuation' ? '续写镜头' : '全新镜头'}`,
+    `预计时长：${shot.duration} 秒`,
+    `Shot 提示词：\n${truncateText(shot.prompt, 1400)}`,
+    '',
+    `场景标题：${scene.title}`,
+    scene.environment ? `环境：${scene.environment}` : '',
+    scene.characters.length ? `出场人物：${scene.characters.join('、')}` : '',
+    `剧本片段：\n${truncateText(scene.content, 1800)}`,
+    project.stylePrompt ? `项目风格：\n${truncateText(project.stylePrompt, 900)}` : '',
+  ].filter(Boolean).join('\n');
+  return truncateText(prompt, 5000);
 }
 
 function buildGridPrompt(
@@ -1195,6 +1439,69 @@ async function resolveReferenceAssetIds(
     ...scenes.map((row) => row.assetId),
     ...items.map((row) => row.assetId),
   ].filter((id): id is string => Boolean(id)))).slice(0, 8);
+}
+
+async function buildShotSketchReferenceAssetIds(
+  projectId: string,
+  compositionTask: { characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
+  shot: { characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
+  compositionImageAssetId: string | null,
+): Promise<string[]> {
+  const assetIds = await resolveReferenceAssetIds(projectId, {
+    characterStyleIds: uniqueStrings([
+      ...jsonStringArray(shot.characterStyleIds),
+      ...jsonStringArray(compositionTask.characterStyleIds),
+    ]),
+    sceneIds: uniqueStrings([
+      ...jsonStringArray(shot.sceneIds),
+      ...jsonStringArray(compositionTask.sceneIds),
+    ]),
+    itemIds: uniqueStrings([
+      ...jsonStringArray(shot.itemIds),
+      ...jsonStringArray(compositionTask.itemIds),
+    ]),
+  });
+  return uniqueStrings([
+    ...(compositionImageAssetId ? [compositionImageAssetId] : []),
+    ...assetIds,
+  ]).slice(0, 8);
+}
+
+function currentCompositionImageAssetId(row: {
+  imageAssetId: string | null;
+  currentImageRun: {
+    outputAssetId: string | null;
+    taskJob: { assets: Array<{ role: string; assetId: string }> } | null;
+  } | null;
+}): string | null {
+  return (
+    row.currentImageRun?.outputAssetId ??
+    row.currentImageRun?.taskJob?.assets.find((asset) => asset.role === 'output')?.assetId ??
+    row.imageAssetId ??
+    null
+  );
+}
+
+function shouldCreateShotSketch(
+  shot: {
+    prompt: string;
+    sketchAssetId: string | null;
+    sketchTask: { status: string } | null;
+  },
+  force: boolean,
+): boolean {
+  if (!shot.prompt.trim()) return false;
+  if (force) return true;
+  if (shot.sketchAssetId) return false;
+  return shot.sketchTask?.status !== TaskStatus.QUEUED && shot.sketchTask?.status !== TaskStatus.RUNNING;
+}
+
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+}
+
+function truncateText(value: string, maxLength: number): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
 async function assertAllCharacterStylesOwned(projectId: string, ids: string[], userId: string) {

@@ -57,6 +57,9 @@ export function ShotCard({
 
   const isGenerating =
     shot.videoTaskStatus === 'QUEUED' || shot.videoTaskStatus === 'RUNNING';
+  const isSketchGenerating =
+    shot.sketchTaskStatus === 'QUEUED' || shot.sketchTaskStatus === 'RUNNING';
+  const sketchFailed = shot.sketchTaskStatus === 'FAILED' && !shot.sketch;
   const promptReady = prompt.trim().length > 0;
 
   const handlePromptBlur = () => {
@@ -189,18 +192,34 @@ export function ShotCard({
           <div className="mt-3">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-[var(--color-text-secondary)]">参考资产</span>
-              <button
-                onClick={() => setPickerOpen(true)}
-                disabled={busy}
-                className="text-xs text-[var(--color-primary)] hover:underline inline-flex items-center gap-1"
-              >
-                <Plus className="w-3 h-3" />
-                选择参考
-              </button>
+              <div className="flex items-center gap-2">
+                {isSketchGenerating && (
+                  <span className="inline-flex items-center gap-1 text-xs text-[var(--color-primary)]">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    合成镜头图生成中
+                  </span>
+                )}
+                {sketchFailed && (
+                  <span className="text-xs text-red-500">合成镜头图生成失败</span>
+                )}
+                <button
+                  onClick={() => setPickerOpen(true)}
+                  disabled={busy}
+                  className="text-xs text-[var(--color-primary)] hover:underline inline-flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  选择参考
+                </button>
+              </div>
             </div>
-            {resourceThumbs.length === 0 ? (
+            {resourceThumbs.length === 0 && isSketchGenerating ? (
+              <div className="text-xs text-[var(--color-primary)] px-3 py-4 border border-dashed border-blue-200 bg-blue-50 rounded-lg text-center inline-flex items-center justify-center gap-2 w-full">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                合成镜头图生成中…
+              </div>
+            ) : resourceThumbs.length === 0 ? (
               <div className="text-xs text-gray-400 px-3 py-4 border border-dashed border-[var(--color-border)] rounded-lg text-center">
-                未选择任何参考资产
+                {sketchFailed ? '合成镜头图生成失败，可重新触发智能分镜创作' : '未选择任何参考资产'}
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
@@ -328,7 +347,7 @@ function buildResourceThumbs(
 ): Array<{ key: string; label: string; url: string | null }> {
   const out: Array<{ key: string; label: string; url: string | null }> = [];
   if (shot.sketch) {
-    out.push({ key: `sketch-${shot.id}`, label: '分镜草图', url: shot.sketch.url });
+    out.push({ key: `sketch-${shot.id}`, label: '合成镜头图', url: shot.sketch.url });
   }
   for (const sid of shot.characterStyleIds) {
     const c = characters.find((c) => c.styles.some((s) => s.id === sid));

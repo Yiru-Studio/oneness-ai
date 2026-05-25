@@ -8,7 +8,7 @@ import { prisma } from '../../src/lib/prisma.js';
 import { config } from '../../src/config.js';
 import { processTask } from '../../../worker/src/processor.js';
 import { QueueNames, WorkerConcurrency } from '@oneness/shared/queues';
-import { TaskStatus } from '@oneness/shared/enums';
+import { TaskStatus, TaskType } from '@oneness/shared/enums';
 
 const SEED_USER_EMAIL = '1280165525@qq.com';
 
@@ -138,6 +138,62 @@ describe('tasks lifecycle', () => {
     expect(body.status).toBe('SUCCEEDED');
     expect(body.outputAssets.length).toBe(1);
     expect(body.outputAssets[0].url).toContain('task-outputs');
+  });
+
+  it('shot sketch IMAGE task links output back to Shot.sketchAssetId', async () => {
+    const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.findFirst({ where: { ownerId: user.id } });
+    if (!project) throw new Error('Seed project missing.');
+    const episode = await prisma.storyboardEpisode.findFirst({ where: { projectId: project.id } });
+    if (!episode) throw new Error('Seed episode missing.');
+    const maxShot = await prisma.shot.findFirst({
+      where: { episodeId: episode.id },
+      orderBy: { displayId: 'desc' },
+      select: { displayId: true },
+    });
+    const shot = await prisma.shot.create({
+      data: {
+        episodeId: episode.id,
+        displayId: (maxShot?.displayId ?? 0) + 1,
+        sceneIndex: 0,
+        prompt: '测试合成镜头参考图',
+        ratio: project.ratio,
+        model: project.videoModel,
+        createType: 'assist',
+      },
+    });
+    const task = await prisma.task.create({
+      data: {
+        ownerId: user.id,
+        projectId: project.id,
+        type: TaskType.IMAGE,
+        provider: 'stub',
+        status: TaskStatus.QUEUED,
+        costCredits: 0,
+        input: {
+          prompt: 'blue cinematic storyboard frame',
+          ratio: project.ratio,
+          model: 'stub',
+          n: 1,
+          shotSketch: true,
+          shotId: shot.id,
+        },
+      },
+    });
+    await prisma.shot.update({ where: { id: shot.id }, data: { sketchTaskId: task.id } });
+
+    await processTask(task.id);
+
+    const linked = await prisma.shot.findUnique({
+      where: { id: shot.id },
+      select: { sketchTaskId: true, sketchAssetId: true, sketch: { select: { contentType: true } } },
+    });
+    expect(linked?.sketchTaskId).toBe(task.id);
+    expect(linked?.sketchAssetId).toBeTruthy();
+    expect(linked?.sketch?.contentType).toBe('image/png');
+
+    await prisma.shot.delete({ where: { id: shot.id } });
   });
 
   it('TEXT task completes', async () => {

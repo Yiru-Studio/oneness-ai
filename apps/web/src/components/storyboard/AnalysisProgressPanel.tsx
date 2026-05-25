@@ -14,14 +14,15 @@ interface Props {
   sceneShotCount: number;
   /** Batch-generation lifecycle for the selected scene. */
   batchStatus: 'idle' | 'running' | 'done';
+  /** Shot-level composition sketch generation lifecycle for the selected scene. */
+  sketchStatus: 'idle' | 'running' | 'done' | 'failed';
   /** Triggers AI-assist shot generation for the selected scene. */
   onGenerate: () => void;
 }
 
 /**
  * Mirrors likeai's 4-step AI-assist progress panel. We implement the first two
- * steps for real (场景列表分析 from 分析剧集, 批量分镜生成 from shot-breakdown);
- * sketch generation/cropping are surfaced as "暂未启用" so the layout matches.
+ * steps from text analysis and the third step from Shot-level sketch tasks.
  */
 export function AnalysisProgressPanel({
   aiAssistEnabled,
@@ -29,6 +30,7 @@ export function AnalysisProgressPanel({
   selectedScene,
   sceneShotCount,
   batchStatus,
+  sketchStatus,
   onGenerate,
 }: Props) {
   if (!aiAssistEnabled) return null;
@@ -97,12 +99,24 @@ export function AnalysisProgressPanel({
         )}
       </Row>
 
-      {/* Steps 3 & 4 — deferred */}
-      <Row done={false} label="生成分镜手稿" dim>
-        <span className="text-xs text-gray-400">暂未启用</span>
+      <Row done={sketchStatus === 'done'} running={sketchStatus === 'running'} label="生成合成镜头图">
+        {sketchStatus === 'running' ? (
+          <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-primary)]">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            生成中…
+          </span>
+        ) : sketchStatus === 'done' ? (
+          <span className="text-xs text-gray-500">已写入 Shot 参考图</span>
+        ) : sketchStatus === 'failed' ? (
+          <span className="text-xs text-red-500">生成失败</span>
+        ) : (
+          <span className="text-xs text-gray-400">等待分镜生成</span>
+        )}
       </Row>
-      <Row done={false} label="裁切分镜手稿" dim>
-        <span className="text-xs text-gray-400">暂未启用</span>
+      <Row done={sketchStatus === 'done'} label="接入视频参考">
+        <span className="text-xs text-gray-500">
+          {sketchStatus === 'done' ? '可生成视频' : '等待参考图'}
+        </span>
       </Row>
     </div>
   );

@@ -24,6 +24,7 @@ import {
   deleteShot,
   generateShotVideo,
   generateSceneShots,
+  generateShotSketches,
   pollTaskUntilDone,
 } from '@/lib/api';
 import { TopBar } from '@/components/layout/TopBar';
@@ -122,10 +123,14 @@ export default function StoryboardEpisodePage() {
     };
   }, [authLoading, isLoggedIn, projectId, episodeId, router, stopPolling]);
 
-  // Poll shots while any video task is in flight.
+  // Poll shots while any sketch or video task is in flight.
   useEffect(() => {
     const inFlight = shots.some(
-      (s) => s.videoTaskStatus === 'QUEUED' || s.videoTaskStatus === 'RUNNING',
+      (s) =>
+        s.videoTaskStatus === 'QUEUED' ||
+        s.videoTaskStatus === 'RUNNING' ||
+        s.sketchTaskStatus === 'QUEUED' ||
+        s.sketchTaskStatus === 'RUNNING',
     );
     if (inFlight && !pollRef.current) {
       pollRef.current = setInterval(() => {
@@ -146,6 +151,18 @@ export default function StoryboardEpisodePage() {
     [shots, sceneIndex],
   );
   const siblingIds = useMemo(() => sceneShots.map((s) => s.displayId), [sceneShots]);
+  const sketchStatus = useMemo(() => {
+    if (sceneShots.some((s) => s.sketchTaskStatus === 'QUEUED' || s.sketchTaskStatus === 'RUNNING')) {
+      return 'running';
+    }
+    if (sceneShots.length > 0 && sceneShots.every((s) => Boolean(s.sketch))) {
+      return 'done';
+    }
+    if (sceneShots.some((s) => s.sketchTaskStatus === 'FAILED' && !s.sketch)) {
+      return 'failed';
+    }
+    return 'idle';
+  }, [sceneShots]);
 
   const handleCreate = async (afterDisplayId?: number) => {
     setCreating(true);
@@ -170,6 +187,16 @@ export default function StoryboardEpisodePage() {
         throw new Error(done.error || '智能分镜生成失败');
       }
       await reloadShots();
+      try {
+        await generateShotSketches(projectId, { episodeId, sceneIndex });
+        await reloadShots();
+      } catch (sketchError) {
+        setError(
+          `分镜已生成，但合成镜头图生成失败：${
+            sketchError instanceof Error ? sketchError.message : '请稍后重试'
+          }`,
+        );
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : '智能分镜生成失败');
     } finally {
@@ -264,6 +291,7 @@ export default function StoryboardEpisodePage() {
             selectedScene={selectedScene}
             sceneShotCount={sceneShots.length}
             batchStatus={assistBusy ? 'running' : 'idle'}
+            sketchStatus={sketchStatus}
             onGenerate={handleGenerateShots}
           />
 

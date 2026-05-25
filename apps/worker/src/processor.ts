@@ -190,6 +190,9 @@ export async function processTask(taskId: string) {
   if (task.type === 'VIDEO') {
     const shotId = readShotId(task.input);
     if (shotId) await linkShotVideo(shotId, taskId, r, taskLog);
+  } else if (task.type === 'IMAGE') {
+    const shotId = readShotSketchId(task.input);
+    if (shotId) await linkShotSketch(shotId, taskId, taskLog);
   }
   metrics.incr('task.success', { type: task.type, provider: task.provider });
   taskLog.info({ outputAssets: r.outputAssets?.length ?? 0 }, 'task succeeded');
@@ -201,6 +204,38 @@ function readShotId(input: unknown): string | null {
     if (typeof v === 'string' && v.length > 0) return v;
   }
   return null;
+}
+
+function readShotSketchId(input: unknown): string | null {
+  if (!input || typeof input !== 'object') return null;
+  const obj = input as { shotId?: unknown; shotSketch?: unknown };
+  if (obj.shotSketch !== true) return null;
+  return typeof obj.shotId === 'string' && obj.shotId.length > 0 ? obj.shotId : null;
+}
+
+async function linkShotSketch(
+  shotId: string,
+  taskId: string,
+  log: import('@oneness/shared/logger').Logger,
+) {
+  const ta = await prisma.taskAsset.findFirst({
+    where: { taskId, role: 'output' },
+    include: { asset: true },
+    orderBy: { asset: { createdAt: 'desc' } },
+  });
+  if (!ta) {
+    log.warn({ shotId, taskId }, 'shot sketch task succeeded but produced no asset; skipping link');
+    return;
+  }
+  const updated = await prisma.shot.updateMany({
+    where: { id: shotId, sketchTaskId: taskId },
+    data: { sketchAssetId: ta.assetId },
+  });
+  if (updated.count === 0) {
+    log.warn({ shotId, taskId, assetId: ta.assetId }, 'shot sketch task is no longer current; skipping link');
+    return;
+  }
+  log.info({ shotId, assetId: ta.assetId }, 'shot.sketchAssetId updated');
 }
 
 async function linkShotVideo(

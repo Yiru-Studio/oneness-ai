@@ -146,6 +146,8 @@ export interface Shot {
   sketch: ShotAssetRef | null;
   video: ShotAssetRef | null;
   lastFrame: ShotAssetRef | null;
+  sketchTaskId: string | null;
+  sketchTaskStatus: ShotVideoTaskStatus | null;
   videoTaskId: string | null;
   videoTaskStatus: ShotVideoTaskStatus | null;
   characterStyleIds: string[];

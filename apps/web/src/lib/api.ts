@@ -537,6 +537,25 @@ export async function generateSceneShots(
   return res.task;
 }
 
+export type GenerateShotSketchesResult = {
+  compositionTaskId: string;
+  createdTaskIds: string[];
+  targetShotIds: string[];
+  skippedShotIds: string[];
+  createdCount: number;
+  skippedCount: number;
+};
+
+export async function generateShotSketches(
+  projectId: string,
+  body: { episodeId: string; sceneIndex: number; force?: boolean },
+): Promise<GenerateShotSketchesResult> {
+  return await apiFetch<GenerateShotSketchesResult>(
+    `/api/projects/${projectId}/composition-tasks/generate-shot-sketches`,
+    { method: 'POST', body },
+  );
+}
+
 // -- Composition shots --------------------------------------------------
 
 export async function getCompositionTasks(projectId: string): Promise<CompositionTask[]> {

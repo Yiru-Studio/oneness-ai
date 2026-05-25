@@ -25,6 +25,7 @@ shotRoutes.use('/shots/:id/*', tryReadUser, requireUser);
 
 const SHOT_INCLUDE = {
   sketch: true,
+  sketchTask: true,
   video: true,
   lastFrame: true,
   videoTask: true,

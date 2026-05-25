@@ -235,6 +235,7 @@ model Shot {
   sceneIndex      Int      @default(0)
 
   sketchAssetId    String?
+  sketchTaskId     String?
   videoAssetId     String?
   lastFrameAssetId String?
   videoTaskId      String?
@@ -255,6 +256,7 @@ model Shot {
 
   episode    StoryboardEpisode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
   sketch     Asset?            @relation("ShotSketch", fields: [sketchAssetId], references: [id], onDelete: SetNull)
+  sketchTask Task?             @relation("ShotSketchTask", fields: [sketchTaskId], references: [id], onDelete: SetNull)
   video      Asset?            @relation("ShotVideo", fields: [videoAssetId], references: [id], onDelete: SetNull)
   lastFrame  Asset?            @relation("ShotLastFrame", fields: [lastFrameAssetId], references: [id], onDelete: SetNull)
   videoTask  Task?             @relation("ShotVideoTask", fields: [videoTaskId], references: [id], onDelete: SetNull)
@@ -263,6 +265,7 @@ model Shot {
   @@unique([episodeId, displayId])
   @@index([episodeId])
   @@index([episodeId, sceneIndex])
+  @@index([sketchTaskId])
 }
 
 model KnowledgeDoc {
@@ -298,6 +301,7 @@ model Task {
   owner   User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   project Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
   assets  TaskAsset[]
+  shotSketches Shot[]      @relation("ShotSketchTask")
   shots   Shot[]      @relation("ShotVideoTask")
   resourceImages ResourceImage[]
   compositionImageTasks CompositionTask[] @relation("CompositionImageTask")

@@ -3,6 +3,7 @@ import { serializeOptionalAsset, type AssetDTO } from '../lib/assets.js';
 
 type ShotWithAssets = Shot & {
   sketch: Asset | null;
+  sketchTask: Task | null;
   video: Asset | null;
   lastFrame: Asset | null;
   videoTask: Task | null;
@@ -25,6 +26,8 @@ export type ShotDTO = {
   sketch: AssetDTO | null;
   video: AssetDTO | null;
   lastFrame: AssetDTO | null;
+  sketchTaskId: string | null;
+  sketchTaskStatus: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | null;
   videoTaskId: string | null;
   videoTaskStatus: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | null;
   characterStyleIds: string[];
@@ -62,6 +65,8 @@ export async function serializeShot(s: ShotWithAssets): Promise<ShotDTO> {
     sketch,
     video,
     lastFrame,
+    sketchTaskId: s.sketchTaskId,
+    sketchTaskStatus: (s.sketchTask?.status as ShotDTO['sketchTaskStatus']) ?? null,
     videoTaskId: s.videoTaskId,
     videoTaskStatus: (s.videoTask?.status as ShotDTO['videoTaskStatus']) ?? null,
     characterStyleIds: jsonArray(s.characterStyleIds),
