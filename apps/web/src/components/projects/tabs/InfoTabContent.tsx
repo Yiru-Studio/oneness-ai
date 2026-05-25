@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Project, StoryboardEpisode } from '@/types';
-import { AlertCircle, CheckCircle2, Loader2, Play } from 'lucide-react';
+import { Project, ProjectTab, StoryboardEpisode } from '@/types';
+import { AlertCircle, CheckCircle2, Image, Loader2, Package, Play, Users } from 'lucide-react';
 import { ScriptUploadCard } from '@/components/projects/ScriptUploadCard';
 import { EditableField } from '@/components/projects/EditableField';
 import { updateProject } from '@/lib/api';
@@ -19,6 +19,12 @@ interface Props {
   onEpisodeUploaded: (episode: StoryboardEpisode) => void;
   onEpisodeAnalysisRequested: (episode: StoryboardEpisode) => Promise<void>;
   onProjectUpdated: (project: Project) => void;
+  onOpenTab: (tab: ProjectTab) => void;
+  materialCounts: {
+    characters: number;
+    scenes: number;
+    items: number;
+  };
 }
 
 const toOption = (m: { modelId: string; label: string }) => ({
@@ -41,6 +47,8 @@ export function InfoTabContent({
   onEpisodeUploaded,
   onEpisodeAnalysisRequested,
   onProjectUpdated,
+  onOpenTab,
+  materialCounts,
 }: Props) {
   const [analysisBusy, setAnalysisBusy] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -50,6 +58,7 @@ export function InfoTabContent({
     Boolean(firstEpisode) &&
     (project.analysisState === 'idle' || project.analysisState === 'failed');
   const isAnalysisRunning = project.analysisState === 'running' || analysisBusy;
+  const analysisCompleted = project.analysisState === 'completed';
 
   const save = async (patch: UpdateProjectInput) => {
     const updated = await updateProject(project.id, patch);
@@ -140,6 +149,10 @@ export function InfoTabContent({
                 ))}
               </div>
 
+              {analysisCompleted && (
+                <MaterialAnalysisResult counts={materialCounts} onOpenTab={onOpenTab} />
+              )}
+
               {canRequestAnalysis && !isAnalysisRunning && (
                 <button
                   onClick={handleAnalyze}
@@ -190,6 +203,48 @@ export function InfoTabContent({
         ) : (
           <ScriptUploadCard projectId={project.id} onUploaded={onEpisodeUploaded} />
         )}
+      </div>
+    </div>
+  );
+}
+
+function MaterialAnalysisResult({
+  counts,
+  onOpenTab,
+}: {
+  counts: {
+    characters: number;
+    scenes: number;
+    items: number;
+  };
+  onOpenTab: (tab: ProjectTab) => void;
+}) {
+  const actions = [
+    { label: '查看角色', tab: 'characters', icon: Users },
+    { label: '查看场景', tab: 'scenes', icon: Image },
+    { label: '查看道具', tab: 'items', icon: Package },
+  ] as const;
+
+  return (
+    <div className="space-y-3 rounded-lg border border-emerald-100 bg-emerald-50/70 p-3">
+      <div className="flex items-start gap-2 text-xs leading-5 text-emerald-700">
+        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+        <span>
+          已生成 {counts.characters} 个角色、{counts.scenes} 个场景、{counts.items} 个道具
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {actions.map(({ label, tab, icon: Icon }) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => onOpenTab(tab)}
+            className="inline-flex h-8 min-w-0 items-center justify-center gap-1 rounded-md border border-emerald-200 bg-white px-2 text-xs font-medium text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50"
+          >
+            <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="truncate">{label}</span>
+          </button>
+        ))}
       </div>
     </div>
   );

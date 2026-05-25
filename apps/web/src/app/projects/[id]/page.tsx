@@ -177,6 +177,12 @@ export default function ProjectDetailPage() {
               onEpisodeUploaded={handleEpisodeUploaded}
               onEpisodeAnalysisRequested={handleEpisodeAnalysisRequested}
               onProjectUpdated={setProject}
+              onOpenTab={setActiveTab}
+              materialCounts={{
+                characters: characters.length,
+                scenes: scenes.length,
+                items: items.length,
+              }}
             />
           )}
           {activeTab === 'characters' && (
