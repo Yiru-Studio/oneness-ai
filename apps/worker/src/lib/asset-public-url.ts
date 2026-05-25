@@ -18,6 +18,8 @@ import { config } from '../config.js';
  * reference-asset tasks need a tunnel (ngrok / cloudflared) or skip refs.
  */
 let cached: Client | null = null;
+const DEFAULT_REGION = 'us-east-1';
+
 function getPublicClient(): Client {
   if (cached) return cached;
   const endpoint = config.MINIO_PUBLIC_ENDPOINT ?? config.MINIO_ENDPOINT;
@@ -28,6 +30,7 @@ function getPublicClient(): Client {
     useSSL: url.protocol === 'https:',
     accessKey: config.MINIO_ACCESS_KEY,
     secretKey: config.MINIO_SECRET_KEY,
+    region: DEFAULT_REGION,
   });
   return cached;
 }

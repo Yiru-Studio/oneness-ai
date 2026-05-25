@@ -1,6 +1,8 @@
 import { Client } from 'minio';
 import { config } from '../config.js';
 
+const DEFAULT_REGION = 'us-east-1';
+
 function clientFor(endpoint: string): Client {
   const url = new URL(endpoint);
   return new Client({
@@ -9,6 +11,7 @@ function clientFor(endpoint: string): Client {
     useSSL: url.protocol === 'https:',
     accessKey: config.MINIO_ACCESS_KEY,
     secretKey: config.MINIO_SECRET_KEY,
+    region: DEFAULT_REGION,
   });
 }
 
