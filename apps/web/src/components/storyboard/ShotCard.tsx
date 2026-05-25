@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Trash2, Loader2, Play, Image as ImageIcon, Plus, RotateCcw } from 'lucide-react';
 import { Shot, Character, Scene, Item } from '@/types';
+import { ImagePreview } from '@/components/ImagePreview';
 import { ReferencePickerDialog } from './ReferencePickerDialog';
 
 // Models we actually have registered in the worker registry. Adding more is
@@ -48,6 +49,7 @@ export function ShotCard({
 }: Props) {
   const [prompt, setPrompt] = useState(shot.prompt);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [previewThumb, setPreviewThumb] = useState<{ src: string; alt: string } | null>(null);
   const savedPromptRef = useRef(shot.prompt);
 
   useEffect(() => {
@@ -224,10 +226,16 @@ export function ShotCard({
             ) : (
               <div className="flex flex-wrap gap-2">
                 {resourceThumbs.map((r) => (
-                  <div
+                  <button
+                    type="button"
                     key={r.key}
-                    className="w-16 h-16 rounded-lg overflow-hidden border border-[var(--color-border)] bg-gray-100 relative"
+                    onClick={() => {
+                      if (r.url) setPreviewThumb({ src: r.url, alt: r.label });
+                    }}
+                    disabled={!r.url}
+                    className="w-16 h-16 rounded-lg overflow-hidden border border-[var(--color-border)] bg-gray-100 relative disabled:cursor-default enabled:cursor-zoom-in enabled:hover:border-[var(--color-primary)] enabled:focus-visible:outline enabled:focus-visible:outline-2 enabled:focus-visible:outline-offset-2 enabled:focus-visible:outline-[var(--color-primary)]"
                     title={r.label}
+                    aria-label={r.url ? `查看${r.label}` : r.label}
                   >
                     {r.url ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -235,7 +243,7 @@ export function ShotCard({
                     ) : (
                       <ImageIcon className="w-4 h-4 text-gray-400 absolute inset-0 m-auto" />
                     )}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -300,6 +308,12 @@ export function ShotCard({
           itemIds: shot.itemIds,
         }}
         onConfirm={(next) => onUpdate(shot.id, next)}
+      />
+      <ImagePreview
+        src={previewThumb?.src ?? ''}
+        alt={previewThumb?.alt}
+        open={Boolean(previewThumb)}
+        onClose={() => setPreviewThumb(null)}
       />
     </div>
   );
