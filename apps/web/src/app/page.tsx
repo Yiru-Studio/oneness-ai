@@ -1,13 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { LoginModal } from '@/components/modals/LoginModal';
+import { useRouter } from 'next/navigation';
 import { FloatingKnowledgeButton } from '@/components/layout/FloatingKnowledgeButton';
 import { ParticleBackground } from '@/components/home/ParticleBackground';
 import { Play } from 'lucide-react';
 
 export default function HomePage() {
-  const [showLogin, setShowLogin] = useState(false);
+  const router = useRouter();
+
+  const enterWorkspace = () => {
+    router.push('/projects');
+  };
 
   return (
     <main className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
@@ -19,10 +22,10 @@ export default function HomePage() {
           <span className="text-lg font-semibold">一如创影</span>
         </div>
         <button
-          onClick={() => setShowLogin(true)}
+          onClick={enterWorkspace}
           className="text-sm text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
         >
-          登录
+          进入项目
         </button>
       </div>
 
@@ -34,7 +37,7 @@ export default function HomePage() {
           专业 AI 影视创作
         </p>
         <button
-          onClick={() => setShowLogin(true)}
+          onClick={enterWorkspace}
           className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-8 py-3.5 rounded-full font-medium hover:bg-[var(--color-primary-hover)] hover:scale-105 transition-all shadow-lg shadow-blue-500/25"
         >
           <span>立即创作</span>
@@ -42,7 +45,6 @@ export default function HomePage() {
         </button>
       </div>
 
-      <LoginModal isOpen={showLogin} onClose={() => setShowLogin(false)} />
       <FloatingKnowledgeButton />
     </main>
   );
