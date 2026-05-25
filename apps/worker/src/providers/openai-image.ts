@@ -42,6 +42,10 @@ function extFromContentType(ct: string): string {
   return 'png';
 }
 
+function openAIImageModelName(model: string): string {
+  return model.startsWith('openai/') ? model.slice('openai/'.length) : model;
+}
+
 async function readAssetBytes(
   prisma: PrismaClient,
   assetId: string,
@@ -89,6 +93,7 @@ export const openaiImageProvider: ImageProvider = {
       input.model && input.model.trim().length > 0
         ? input.model
         : config.OPENAI_IMAGE_MODEL;
+    const providerModel = openAIImageModelName(model);
     const n = Math.min(Math.max(input.n ?? 1, 1), 4);
     const size = sizeFromRatio(input.ratio);
     const hasRefs =
@@ -98,14 +103,14 @@ export const openaiImageProvider: ImageProvider = {
     try {
       const data = hasRefs
         ? await callEdit(client, ctx, {
-            model,
+            model: providerModel,
             prompt: input.prompt,
             n,
             size,
             referenceAssetIds: input.referenceAssetIds!,
           })
         : await callGenerate(client, ctx, {
-            model,
+            model: providerModel,
             prompt: input.prompt,
             n,
             size,
