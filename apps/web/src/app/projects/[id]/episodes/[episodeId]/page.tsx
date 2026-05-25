@@ -198,7 +198,7 @@ export default function StoryboardEpisodePage() {
         await reloadShots();
       } catch (sketchError) {
         setError(
-          `分镜已生成，但合成镜头图生成失败：${
+          `分镜已生成，但分镜首帧生成失败：${
             sketchError instanceof Error ? sketchError.message : '请稍后重试'
           }`,
         );

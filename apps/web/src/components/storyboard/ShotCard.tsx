@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Trash2, Loader2, Play, Image as ImageIcon, Plus, RotateCcw } from 'lucide-react';
 import { Shot, Character, Scene, Item, CompositionTask } from '@/types';
 import { ImagePreview } from '@/components/ImagePreview';
@@ -49,15 +49,17 @@ export function ShotCard({
   onDelete,
   onGenerate,
 }: Props) {
-  const [prompt, setPrompt] = useState(shot.prompt);
+  const [promptDraft, setPromptDraft] = useState(() => ({
+    shotId: shot.id,
+    sourcePrompt: shot.prompt,
+    value: shot.prompt,
+  }));
   const [pickerOpen, setPickerOpen] = useState(false);
   const [previewThumb, setPreviewThumb] = useState<{ src: string; alt: string } | null>(null);
-  const savedPromptRef = useRef(shot.prompt);
-
-  useEffect(() => {
-    setPrompt(shot.prompt);
-    savedPromptRef.current = shot.prompt;
-  }, [shot.id, shot.prompt]);
+  const prompt =
+    promptDraft.shotId === shot.id && promptDraft.sourcePrompt === shot.prompt
+      ? promptDraft.value
+      : shot.prompt;
 
   const isGenerating =
     shot.videoTaskStatus === 'QUEUED' || shot.videoTaskStatus === 'RUNNING';
@@ -67,8 +69,7 @@ export function ShotCard({
   const promptReady = prompt.trim().length > 0;
 
   const handlePromptBlur = () => {
-    if (prompt === savedPromptRef.current) return;
-    savedPromptRef.current = prompt;
+    if (prompt === shot.prompt) return;
     void onUpdate(shot.id, { prompt });
   };
 
@@ -185,7 +186,11 @@ export function ShotCard({
         <div className="min-w-0">
           <textarea
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            onChange={(e) => setPromptDraft({
+              shotId: shot.id,
+              sourcePrompt: shot.prompt,
+              value: e.target.value,
+            })}
             onBlur={handlePromptBlur}
             disabled={busy}
             rows={6}
@@ -200,11 +205,11 @@ export function ShotCard({
                 {isSketchGenerating && (
                   <span className="inline-flex items-center gap-1 text-xs text-[var(--color-primary)]">
                     <Loader2 className="w-3 h-3 animate-spin" />
-                    合成镜头图生成中
+                    分镜首帧生成中
                   </span>
                 )}
                 {sketchFailed && (
-                  <span className="text-xs text-red-500">合成镜头图生成失败</span>
+                  <span className="text-xs text-red-500">分镜首帧生成失败</span>
                 )}
                 <button
                   onClick={() => setPickerOpen(true)}
@@ -219,11 +224,11 @@ export function ShotCard({
             {resourceThumbs.length === 0 && isSketchGenerating ? (
               <div className="text-xs text-[var(--color-primary)] px-3 py-4 border border-dashed border-blue-200 bg-blue-50 rounded-lg text-center inline-flex items-center justify-center gap-2 w-full">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                合成镜头图生成中…
+                分镜首帧生成中…
               </div>
             ) : resourceThumbs.length === 0 ? (
               <div className="text-xs text-gray-400 px-3 py-4 border border-dashed border-[var(--color-border)] rounded-lg text-center">
-                {sketchFailed ? '合成镜头图生成失败，可重新触发智能分镜创作' : '未选择任何参考资产'}
+                {sketchFailed ? '分镜首帧生成失败，可重新触发智能分镜创作' : '未选择任何参考资产'}
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
@@ -366,7 +371,7 @@ function buildResourceThumbs(
 ): Array<{ key: string; label: string; url: string | null }> {
   const out: Array<{ key: string; label: string; url: string | null }> = [];
   if (shot.sketch) {
-    out.push({ key: `sketch-${shot.id}`, label: '合成镜头图', url: shot.sketch.url });
+    out.push({ key: `sketch-${shot.id}`, label: '分镜首帧', url: shot.sketch.url });
   }
   for (const taskId of shot.compositionTaskIds) {
     const task = compositionTasks.find((t) => t.id === taskId);

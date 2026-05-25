@@ -108,6 +108,7 @@ function defaultImageSettings(project: Project): ImageSettings {
 function getCompositionGate(
   project: Project,
   episodes: StoryboardEpisode[],
+  scenes: Scene[],
 ): {
   ready: boolean;
   title: string;
@@ -119,7 +120,7 @@ function getCompositionGate(
     return {
       ready: false,
       title: '还没有剧本',
-      description: '先上传剧本，再进入解析、拆分和合成镜头任务。',
+      description: '先上传剧本并解析素材，再进入合成镜头任务。',
       actionLabel: '上传剧本',
       tab: 'info',
     };
@@ -132,25 +133,25 @@ function getCompositionGate(
       title: running ? '剧本正在解析' : failed ? '剧本解析失败' : '剧本尚未解析',
       description: running
         ? '剧本解析完成后，角色、场景和道具引用会用于合成镜头任务。'
-        : '先完成角色、场景和道具解析，再生成合成镜头任务。',
+        : '先完成角色、场景和道具素材解析，再生成合成镜头任务。',
       actionLabel: running ? '查看解析状态' : failed ? '重新解析剧本' : '开始解析剧本',
       tab: 'info',
     };
   }
-  if (!episodes.some((episode) => episode.analyzed && episode.scenes.length > 0)) {
+  if (scenes.length === 0) {
     return {
       ready: false,
-      title: '剧集还未拆分场景',
-      description: '先在分镜页完成剧集分析，合成镜头会按拆分后的场景创建。',
-      actionLabel: '分析剧集场景',
-      tab: 'storyboard',
+      title: '还没有场景素材',
+      description: '先在场景页生成或选择场景素材，合成镜头会基于角色、道具和场景素材创建。',
+      actionLabel: '进入场景页',
+      tab: 'scenes',
     };
   }
   return {
     ready: true,
     title: '可以生成合成镜头任务',
     description:
-      '系统会读取已分析的剧情场景，并预填角色造型、场景素材和道具引用。首版只创建任务，不会自动生成图片。',
+      '系统会读取已解析的角色、场景和道具素材，按场景素材预填引用并创建合成镜头任务。首版只创建任务，不会自动生成图片。',
     actionLabel: '生成合成镜头任务',
   };
 }
@@ -221,8 +222,8 @@ export function CompositionShotsTabContent({
     ? imageSettingsByTask[selectedTask.id] ?? defaultImageSettings(project)
     : defaultImageSettings(project);
   const compositionGate = useMemo(
-    () => getCompositionGate(project, episodes),
-    [project, episodes],
+    () => getCompositionGate(project, episodes, scenes),
+    [project, episodes, scenes],
   );
 
   useEffect(() => {

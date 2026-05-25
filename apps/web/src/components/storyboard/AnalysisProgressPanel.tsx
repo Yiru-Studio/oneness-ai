@@ -14,7 +14,7 @@ interface Props {
   sceneShotCount: number;
   /** Batch-generation lifecycle for the selected scene. */
   batchStatus: 'idle' | 'running' | 'done';
-  /** Shot-level composition sketch generation lifecycle for the selected scene. */
+  /** Shot-level first-frame sketch generation lifecycle for the selected scene. */
   sketchStatus: 'idle' | 'running' | 'done' | 'failed';
   /** Triggers AI-assist shot generation for the selected scene. */
   onGenerate: () => void;
@@ -22,7 +22,7 @@ interface Props {
 
 /**
  * Mirrors likeai's 4-step AI-assist progress panel. We implement the first two
- * steps from text analysis and the third step from Shot-level sketch tasks.
+ * steps from text analysis and the third step from Shot-level first-frame tasks.
  */
 export function AnalysisProgressPanel({
   aiAssistEnabled,
@@ -99,14 +99,14 @@ export function AnalysisProgressPanel({
         )}
       </Row>
 
-      <Row done={sketchStatus === 'done'} running={sketchStatus === 'running'} label="生成合成镜头图">
+      <Row done={sketchStatus === 'done'} running={sketchStatus === 'running'} label="生成分镜首帧">
         {sketchStatus === 'running' ? (
           <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-primary)]">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
             生成中…
           </span>
         ) : sketchStatus === 'done' ? (
-          <span className="text-xs text-gray-500">已写入 Shot 参考图</span>
+          <span className="text-xs text-gray-500">已写入 Shot 草图</span>
         ) : sketchStatus === 'failed' ? (
           <span className="text-xs text-red-500">生成失败</span>
         ) : (
@@ -115,7 +115,7 @@ export function AnalysisProgressPanel({
       </Row>
       <Row done={sketchStatus === 'done'} label="接入视频参考">
         <span className="text-xs text-gray-500">
-          {sketchStatus === 'done' ? '可生成视频' : '等待参考图'}
+          {sketchStatus === 'done' ? '可生成视频' : '等待分镜首帧'}
         </span>
       </Row>
     </div>
