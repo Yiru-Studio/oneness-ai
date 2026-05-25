@@ -13,13 +13,23 @@ export type ResourcePromptInput = {
 
 export type ExtractedCharacterInput = {
   name?: unknown;
+  appearanceType?: unknown;
+  evidence?: unknown;
   description?: unknown;
   bio?: unknown;
   avatarPrompt?: unknown;
 };
 
+export type CharacterAppearanceType =
+  | 'onscreen'
+  | 'dialogue_speaker'
+  | 'mentioned_only'
+  | 'unknown';
+
 export type NormalizedCharacter = {
   name: string;
+  appearanceType: CharacterAppearanceType;
+  evidence: string[];
   description: string;
   bio: string;
   avatarPrompt: string;
@@ -104,6 +114,37 @@ function compactLines(lines: Array<string | false | null | undefined>): string {
     .filter((line): line is string => Boolean(line && line.trim()))
     .map((line) => line.trim())
     .join('\n');
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(text).filter(Boolean).slice(0, 8);
+}
+
+function normalizeAppearanceType(value: unknown): CharacterAppearanceType {
+  const raw = text(value).toLowerCase();
+  if (!raw) return 'unknown';
+  if (/(mentioned[_\s-]?only|only[_\s-]?mentioned|referenced[_\s-]?only|仅被提及|只被提及|仅提及|只提到|未出场)/i.test(raw)) {
+    return 'mentioned_only';
+  }
+  if (/(dialogue[_\s-]?speaker|speaker|speaks|has[_\s-]?dialogue|说话|开口|有台词|台词)/i.test(raw)) {
+    return 'dialogue_speaker';
+  }
+  if (/(onscreen|on[_\s-]?screen|appears|visible|出场|露面|出现|行动|动作)/i.test(raw)) {
+    return 'onscreen';
+  }
+  return 'unknown';
+}
+
+function looksMentionOnlyCharacter(item: ExtractedCharacterInput, evidence: string[]): boolean {
+  const source = compactLines([
+    text(item.description),
+    text(item.bio),
+    text(item.avatarPrompt),
+    evidence.join('\n'),
+  ]);
+  return /(?:仅|只|只是|单纯|仅仅)[^。！？；;]{0,16}(?:被)?(?:提及|提到|谈到|说起)/.test(source) ||
+    /(?:未出场|没有出场|无出场|不出场|没有露面|未露面)/.test(source);
 }
 
 function truncate(value: string, max = 4700): string {
@@ -306,8 +347,14 @@ export function buildResourceImagePrompt(input: ResourcePromptInput): string {
 
 export function normalizeExtractedCharacters(items: ExtractedCharacterInput[]): NormalizedCharacter[] {
   const normalized = items
-    .map((item) => {
+    .flatMap((item) => {
       const name = text(item.name);
+      if (!name) return [];
+      const appearanceType = normalizeAppearanceType(item.appearanceType);
+      const evidence = normalizeStringArray(item.evidence);
+      if (appearanceType === 'mentioned_only' || (appearanceType === 'unknown' && looksMentionOnlyCharacter(item, evidence))) {
+        return [];
+      }
       const description = cleanCharacterDescriptionForReference(text(item.description));
       const bio = text(item.bio);
       const avatarPrompt = buildResourceImagePrompt({
@@ -317,7 +364,14 @@ export function normalizeExtractedCharacters(items: ExtractedCharacterInput[]): 
         bio,
         userPrompt: text(item.avatarPrompt),
       });
-      return { name, description: description || text(item.description), bio, avatarPrompt };
+      return [{
+        name,
+        appearanceType,
+        evidence,
+        description: description || text(item.description),
+        bio,
+        avatarPrompt,
+      }];
     })
     .filter((item) => item.name.length > 0);
   return uniqueByName(normalized);

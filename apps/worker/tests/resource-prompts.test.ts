@@ -22,6 +22,8 @@ describe('resource prompt governance', () => {
     const [character] = normalizeExtractedCharacters([
       {
         name: '林夏',
+        appearanceType: 'onscreen',
+        evidence: ['林夏低头修理柜台下的雾灯。'],
         description: '29岁便利店店员，短发，穿深蓝色围裙，拿着雾灯在储物间维修。',
         bio: '外表冷静，习惯修好坏掉的小物件。',
         avatarPrompt: '半身像，背景是便利店货架。',
@@ -35,6 +37,33 @@ describe('resource prompt governance', () => {
     expect(character?.avatarPrompt).toMatch(/纯角色参考图|单一角色/);
     expect(character?.avatarPrompt).toMatch(/简洁影棚背景/);
     expect(character?.avatarPrompt).toMatch(/不要街道|不要环境道具/);
+  });
+
+  it('drops characters that are only mentioned in dialogue', () => {
+    const characters = normalizeExtractedCharacters([
+      {
+        name: '吴雨华',
+        appearanceType: 'onscreen',
+        evidence: ['吴雨华拆开旧信封，久久没有说话。'],
+        description: '七十多岁的退休教师，白发，衣着朴素。',
+        bio: '她始终惦记着没能寄出的信。',
+      },
+      {
+        name: '小六',
+        appearanceType: 'mentioned_only',
+        evidence: ['陈长庚说：小六那年也问过这件事。'],
+        description: '仅在对话中被提及，没有出场。',
+        bio: '陈长庚口中的年轻熟人。',
+      },
+      {
+        name: '大宝',
+        evidence: ['大宝只是被老张顺口提到。'],
+        description: '只在一段对白里被提到，未出场。',
+        bio: '对剧情关系有背景意义，但不需要生成视觉角色。',
+      },
+    ]);
+
+    expect(characters.map((character) => character.name)).toEqual(['吴雨华']);
   });
 
   it('splits composite props and generates single-object prompts', () => {

@@ -48,10 +48,14 @@ function extractionSystemPrompt(
   if (subjectType === 'characters') {
     return (
       'You extract characters from a storyboard episode. Return JSON exactly:\n' +
-      '{ "characters": [{ "name": string, "description": string, "bio": string, "avatarPrompt": string }] }\n' +
+      '{ "characters": [{ "name": string, "appearanceType": "onscreen" | "dialogue_speaker" | "mentioned_only", "evidence": string[], "description": string, "bio": string, "avatarPrompt": string }] }\n' +
       'Use the script\'s native language for the fields. ' +
       'NEVER use double quote characters (") inside any field values — ' +
       'use single quotes (\') or Chinese quotes（"..."）instead. ' +
+      'Only characters that appear on screen, speak dialogue, or perform concrete actions should become renderable characters. ' +
+      'Do NOT create renderable characters for people who are only mentioned by others, listed in backstory, or referenced as relatives. ' +
+      '`appearanceType` must be `onscreen` for visible/action characters, `dialogue_speaker` for dialogue-only speakers, or `mentioned_only` when the name is merely referenced. ' +
+      '`evidence` contains 1–3 short script snippets proving the appearance type. ' +
       '`description` is one short sentence about identity, age, appearance, and role. ' +
       '`bio` is 1–2 sentences on personality/background. ' +
       '`avatarPrompt` is a clean pure-character portrait prompt: face, hair, body type, fixed clothing, temperament only. ' +
@@ -80,7 +84,14 @@ function extractionSystemPrompt(
   );
 }
 
-type ExtractedCharacter = { name: string; description: string; bio: string; avatarPrompt?: string };
+type ExtractedCharacter = {
+  name: string;
+  appearanceType?: 'onscreen' | 'dialogue_speaker' | 'mentioned_only';
+  evidence?: string[];
+  description: string;
+  bio: string;
+  avatarPrompt?: string;
+};
 type ExtractedItem = { name: string; description?: string; prompt?: string };
 type ExtractedScene = { name: string; description?: string; prompt?: string };
 
@@ -171,6 +182,16 @@ const EXTRACTION_SCHEMAS: Record<
             type: 'object',
             properties: {
               name: { type: 'string', description: 'Character name' },
+              appearanceType: {
+                type: 'string',
+                enum: ['onscreen', 'dialogue_speaker', 'mentioned_only'],
+                description: 'Whether this person appears/speaks or is only mentioned',
+              },
+              evidence: {
+                type: 'array',
+                description: 'Short script snippets proving this appearance type',
+                items: { type: 'string' },
+              },
               description: {
                 type: 'string',
                 description: 'One short sentence about their role',
@@ -184,7 +205,7 @@ const EXTRACTION_SCHEMAS: Record<
                 description: 'Clean pure-character portrait prompt without scene/action/props',
               },
             },
-            required: ['name', 'description', 'bio', 'avatarPrompt'],
+            required: ['name', 'appearanceType', 'evidence', 'description', 'bio', 'avatarPrompt'],
             additionalProperties: false,
           },
         },
