@@ -82,11 +82,11 @@ export function CreateProjectModal({ isOpen, onClose, onCreate }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 p-4"
       onClick={handleClose}
     >
       <div
-        className="bg-white rounded-2xl p-6 w-[560px] relative"
+        className="relative max-h-[calc(100vh-32px)] w-[560px] max-w-[calc(100vw-32px)] overflow-y-auto rounded-2xl bg-white p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <button
