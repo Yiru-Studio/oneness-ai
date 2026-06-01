@@ -128,7 +128,7 @@ const FILTERS: Array<{ value: FilterValue; label: string }> = [
   { value: 'all', label: '全部' },
   { value: 'draft', label: '待生成' },
   { value: 'running', label: '生成中' },
-  { value: 'image', label: '有镜头图' },
+  { value: 'image', label: '有场景图' },
   { value: 'grid', label: '有候选' },
   { value: 'applied', label: '已应用' },
   { value: 'failed', label: '失败' },
@@ -217,6 +217,7 @@ export function CompositionShotsTabContent({
   const router = useRouter();
   const [tasks, setTasks] = useState<CompositionTask[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterValue>('all');
   const [detailView, setDetailView] = useState<DetailView>('current');
   const [resultView, setResultView] = useState<ResultView>('image');
@@ -283,20 +284,36 @@ export function CompositionShotsTabContent({
     [items],
   );
 
-  const selectedTask = tasks.find((task) => task.id === selectedId) ?? tasks[0] ?? null;
+  const taskById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
+  const selectedTask = (selectedId ? taskById.get(selectedId) : null) ?? tasks[0] ?? null;
   const selectedTaskId = selectedTask?.id ?? null;
   const runs = selectedTask ? runsByTask[selectedTask.id] : null;
-  const currentImageRun =
-    selectedTask && runs
-      ? runs.imageRuns.find((run) => run.id === selectedTask.currentImageRunId) ?? runs.imageRuns[0] ?? null
+  const getCurrentImageRunForTask = useCallback((task: CompositionTask): CompositionImageRun | null => {
+    const taskRuns = runsByTask[task.id];
+    return taskRuns
+      ? taskRuns.imageRuns.find((run) => run.id === task.currentImageRunId) ?? taskRuns.imageRuns[0] ?? null
       : null;
-  const currentGridRun =
-    selectedTask && runs
-      ? runs.gridRuns.find((run) => run.id === selectedTask.currentGridRunId) ?? runs.gridRuns[0] ?? null
+  }, [runsByTask]);
+  const getCurrentGridRunForTask = useCallback((task: CompositionTask): CompositionGridRun | null => {
+    const taskRuns = runsByTask[task.id];
+    return taskRuns
+      ? taskRuns.gridRuns.find((run) => run.id === task.currentGridRunId) ?? taskRuns.gridRuns[0] ?? null
       : null;
-  const candidateDialogRun =
-    runs?.gridRuns.find((run) => run.id === candidateRunId) ??
-    (currentGridRun?.id === candidateRunId ? currentGridRun : null);
+  }, [runsByTask]);
+  const detailTask = detailTaskId ? taskById.get(detailTaskId) ?? null : null;
+  const detailRuns = detailTask ? runsByTask[detailTask.id] ?? null : null;
+  const detailImageRun = detailTask ? getCurrentImageRunForTask(detailTask) : null;
+  const detailGridRun = detailTask ? getCurrentGridRunForTask(detailTask) : null;
+  const candidateDialogRun = useMemo(() => {
+    if (!candidateRunId) return null;
+    for (const taskRuns of Object.values(runsByTask)) {
+      const run = taskRuns.gridRuns.find((item) => item.id === candidateRunId);
+      if (run) return run;
+    }
+    return null;
+  }, [candidateRunId, runsByTask]);
+  const candidateDialogTask = candidateDialogRun ? taskById.get(candidateDialogRun.taskId) ?? null : null;
+  const historyPreviewTask = historyPreview ? taskById.get(historyPreview.run.taskId) ?? selectedTask : selectedTask;
   const promptDraft = selectedTask ? (promptDrafts[selectedTask.id] ?? selectedTask.prompt) : '';
   const imageSettings = selectedTask
     ? imageSettingsByTask[selectedTask.id] ?? defaultImageSettings(project)
@@ -422,9 +439,7 @@ export function CompositionShotsTabContent({
     }
   };
 
-  const patchSelected = async (patch: Parameters<typeof updateCompositionTask>[1]) => {
-    if (!selectedTask) return;
-    const taskId = selectedTask.id;
+  const patchTask = async (taskId: string, patch: Parameters<typeof updateCompositionTask>[1]) => {
     const busyKey = `patch-${taskId}`;
     const runPatch = async () => {
       setBusy(busyKey);
@@ -451,43 +466,62 @@ export function CompositionShotsTabContent({
     }
   };
 
-  const savePromptIfNeeded = async () => {
-    if (!selectedTask || promptDraft === selectedTask.prompt) return selectedTask;
-    const next = await updateCompositionTask(selectedTask.id, { prompt: promptDraft });
+  const patchSelected = async (patch: Parameters<typeof updateCompositionTask>[1]) => {
+    if (!selectedTask) return;
+    await patchTask(selectedTask.id, patch);
+  };
+
+  const savePromptIfNeeded = async (taskId: string) => {
+    const task = taskById.get(taskId);
+    if (!task) throw new Error('合成任务不存在');
+    const draft = promptDrafts[taskId] ?? task.prompt;
+    if (draft === task.prompt) return task;
+    const next = await updateCompositionTask(task.id, { prompt: draft });
     updateTaskInList(next);
     return next;
   };
 
-  const handleGenerateImage = async () => {
-    if (!selectedTask) return;
-    const busyKey = `image-${selectedTask.id}`;
+  const handleGenerateImage = async (taskId = selectedTask?.id) => {
+    if (!taskId) return;
+    const busyKey = `image-${taskId}`;
     setBusy(busyKey);
     setError(null);
     try {
-      await patchQueuesRef.current[selectedTask.id]?.catch(() => {});
-      const taskForPrompt = await savePromptIfNeeded();
-      const payload: CompositionImageGenerationSettings = imageSettings;
+      await patchQueuesRef.current[taskId]?.catch(() => {});
+      const taskForPrompt = await savePromptIfNeeded(taskId);
+      const payload: CompositionImageGenerationSettings =
+        imageSettingsByTask[taskId] ?? defaultImageSettings(project);
       const next = await generateCompositionImage(taskForPrompt.id, payload);
       updateTaskInList(next);
       await reloadRuns(next.id);
       setDetailView('current');
       setResultView('image');
     } catch (e) {
-      setError(e instanceof Error ? e.message : '生成合成镜头图失败');
+      setError(e instanceof Error ? e.message : '生成场景图失败');
     } finally {
       clearBusy(busyKey);
     }
   };
 
-  const handleGenerateGrid = async (imageRunId = currentImageRun?.id) => {
-    if (!selectedTask || !imageRunId) return;
-    const busyKey = `grid-${imageRunId}`;
+  const handleGenerateGrid = async (
+    imageRunId?: string,
+    taskId = selectedTask?.id,
+  ) => {
+    if (!taskId) return;
+    const task = taskById.get(taskId);
+    if (!task) return;
+    const targetImageRunId = imageRunId ?? getCurrentImageRunForTask(task)?.id;
+    if (!targetImageRunId) return;
+    const busyKey = `grid-${targetImageRunId}`;
     setBusy(busyKey);
     setError(null);
     try {
-      await patchQueuesRef.current[selectedTask.id]?.catch(() => {});
-      const sourceRun = runs?.imageRuns.find((run) => run.id === imageRunId) ?? currentImageRun;
-      const next = await generateCompositionGrid(imageRunId, {
+      await patchQueuesRef.current[task.id]?.catch(() => {});
+      const taskRuns = runsByTask[task.id] ?? null;
+      const sourceRun =
+        taskRuns?.imageRuns.find((run) => run.id === targetImageRunId) ??
+        getCurrentImageRunForTask(task);
+      const next = await generateCompositionGrid(targetImageRunId, {
         model: sourceRun?.model ?? project.imageModel,
         ratio: sourceRun?.ratio ?? project.ratio,
         specification: '3x3',
@@ -497,7 +531,7 @@ export function CompositionShotsTabContent({
       setDetailView('current');
       setResultView('grid');
     } catch (e) {
-      setError(e instanceof Error ? e.message : '生成分镜网格失败');
+      setError(e instanceof Error ? e.message : '生成分镜图失败');
     } finally {
       clearBusy(busyKey);
     }
@@ -515,7 +549,7 @@ export function CompositionShotsTabContent({
       setDetailView('current');
       setResultView('image');
     } catch (e) {
-      setError(e instanceof Error ? e.message : '设置当前镜头图失败');
+      setError(e instanceof Error ? e.message : '设置当前场景图失败');
     } finally {
       clearBusy(busyKey);
     }
@@ -534,7 +568,7 @@ export function CompositionShotsTabContent({
       setResultView('grid');
       setHistoryPreview(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '设置当前分镜网格失败');
+      setError(e instanceof Error ? e.message : '设置当前分镜图失败');
     } finally {
       clearBusy(busyKey);
     }
@@ -551,15 +585,13 @@ export function CompositionShotsTabContent({
   };
 
   const toggleCandidate = (run: CompositionGridRun, candidate: CompositionCandidate) => {
-    if (!selectedTask) return;
     const selectedIds = run.candidates
       .filter((item) => item.selected !== (item.id === candidate.id))
       .map((item) => item.id);
-    void patchSelected({ selectedCandidateIds: selectedIds });
+    void patchTask(run.taskId, { selectedCandidateIds: selectedIds });
   };
 
   const handleApplyCandidates = async (run: CompositionGridRun) => {
-    if (!selectedTask) return;
     const candidateIds = run.candidates
       .filter((candidate) => candidate.selected)
       .map((candidate) => candidate.id);
@@ -579,6 +611,14 @@ export function CompositionShotsTabContent({
     } finally {
       clearBusy(busyKey);
     }
+  };
+
+  const openDetailDrawer = (task: CompositionTask, view: ResultView = task.currentGridRunId ? 'grid' : 'image') => {
+    setSelectedId(task.id);
+    setDetailTaskId(task.id);
+    setDetailView('current');
+    setResultView(view);
+    void reloadRuns(task.id).catch(() => {});
   };
 
   if (loading) {
@@ -630,7 +670,7 @@ export function CompositionShotsTabContent({
         <div>
           <h2 className="text-lg font-semibold text-[var(--color-text)]">合成镜头</h2>
           <div className="text-xs text-[var(--color-text-secondary)]">
-            版本化保存镜头图和分镜网格，候选图从当前网格或历史网格中按需应用
+            版本化保存场景图和分镜图，候选图从当前分镜图或历史分镜图中按需应用
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -642,7 +682,7 @@ export function CompositionShotsTabContent({
               }`}
             >
               <Grid3X3 className="w-4 h-4" />
-              面板
+              卡片
             </button>
             <button
               onClick={() => handleViewModeChange('canvas')}
@@ -698,148 +738,105 @@ export function CompositionShotsTabContent({
               [selectedTask.id]: next,
             }))}
             onOpenReferenceDialog={(kind) => setReferenceDialog(kind)}
-            onGenerateImage={handleGenerateImage}
+            onGenerateImage={() => handleGenerateImage(selectedTask.id)}
           />
         </div>
       ) : (
-      <div className="flex-1 min-h-0 grid grid-cols-[340px_minmax(0,1fr)]">
-        <aside className="border-r border-[var(--color-border)] min-h-0 flex flex-col">
-          <div className="px-4 py-3 border-b border-[var(--color-border)]">
-            <div className="flex flex-wrap gap-2">
-              {FILTERS.map((item) => (
-                <button
-                  key={item.value}
-                  onClick={() => setFilter(item.value)}
-                  className={`px-3 py-1 rounded-full text-xs border transition-colors ${
-                    filter === item.value
-                      ? 'bg-[var(--color-dark)] text-white border-[var(--color-dark)]'
-                      : 'border-[var(--color-border)] text-gray-600 hover:border-[var(--color-primary)]'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
+        <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50/70">
+          <div className="mx-auto flex max-w-[1680px] flex-col gap-4 px-6 py-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-2">
+                {FILTERS.map((item) => (
+                  <button
+                    key={item.value}
+                    onClick={() => setFilter(item.value)}
+                    className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+                      filter === item.value
+                        ? 'bg-[var(--color-dark)] text-white border-[var(--color-dark)]'
+                        : 'border-[var(--color-border)] bg-white text-gray-600 hover:border-[var(--color-primary)]'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              <div className="text-xs text-[var(--color-text-secondary)]">
+                当前 {filteredTasks.length} / {tasks.length} 个合成任务
+              </div>
             </div>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
-            {filteredTasks.map((task) => (
-              <TaskListItem
-                key={task.id}
-                task={task}
-                active={selectedTask?.id === task.id}
-                onClick={() => {
-                  setSelectedId(task.id);
-                  setDetailView('current');
-                  setResultView(task.currentGridRunId ? 'grid' : 'image');
-                }}
-              />
-            ))}
-            {filteredTasks.length === 0 && (
-              <div className="text-sm text-gray-400 text-center py-10">当前筛选下没有任务</div>
-            )}
-          </div>
-        </aside>
 
-        <main className="min-w-0 min-h-0 overflow-y-auto">
-          {selectedTask && (
-            <div className="p-6 space-y-5 max-w-[1280px] mx-auto">
-              <section className="space-y-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold text-[var(--color-text)] truncate">
-                        {selectedTask.title}
-                      </h3>
-                      <StatusBadge task={selectedTask} />
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-[var(--color-text-secondary)] line-clamp-2">
-                      {selectedTask.scriptExcerpt}
-                    </p>
-                  </div>
-                  <div className="inline-flex rounded-lg border border-[var(--color-border)] p-1 flex-shrink-0">
-                    <button
-                      onClick={() => setDetailView('current')}
-                      className={`px-3 py-1.5 rounded-md text-sm ${detailView === 'current' ? 'bg-[var(--color-dark)] text-white' : 'text-gray-600'}`}
-                    >
-                      当前结果
-                    </button>
-                    <button
-                      onClick={() => setDetailView('history')}
-                      className={`px-3 py-1.5 rounded-md text-sm ${detailView === 'history' ? 'bg-[var(--color-dark)] text-white' : 'text-gray-600'}`}
-                    >
-                      历史版本
-                    </button>
-                  </div>
-                </div>
-
-                {detailView === 'current' ? (
-                  <CurrentResultPanel
-                    task={selectedTask}
-                    imageRun={currentImageRun}
-                    gridRun={currentGridRun}
-                    resultView={resultView}
+            <div className="space-y-4">
+              {filteredTasks.map((task, index) => {
+                const taskImageRun = getCurrentImageRunForTask(task);
+                const taskSettings = imageSettingsByTask[task.id] ?? defaultImageSettings(project);
+                const taskPromptDraft = promptDrafts[task.id] ?? task.prompt;
+                return (
+                  <CompositionTaskRow
+                    key={task.id}
+                    task={task}
+                    index={index + 1}
+                    active={detailTask?.id === task.id}
+                    promptDraft={taskPromptDraft}
+                    imageSettings={taskSettings}
+                    imageRun={taskImageRun}
                     busy={busy}
-                    onResultViewChange={setResultView}
-                    onGenerateGrid={() => handleGenerateGrid()}
-                    onToggleCandidate={(run, candidate) => toggleCandidate(run, candidate)}
-                    onOpenCandidates={(run, openApply) => openCandidateDialog(run, openApply)}
-                  />
-                ) : (
-                  <HistoryPanel
-                    runs={runs}
-                    currentImageRunId={selectedTask.currentImageRunId}
-                    currentGridRunId={selectedTask.currentGridRunId}
-                    busy={busy}
-                    onSetCurrentImageRun={handleSetCurrentImageRun}
-                    onSetCurrentGridRun={handleSetCurrentGridRun}
-                    onGenerateGrid={handleGenerateGrid}
-                    onOpenCandidates={(run, openApply) => openCandidateDialog(run, openApply)}
-                    onPreviewImage={(run) => setHistoryPreview({ type: 'image', run })}
-                    onPreviewGrid={(run) => setHistoryPreview({ type: 'grid', run })}
-                  />
-                )}
-              </section>
-
-              {detailView === 'current' && (
-                <>
-                  <CompositionInputsPanel
-                    selectedTask={selectedTask}
                     characterOptions={characterOptions}
                     sceneOptions={sceneOptions}
                     itemOptions={itemOptions}
-                    promptDraft={promptDraft}
-                    imageSettings={imageSettings}
-                    currentImageRun={currentImageRun}
-                    currentGridRun={currentGridRun}
-                    busy={busy}
-                    onPatch={patchSelected}
-                    onPromptChange={(next) => setPromptDrafts((prev) => ({ ...prev, [selectedTask.id]: next }))}
+                    onPromptChange={(next) => setPromptDrafts((prev) => ({ ...prev, [task.id]: next }))}
+                    onPromptBlur={(next) => {
+                      if (next !== task.prompt) {
+                        void patchTask(task.id, { prompt: next });
+                      }
+                    }}
                     onImageSettingsChange={(next) => setImageSettingsByTask((prev) => ({
                       ...prev,
-                      [selectedTask.id]: next,
+                      [task.id]: next,
                     }))}
-                    onOpenReferenceDialog={setReferenceDialog}
-                    onGenerateImage={handleGenerateImage}
-                    onGenerateGrid={() => handleGenerateGrid()}
+                    onOpenReferences={() => {
+                      setSelectedId(task.id);
+                      setReferenceDialog('selected');
+                    }}
+                    onGenerateImage={() => handleGenerateImage(task.id)}
+                    onOpenDetail={(view) => openDetailDrawer(task, view)}
                   />
-
-                  {(selectedTask.status === 'IMAGE_FAILED' || selectedTask.status === 'GRID_FAILED') && (
-                    <div className="flex gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-3">
-                      <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                      <span>{selectedTask.error || '生成失败，可调整提示词或参数后重试。'}</span>
-                    </div>
-                  )}
-                </>
+                );
+              })}
+              {filteredTasks.length === 0 && (
+                <div className="rounded-xl border border-dashed border-gray-200 bg-white py-14 text-center text-sm text-gray-400">
+                  当前筛选下没有任务
+                </div>
               )}
             </div>
-          )}
-        </main>
-      </div>
+          </div>
+        </div>
       )}
 
-      {candidateDialogRun && selectedTask && (
+      {viewMode === 'panel' && detailTask && (
+        <CompositionDetailDrawer
+          task={detailTask}
+          runs={detailRuns}
+          imageRun={detailImageRun}
+          gridRun={detailGridRun}
+          detailView={detailView}
+          resultView={resultView}
+          busy={busy}
+          onClose={() => setDetailTaskId(null)}
+          onDetailViewChange={setDetailView}
+          onResultViewChange={setResultView}
+          onGenerateGrid={(runId) => handleGenerateGrid(runId, detailTask.id)}
+          onToggleCandidate={(run, candidate) => toggleCandidate(run, candidate)}
+          onOpenCandidates={(run, openApply) => openCandidateDialog(run, openApply)}
+          onSetCurrentImageRun={handleSetCurrentImageRun}
+          onSetCurrentGridRun={handleSetCurrentGridRun}
+          onPreviewImage={(run) => setHistoryPreview({ type: 'image', run })}
+          onPreviewGrid={(run) => setHistoryPreview({ type: 'grid', run })}
+        />
+      )}
+
+      {candidateDialogRun && candidateDialogTask && (
         <CandidateDialog
-          task={selectedTask}
+          task={candidateDialogTask}
           run={candidateDialogRun}
           busy={busy}
           applyMode={applyMode}
@@ -849,15 +846,15 @@ export function CompositionShotsTabContent({
           onShowApplyPanel={setShowApplyPanel}
           onApplyModeChange={setApplyMode}
           onApply={() => handleApplyCandidates(candidateDialogRun)}
-          onGoStoryboard={() => router.push(`/projects/${project.id}/episodes/${selectedTask.episodeId}`)}
+          onGoStoryboard={() => router.push(`/projects/${project.id}/episodes/${candidateDialogTask.episodeId}`)}
         />
       )}
 
-      {historyPreview && selectedTask && (
+      {historyPreview && historyPreviewTask && (
         <HistoryPreviewDialog
           preview={historyPreview}
-          currentImageRunId={selectedTask.currentImageRunId}
-          currentGridRunId={selectedTask.currentGridRunId}
+          currentImageRunId={historyPreviewTask.currentImageRunId}
+          currentGridRunId={historyPreviewTask.currentGridRunId}
           busy={busy}
           onClose={() => setHistoryPreview(null)}
           onSetCurrentImageRun={handleSetCurrentImageRun}
@@ -885,6 +882,468 @@ export function CompositionShotsTabContent({
           onClose={() => setReferenceDialog(null)}
         />
       )}
+    </div>
+  );
+}
+
+type RowReferenceItem = {
+  id: string;
+  label: string;
+  kind: '角色' | '场景' | '道具';
+  image: string;
+};
+
+function selectedReferenceItems(
+  task: CompositionTask,
+  characterOptions: Array<{ id: string; label: string; image: string }>,
+  sceneOptions: Array<{ id: string; label: string; image: string }>,
+  itemOptions: Array<{ id: string; label: string; image: string }>,
+): RowReferenceItem[] {
+  return [
+    ...characterOptions
+      .filter((option) => task.characterStyleIds.includes(option.id))
+      .map((option) => ({ id: option.id, label: option.label, image: option.image, kind: '角色' as const })),
+    ...sceneOptions
+      .filter((option) => task.sceneIds.includes(option.id))
+      .map((option) => ({ id: option.id, label: option.label, image: option.image, kind: '场景' as const })),
+    ...itemOptions
+      .filter((option) => task.itemIds.includes(option.id))
+      .map((option) => ({ id: option.id, label: option.label, image: option.image, kind: '道具' as const })),
+  ];
+}
+
+function compactReferenceLabel(label: string): string {
+  return label.split(' · ')[0]?.trim() || label;
+}
+
+function CompositionTaskRow({
+  task,
+  index,
+  active,
+  promptDraft,
+  imageSettings,
+  imageRun,
+  busy,
+  characterOptions,
+  sceneOptions,
+  itemOptions,
+  onPromptChange,
+  onPromptBlur,
+  onImageSettingsChange,
+  onOpenReferences,
+  onGenerateImage,
+  onOpenDetail,
+}: {
+  task: CompositionTask;
+  index: number;
+  active: boolean;
+  promptDraft: string;
+  imageSettings: ImageSettings;
+  imageRun: CompositionImageRun | null;
+  busy: string | null;
+  characterOptions: Array<{ id: string; label: string; image: string }>;
+  sceneOptions: Array<{ id: string; label: string; image: string }>;
+  itemOptions: Array<{ id: string; label: string; image: string }>;
+  onPromptChange: (next: string) => void;
+  onPromptBlur: (next: string) => void;
+  onImageSettingsChange: (next: ImageSettings) => void;
+  onOpenReferences: () => void;
+  onGenerateImage: () => void;
+  onOpenDetail: (view?: ResultView) => void;
+}) {
+  const references = selectedReferenceItems(task, characterOptions, sceneOptions, itemOptions);
+  return (
+    <section
+      className={`rounded-lg border bg-white shadow-sm transition-colors ${
+        active ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/15' : 'border-[var(--color-border)]'
+      }`}
+    >
+      <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-[48px_minmax(360px,1.15fr)_280px_minmax(360px,0.9fr)]">
+        <div className="flex items-start">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-50 text-sm font-semibold text-[var(--color-text)]">
+            {index}
+          </div>
+        </div>
+
+        <div className="min-w-0 space-y-3">
+          <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h3 className="truncate text-base font-semibold text-[var(--color-text)]">{task.title}</h3>
+              <StatusBadge task={task} />
+              {(task.status === 'IMAGE_FAILED' || task.status === 'GRID_FAILED') && (
+                <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+              )}
+            </div>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--color-text-secondary)]">
+              {task.scriptExcerpt}
+            </p>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">提示词</span>
+            <textarea
+              value={promptDraft}
+              onChange={(event) => onPromptChange(event.target.value)}
+              onBlur={(event) => onPromptBlur(event.currentTarget.value)}
+              rows={7}
+              className="min-h-[196px] w-full resize-none rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm leading-6 outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
+            />
+          </label>
+          {task.error && (task.status === 'IMAGE_FAILED' || task.status === 'GRID_FAILED') && (
+            <div className="line-clamp-2 text-xs leading-5 text-red-600">{task.error}</div>
+          )}
+        </div>
+
+        <ReferenceColumn
+          references={references}
+          onOpen={onOpenReferences}
+        />
+
+        <SceneImageColumn
+          task={task}
+          imageRun={imageRun}
+          imageSettings={imageSettings}
+          busy={busy}
+          onImageSettingsChange={onImageSettingsChange}
+          onGenerateImage={onGenerateImage}
+          onOpenDetail={onOpenDetail}
+        />
+      </div>
+    </section>
+  );
+}
+
+function ReferenceColumn({
+  references,
+  onOpen,
+}: {
+  references: RowReferenceItem[];
+  onOpen: () => void;
+}) {
+  const visible = references.slice(0, 8);
+  const hiddenCount = references.length - visible.length;
+  return (
+    <div className="min-w-0 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-text)]">
+          <Layers3 className="h-4 w-4" />
+          参考图
+        </div>
+        <button
+          type="button"
+          onClick={onOpen}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          管理
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {visible.map((item) => (
+          <button
+            key={`${item.kind}-${item.id}`}
+            type="button"
+            onClick={onOpen}
+            title={`${item.kind} · ${item.label}`}
+            className="group relative aspect-square overflow-hidden rounded-lg border border-[var(--color-border)] bg-gray-50 text-left hover:border-[var(--color-primary)]"
+          >
+            {item.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={item.image} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-1 px-1.5 text-center">
+                <ImageIcon className="h-4 w-4 text-gray-400" />
+                <span className="line-clamp-2 text-[10px] leading-3 text-gray-500">{compactReferenceLabel(item.label)}</span>
+              </div>
+            )}
+            <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[10px] text-white">
+              {item.kind}
+            </span>
+          </button>
+        ))}
+        {hiddenCount > 0 && (
+          <button
+            type="button"
+            onClick={onOpen}
+            className="aspect-square rounded-lg border border-dashed border-[var(--color-border)] bg-white text-sm font-medium text-gray-500 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+          >
+            +{hiddenCount}
+          </button>
+        )}
+      </div>
+      {references.length === 0 && (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="flex min-h-[196px] w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--color-border)] bg-white text-sm text-gray-400 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+        >
+          <Plus className="h-5 w-5" />
+          添加参考图
+        </button>
+      )}
+      {references.length > 0 && (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="w-full text-left text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-primary)]"
+        >
+          已选 {references.length} 个参考，点击调整
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SceneImageColumn({
+  task,
+  imageRun,
+  imageSettings,
+  busy,
+  onImageSettingsChange,
+  onGenerateImage,
+  onOpenDetail,
+}: {
+  task: CompositionTask;
+  imageRun: CompositionImageRun | null;
+  imageSettings: ImageSettings;
+  busy: string | null;
+  onImageSettingsChange: (next: ImageSettings) => void;
+  onGenerateImage: () => void;
+  onOpenDetail: (view?: ResultView) => void;
+}) {
+  const taskSaving = busy === `patch-${task.id}`;
+  const imageSubmitting = busy === `image-${task.id}`;
+  const imageQueued = task.status === 'IMAGE_QUEUED' || imageRun?.status === 'QUEUED';
+  const imageRunning = task.status === 'IMAGE_RUNNING' || imageRun?.status === 'RUNNING';
+  const imageBusy = taskSaving || imageSubmitting || imageQueued || imageRunning;
+  const imageButtonLabel = taskSaving
+    ? '保存中...'
+    : imageSubmitting
+      ? '提交中...'
+      : imageQueued
+        ? '排队中...'
+        : imageRunning
+          ? '生成中...'
+          : task.image
+            ? '重新生成场景图'
+            : '生成场景图';
+  const imageUrl = imageRun?.image?.url ?? task.image?.url ?? null;
+
+  return (
+    <div className="min-w-0 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-text)]">
+          <ImageIcon className="h-4 w-4" />
+          场景图
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenDetail(task.currentGridRunId ? 'grid' : 'image')}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+        >
+          <Grid3X3 className="h-3.5 w-3.5" />
+          详情
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onOpenDetail('image')}
+        className="flex min-h-[196px] w-full items-center justify-center overflow-hidden rounded-lg bg-gray-950 text-sm text-gray-400"
+        style={{ aspectRatio: ratioToCss(imageSettings.ratio) }}
+      >
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={imageUrl} alt={task.title} className="h-full w-full object-contain" />
+        ) : imageBusy ? (
+          <span className="flex flex-col items-center gap-2 text-white">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            {imageGenerationStatusLabel(task, imageRun)}
+          </span>
+        ) : (
+          <span className="flex flex-col items-center gap-2">
+            <ImageIcon className="h-7 w-7" />
+            等待生成场景图
+          </span>
+        )}
+      </button>
+
+      <div className="space-y-2">
+        <SettingSelect
+          label="模型"
+          value={imageSettings.model}
+          onChange={(model) => onImageSettingsChange({ ...imageSettings, model })}
+          options={IMAGE_MODEL_OPTIONS.map((item) => ({ value: item.modelId, label: item.label }))}
+        />
+        <div className="grid grid-cols-3 gap-2">
+          <SettingSelect
+            label="比例"
+            value={imageSettings.ratio}
+            onChange={(ratio) => onImageSettingsChange({ ...imageSettings, ratio })}
+            options={RATIOS.map((ratio) => ({ value: ratio, label: ratio }))}
+          />
+          <SettingSelect
+            label="规格"
+            value={imageSettings.quality}
+            onChange={(quality) => onImageSettingsChange({ ...imageSettings, quality: quality as ImageSettings['quality'] })}
+            options={QUALITY_OPTIONS}
+          />
+          <SettingSelect
+            label="数量"
+            value={String(imageSettings.outputCount)}
+            onChange={(value) => onImageSettingsChange({ ...imageSettings, outputCount: Number(value) })}
+            options={['1', '2', '4'].map((value) => ({ value, label: value }))}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-2">
+        <button
+          type="button"
+          onClick={onGenerateImage}
+          disabled={imageBusy}
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+        >
+          {imageBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+          {imageButtonLabel}
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpenDetail('grid')}
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm font-medium hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+        >
+          <Grid3X3 className="h-4 w-4" />
+          分镜图
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CompositionDetailDrawer({
+  task,
+  runs,
+  imageRun,
+  gridRun,
+  detailView,
+  resultView,
+  busy,
+  onClose,
+  onDetailViewChange,
+  onResultViewChange,
+  onGenerateGrid,
+  onToggleCandidate,
+  onOpenCandidates,
+  onSetCurrentImageRun,
+  onSetCurrentGridRun,
+  onPreviewImage,
+  onPreviewGrid,
+}: {
+  task: CompositionTask;
+  runs: CompositionTaskRuns | null;
+  imageRun: CompositionImageRun | null;
+  gridRun: CompositionGridRun | null;
+  detailView: DetailView;
+  resultView: ResultView;
+  busy: string | null;
+  onClose: () => void;
+  onDetailViewChange: (view: DetailView) => void;
+  onResultViewChange: (view: ResultView) => void;
+  onGenerateGrid: (imageRunId?: string) => void;
+  onToggleCandidate: (run: CompositionGridRun, candidate: CompositionCandidate) => void;
+  onOpenCandidates: (run: CompositionGridRun, openApply?: boolean) => void;
+  onSetCurrentImageRun: (runId: string) => void;
+  onSetCurrentGridRun: (runId: string) => void;
+  onPreviewImage: (run: CompositionImageRun) => void;
+  onPreviewGrid: (run: CompositionGridRun) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-40 flex bg-black/25">
+      <button
+        type="button"
+        className="flex-1 cursor-default"
+        onClick={onClose}
+        aria-label="关闭详情"
+      />
+      <aside className="flex h-full w-full max-w-[900px] flex-col bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--color-border)] px-5 py-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="truncate text-base font-semibold text-[var(--color-text)]">{task.title}</h3>
+              <StatusBadge task={task} />
+            </div>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--color-text-secondary)]">
+              {task.scriptExcerpt}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--color-border)] hover:border-[var(--color-primary)]"
+            aria-label="关闭详情"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--color-border)] px-5 py-3">
+          <div className="inline-flex rounded-lg border border-[var(--color-border)] p-1">
+            <button
+              type="button"
+              onClick={() => onDetailViewChange('current')}
+              className={`rounded-md px-3 py-1.5 text-sm ${detailView === 'current' ? 'bg-[var(--color-dark)] text-white' : 'text-gray-600'}`}
+            >
+              当前结果
+            </button>
+            <button
+              type="button"
+              onClick={() => onDetailViewChange('history')}
+              className={`rounded-md px-3 py-1.5 text-sm ${detailView === 'history' ? 'bg-[var(--color-dark)] text-white' : 'text-gray-600'}`}
+            >
+              历史版本
+            </button>
+          </div>
+          <div className="text-xs text-[var(--color-text-secondary)]">
+            场景图 {task.imageRunCount} · 分镜图 {task.gridRunCount}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {detailView === 'current' ? (
+            <div className="space-y-4">
+              <CurrentResultPanel
+                task={task}
+                imageRun={imageRun}
+                gridRun={gridRun}
+                resultView={resultView}
+                busy={busy}
+                onResultViewChange={onResultViewChange}
+                onGenerateGrid={() => onGenerateGrid()}
+                onToggleCandidate={onToggleCandidate}
+                onOpenCandidates={onOpenCandidates}
+              />
+              {(task.status === 'IMAGE_FAILED' || task.status === 'GRID_FAILED') && (
+                <div className="flex gap-2 rounded-lg border border-red-100 bg-red-50 p-3 text-xs text-red-600">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>{task.error || '生成失败，可调整提示词或参数后重试。'}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <HistoryPanel
+              runs={runs}
+              currentImageRunId={task.currentImageRunId}
+              currentGridRunId={task.currentGridRunId}
+              busy={busy}
+              onSetCurrentImageRun={onSetCurrentImageRun}
+              onSetCurrentGridRun={onSetCurrentGridRun}
+              onGenerateGrid={(runId) => onGenerateGrid(runId)}
+              onOpenCandidates={onOpenCandidates}
+              onPreviewImage={onPreviewImage}
+              onPreviewGrid={onPreviewGrid}
+            />
+          )}
+        </div>
+      </aside>
     </div>
   );
 }
@@ -930,7 +1389,7 @@ function CurrentResultPanel({
             onClick={() => onResultViewChange('grid')}
             className={`px-3 py-1.5 rounded-md text-sm ${resultView === 'grid' ? 'bg-[var(--color-dark)] text-white' : 'text-gray-600'}`}
           >
-            分镜图网格
+            分镜图
           </button>
         </div>
         <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
@@ -948,7 +1407,7 @@ function CurrentResultPanel({
               </>
             )
           ) : (
-            <span>{imageRun?.image || task.image ? '当前镜头首帧' : '等待生成结果'}</span>
+            <span>{imageRun?.image || task.image ? '当前场景图' : '等待生成结果'}</span>
           )}
         </div>
       </div>
@@ -968,7 +1427,7 @@ function CurrentResultPanel({
           ) : (
             <div className="flex flex-col items-center gap-2 text-gray-400 text-sm">
               <ImageIcon className="w-8 h-8" />
-              等待生成合成镜头图
+              等待生成场景图
             </div>
           )
         ) : isGridRunning ? (
@@ -1022,18 +1481,18 @@ function CurrentResultPanel({
           </div>
         ) : gridRun?.gridImage?.url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={gridRun.gridImage.url} alt="分镜网格" className="max-w-full max-h-full object-contain" />
+          <img src={gridRun.gridImage.url} alt="分镜图" className="max-w-full max-h-full object-contain" />
         ) : (
           <div className="flex flex-col items-center gap-3 text-gray-400 text-sm">
             <Grid3X3 className="w-8 h-8" />
-            <span>{imageRun?.image ? '还没有生成 3x3 分镜网格' : '请先生成合成镜头图'}</span>
+            <span>{imageRun?.image ? '还没有生成 3x3 分镜图' : '请先生成场景图'}</span>
             <button
               onClick={onGenerateGrid}
               disabled={!imageRun?.image || busy === `grid-${imageRun?.id}`}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white text-[var(--color-text)] text-sm font-medium disabled:opacity-50"
             >
               {busy === `grid-${imageRun?.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <Grid3X3 className="w-4 h-4" />}
-              生成 3x3 分镜网格
+              生成 3x3 分镜图
             </button>
           </div>
         )}
@@ -1084,14 +1543,14 @@ function HistoryPanel({
   if (!runs || (runs.imageRuns.length === 0 && runs.gridRuns.length === 0)) {
     return (
       <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400">
-        暂无历史版本。每次生成镜头图或分镜网格都会保存在这里。
+        暂无历史版本。每次生成场景图或分镜图都会保存在这里。
       </div>
     );
   }
   return (
     <div className="space-y-5">
       <section>
-        <h3 className="text-sm font-semibold mb-3">镜头图历史</h3>
+        <h3 className="text-sm font-semibold mb-3">场景图历史</h3>
         <div className="grid grid-cols-3 gap-3">
           {runs.imageRuns.map((run) => (
             <div key={run.id} className="rounded-xl border border-[var(--color-border)] overflow-hidden bg-white">
@@ -1132,7 +1591,7 @@ function HistoryPanel({
                     disabled={!run.image || busy === `grid-${run.id}`}
                     className="flex-1 px-2 py-1.5 rounded-lg border border-[var(--color-border)] text-xs disabled:opacity-50 hover:border-[var(--color-primary)]"
                   >
-                    生成网格
+                    生成分镜图
                   </button>
                 </div>
               </div>
@@ -1142,7 +1601,7 @@ function HistoryPanel({
       </section>
 
       <section>
-        <h3 className="text-sm font-semibold mb-3">分镜网格历史</h3>
+        <h3 className="text-sm font-semibold mb-3">分镜图历史</h3>
         <div className="grid grid-cols-3 gap-3">
           {runs.gridRuns.map((run) => {
             const selectedCount = run.candidates.filter((candidate) => candidate.selected).length;
@@ -1167,7 +1626,7 @@ function HistoryPanel({
                     <RunStatusBadge status={run.status} />
                     {run.id === currentGridRunId && <span className="text-[var(--color-primary)]">当前</span>}
                   </div>
-                  <div>3x3 · 候选 {run.candidates.length}/9 · 已选 {selectedCount}</div>
+                  <div>3x3 分镜图 · 候选 {run.candidates.length}/9 · 已选 {selectedCount}</div>
                   <div>{formatTime(run.createdAt)}</div>
                   <div className="grid grid-cols-3 gap-2 pt-1">
                     <button
@@ -1202,171 +1661,22 @@ function HistoryPanel({
   );
 }
 
-function CompositionInputsPanel({
-  selectedTask,
-  characterOptions,
-  sceneOptions,
-  itemOptions,
-  promptDraft,
-  imageSettings,
-  currentImageRun,
-  currentGridRun,
-  busy,
-  onPatch,
-  onPromptChange,
-  onImageSettingsChange,
-  onOpenReferenceDialog,
-  onGenerateImage,
-  onGenerateGrid,
-}: {
-  selectedTask: CompositionTask;
-  characterOptions: Array<{ id: string; label: string; image: string }>;
-  sceneOptions: Array<{ id: string; label: string; image: string }>;
-  itemOptions: Array<{ id: string; label: string; image: string }>;
-  promptDraft: string;
-  imageSettings: ImageSettings;
-  currentImageRun: CompositionImageRun | null;
-  currentGridRun: CompositionGridRun | null;
-  busy: string | null;
-  onPatch: (patch: Parameters<typeof updateCompositionTask>[1]) => void;
-  onPromptChange: (next: string) => void;
-  onImageSettingsChange: (next: ImageSettings) => void;
-  onOpenReferenceDialog: (view: ReferenceDialogView) => void;
-  onGenerateImage: () => void;
-  onGenerateGrid: () => void;
-}) {
-  const taskSaving = busy === `patch-${selectedTask.id}`;
-  const imageSubmitting = busy === `image-${selectedTask.id}`;
-  const imageQueued = selectedTask.status === 'IMAGE_QUEUED' || currentImageRun?.status === 'QUEUED';
-  const imageRunning = selectedTask.status === 'IMAGE_RUNNING' || currentImageRun?.status === 'RUNNING';
-  const imageBusy = taskSaving || imageSubmitting || imageQueued || imageRunning;
-  const imageButtonLabel = taskSaving
-    ? '保存中…'
-    : imageSubmitting
-      ? '提交中…'
-      : imageQueued
-        ? '排队中…'
-        : imageRunning
-          ? '生成中…'
-          : selectedTask.image
-            ? '重新生成'
-            : '生成镜头图';
-  const gridSubmitting = currentImageRun ? busy === `grid-${currentImageRun.id}` : false;
-  const gridQueued = selectedTask.status === 'GRID_QUEUED' || currentGridRun?.status === 'QUEUED';
-  const gridRunning = selectedTask.status === 'GRID_RUNNING' || currentGridRun?.status === 'RUNNING';
-  const gridBusy = taskSaving || gridSubmitting || gridQueued || gridRunning;
-  const gridButtonLabel = taskSaving
-    ? '保存中…'
-    : gridSubmitting
-      ? '提交中…'
-      : gridQueued
-        ? '网格排队中…'
-        : gridRunning
-          ? '网格生成中…'
-          : '生成网格';
-  return (
-    <section className="rounded-xl border border-[var(--color-border)] bg-white p-3">
-      <div className="grid grid-cols-[220px_minmax(0,1fr)_320px] gap-3 items-stretch">
-        <CompactReferenceBar
-          task={selectedTask}
-          characterOptions={characterOptions}
-          sceneOptions={sceneOptions}
-          itemOptions={itemOptions}
-          onOpen={() => onOpenReferenceDialog('selected')}
-        />
-
-        <div className="flex h-full min-w-0 flex-col gap-2">
-          <div className="flex items-center gap-2 font-semibold text-sm">
-            <Clapperboard className="w-4 h-4" />
-            提示词
-          </div>
-          <textarea
-            value={promptDraft}
-            onChange={(e) => onPromptChange(e.target.value)}
-            onBlur={() => {
-              if (promptDraft !== selectedTask.prompt) {
-                onPatch({ prompt: promptDraft });
-              }
-            }}
-            rows={3}
-            className="w-full flex-1 min-h-[148px] rounded-lg border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] outline-none px-3 py-2 text-sm leading-relaxed resize-none"
-          />
-        </div>
-
-        <div className="space-y-2 min-w-0">
-          <div className="text-sm font-semibold">生成配置</div>
-          <SettingSelect
-            label="模型"
-            value={imageSettings.model}
-            onChange={(model) => onImageSettingsChange({ ...imageSettings, model })}
-            options={IMAGE_MODEL_OPTIONS.map((item) => ({ value: item.modelId, label: item.label }))}
-          />
-          <div className="grid grid-cols-3 gap-2">
-            <SettingSelect
-              label="比例"
-              value={imageSettings.ratio}
-              onChange={(ratio) => onImageSettingsChange({ ...imageSettings, ratio })}
-              options={RATIOS.map((ratio) => ({ value: ratio, label: ratio }))}
-            />
-            <SettingSelect
-              label="规格"
-              value={imageSettings.quality}
-              onChange={(quality) => onImageSettingsChange({ ...imageSettings, quality: quality as ImageSettings['quality'] })}
-              options={QUALITY_OPTIONS}
-            />
-            <SettingSelect
-              label="数量"
-              value={String(imageSettings.outputCount)}
-              onChange={(value) => onImageSettingsChange({ ...imageSettings, outputCount: Number(value) })}
-              options={['1', '2', '4'].map((value) => ({ value, label: value }))}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button
-              onClick={onGenerateImage}
-              disabled={imageBusy}
-              className="inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-[var(--color-primary)] text-white text-xs font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
-            >
-              {imageBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
-              {imageButtonLabel}
-            </button>
-            <button
-              onClick={onGenerateGrid}
-              disabled={!currentImageRun?.image || gridBusy}
-              className="inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg border border-[var(--color-border)] text-xs font-medium hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
-            >
-              {gridBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Grid3X3 className="w-4 h-4" />}
-              {gridButtonLabel}
-            </button>
-          </div>
-          {(imageBusy || gridBusy) && (
-            <div className="flex items-center gap-1.5 text-xs text-blue-600">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              {imageBusy ? imageButtonLabel : gridButtonLabel}
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function imageGenerationStatusLabel(
   task: CompositionTask,
   imageRun: CompositionImageRun | null,
 ): string {
-  if (task.status === 'IMAGE_QUEUED' || imageRun?.status === 'QUEUED') return '合成镜头图排队中';
-  if (task.status === 'IMAGE_RUNNING' || imageRun?.status === 'RUNNING') return '合成镜头图生成中';
-  return '合成镜头图生成中';
+  if (task.status === 'IMAGE_QUEUED' || imageRun?.status === 'QUEUED') return '场景图排队中';
+  if (task.status === 'IMAGE_RUNNING' || imageRun?.status === 'RUNNING') return '场景图生成中';
+  return '场景图生成中';
 }
 
 function gridGenerationStatusLabel(
   task: CompositionTask,
   gridRun: CompositionGridRun | null,
 ): string {
-  if (task.status === 'GRID_QUEUED' || gridRun?.status === 'QUEUED') return '分镜网格排队中';
-  if (task.status === 'GRID_RUNNING' || gridRun?.status === 'RUNNING') return '分镜网格生成中';
-  return '分镜网格生成中';
+  if (task.status === 'GRID_QUEUED' || gridRun?.status === 'QUEUED') return '分镜图排队中';
+  if (task.status === 'GRID_RUNNING' || gridRun?.status === 'RUNNING') return '分镜图生成中';
+  return '分镜图生成中';
 }
 
 function CandidateDialog({
@@ -1403,7 +1713,7 @@ function CandidateDialog({
           <div>
             <h3 className="font-semibold text-[var(--color-text)]">候选分镜</h3>
             <div className="text-xs text-[var(--color-text-secondary)]">
-              {task.title} · 3x3 网格 · 已选 {selectedCount}/9
+              {task.title} · 3x3 分镜图 · 已选 {selectedCount}/9
             </div>
           </div>
           <button
@@ -1481,7 +1791,7 @@ function CandidateDialog({
 
         <div className="px-5 py-4 border-t border-[var(--color-border)] flex items-center justify-between">
           <div className="text-xs text-gray-500">
-            {formatTime(run.createdAt)} · 固定 3x3 分镜网格
+            {formatTime(run.createdAt)} · 固定 3x3 分镜图
             {hasApplied ? <span className="ml-2 text-emerald-600">已有候选图进入分镜流程</span> : null}
           </div>
           <div className="flex items-center gap-2">
@@ -1548,7 +1858,7 @@ function HistoryPreviewDialog({
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
           <div>
             <h3 className="font-semibold text-[var(--color-text)]">
-              {imageRun ? '镜头图历史' : '分镜网格历史'}
+              {imageRun ? '场景图历史' : '分镜图历史'}
             </h3>
             <div className="text-xs text-[var(--color-text-secondary)]">
               {formatTime(run.createdAt)} · {run.ratio}
@@ -1589,7 +1899,7 @@ function HistoryPreviewDialog({
             <span className="ml-2">
               {imageRun
                 ? `${imageModelLabel(run.model)} · 消耗 ${run.costCredits}`
-                : `3x3 · 已选 ${selectedCount} · 消耗 ${run.costCredits}`}
+                : `3x3 分镜图 · 已选 ${selectedCount} · 消耗 ${run.costCredits}`}
             </span>
           </div>
           {imageRun ? (
@@ -1606,7 +1916,7 @@ function HistoryPreviewDialog({
                 disabled={!imageRun.image || busy === `grid-${imageRun.id}`}
                 className="px-3 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm disabled:opacity-50"
               >
-                生成网格
+                生成分镜图
               </button>
             </div>
           ) : gridRun ? (
@@ -1640,54 +1950,6 @@ function HistoryPreviewDialog({
   );
 }
 
-function TaskListItem({
-  task,
-  active,
-  onClick,
-}: {
-  task: CompositionTask;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full text-left rounded-lg border p-3 transition-colors ${
-        active
-          ? 'border-[var(--color-primary)] bg-blue-50/60'
-          : 'border-[var(--color-border)] hover:border-[var(--color-primary)] bg-white'
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        <div className="w-16 aspect-video rounded-md overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0">
-          {task.image?.url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={task.image.url} alt="" className="w-full h-full object-cover" />
-          ) : RUNNING_TASK_STATUSES.has(task.status) ? (
-            <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
-          ) : (
-            <Clapperboard className="w-4 h-4 text-gray-400" />
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium truncate">{task.title}</div>
-          <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
-            <span>{task.characterStyleIds.length} 角色</span>
-            <span>{task.sceneIds.length} 场景</span>
-            <span>{task.itemIds.length} 道具</span>
-          </div>
-          <div className="mt-1 text-xs text-gray-400">
-            镜头图 {task.imageRunCount} · 网格 {task.gridRunCount}
-          </div>
-          <div className="mt-2">
-            <StatusBadge task={task} />
-          </div>
-        </div>
-      </div>
-    </button>
-  );
-}
-
 function StatusBadge({ task }: { task: CompositionTask }) {
   const meta = statusMeta(task.status);
   return (
@@ -1703,9 +1965,9 @@ function statusMeta(status: string) {
     return { label: '生成中', className: 'bg-blue-50 text-blue-600' };
   }
   if (status === 'GRID_QUEUED' || status === 'GRID_RUNNING') {
-    return { label: '网格生成中', className: 'bg-blue-50 text-blue-600' };
+    return { label: '分镜生成中', className: 'bg-blue-50 text-blue-600' };
   }
-  if (status === 'IMAGE_READY') return { label: '有镜头图', className: 'bg-indigo-50 text-indigo-600' };
+  if (status === 'IMAGE_READY') return { label: '有场景图', className: 'bg-indigo-50 text-indigo-600' };
   if (status === 'GRID_READY') return { label: '有候选', className: 'bg-purple-50 text-purple-600' };
   if (status === 'APPLIED' || status === 'SYNCED') {
     return { label: '已应用', className: 'bg-emerald-50 text-emerald-600' };
@@ -1727,109 +1989,6 @@ function RunStatusBadge({ status }: { status: string }) {
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${meta.className}`}>
       {meta.label}
     </span>
-  );
-}
-
-function CompactReferenceBar({
-  task,
-  characterOptions,
-  sceneOptions,
-  itemOptions,
-  onOpen,
-}: {
-  task: CompositionTask;
-  characterOptions: Array<{ id: string; label: string; image: string }>;
-  sceneOptions: Array<{ id: string; label: string; image: string }>;
-  itemOptions: Array<{ id: string; label: string; image: string }>;
-  onOpen: () => void;
-}) {
-  const compactLabel = (label: string) => label.split(' · ')[0]?.trim() || label;
-  const selectedOptions = [
-    ...characterOptions
-      .filter((option) => task.characterStyleIds.includes(option.id))
-      .map((option) => ({ ...option, kind: '角色' })),
-    ...sceneOptions
-      .filter((option) => task.sceneIds.includes(option.id))
-      .map((option) => ({ ...option, kind: '场景' })),
-    ...itemOptions
-      .filter((option) => task.itemIds.includes(option.id))
-      .map((option) => ({ ...option, kind: '道具' })),
-  ];
-  const slotCount = 6;
-  const visibleOptions = selectedOptions.length > slotCount
-    ? selectedOptions.slice(0, slotCount - 1)
-    : selectedOptions.slice(0, slotCount);
-  const hiddenCount = selectedOptions.length - visibleOptions.length;
-  const emptySlots = Array.from({
-    length: Math.max(0, slotCount - visibleOptions.length - (hiddenCount > 0 ? 1 : 0)),
-  });
-
-  return (
-    <div className="h-full rounded-lg border border-[var(--color-border)] bg-gray-50/70 px-3 py-2">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="flex items-center gap-2 text-sm font-medium text-[var(--color-text)] hover:text-[var(--color-primary)]"
-          aria-label="打开引用资产管理"
-        >
-          <Layers3 className="w-4 h-4" />
-          引用资产
-        </button>
-      </div>
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        {visibleOptions.map((option) => (
-          <button
-            key={`${option.kind}-${option.id}`}
-            type="button"
-            onClick={onOpen}
-            className="aspect-square rounded-md bg-white border border-[var(--color-border)] overflow-hidden flex items-center justify-center hover:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-1"
-            title={`${option.kind} · ${option.label}`}
-            aria-label={`管理${option.kind}：${option.label}`}
-          >
-            {option.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={option.image} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <span className="flex h-full w-full flex-col items-center justify-center gap-1 px-1.5 text-center">
-                <ImageIcon className="w-4 h-4 shrink-0 text-gray-400" />
-                <span className="line-clamp-2 max-w-full text-[10px] leading-3 text-gray-500">
-                  {compactLabel(option.label)}
-                </span>
-              </span>
-            )}
-          </button>
-        ))}
-        {hiddenCount > 0 && (
-          <button
-            type="button"
-            onClick={onOpen}
-            className="aspect-square rounded-md bg-white border border-[var(--color-border)] text-sm font-medium text-gray-500 flex items-center justify-center hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-            aria-label="查看更多引用资产"
-          >
-            +{hiddenCount}
-          </button>
-        )}
-        {emptySlots.map((_, index) => (
-          <button
-            key={`empty-${index}`}
-            type="button"
-            onClick={onOpen}
-            className="aspect-square rounded-md border border-dashed border-[var(--color-border)] bg-white/70 flex items-center justify-center text-gray-300 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-            aria-label="添加引用资产"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        ))}
-      </div>
-      <button
-        type="button"
-        onClick={onOpen}
-        className="mt-2 w-full text-left text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-primary)]"
-      >
-        已选 {selectedOptions.length} 个，点击管理引用
-      </button>
-    </div>
   );
 }
 
