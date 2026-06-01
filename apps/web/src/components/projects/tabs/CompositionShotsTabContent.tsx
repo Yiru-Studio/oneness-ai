@@ -1233,7 +1233,7 @@ function CompositionInputsPanel({
         : '生成网格';
   return (
     <section className="rounded-xl border border-[var(--color-border)] bg-white p-3">
-      <div className="grid grid-cols-[220px_minmax(0,1fr)_320px] gap-3 items-start">
+      <div className="grid grid-cols-[220px_minmax(0,1fr)_320px] gap-3 items-stretch">
         <CompactReferenceBar
           task={selectedTask}
           characterOptions={characterOptions}
@@ -1242,7 +1242,7 @@ function CompositionInputsPanel({
           onOpen={() => onOpenReferenceDialog('selected')}
         />
 
-        <div className="space-y-2 min-w-0">
+        <div className="flex h-full min-w-0 flex-col gap-2">
           <div className="flex items-center gap-2 font-semibold text-sm">
             <Clapperboard className="w-4 h-4" />
             提示词
@@ -1256,7 +1256,7 @@ function CompositionInputsPanel({
               }
             }}
             rows={3}
-            className="w-full min-h-[92px] rounded-lg border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] outline-none px-3 py-2 text-sm leading-relaxed resize-none"
+            className="w-full flex-1 min-h-[148px] rounded-lg border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] outline-none px-3 py-2 text-sm leading-relaxed resize-none"
           />
         </div>
 
