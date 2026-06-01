@@ -582,6 +582,7 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
             await deleteCharacterStyle(opened.id!);
             await onChanged();
           }}
+          allowBackgroundInteraction
           onClose={() => setOpenStyleId(null)}
         />
       )}

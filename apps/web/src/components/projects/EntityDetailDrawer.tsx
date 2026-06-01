@@ -77,6 +77,8 @@ interface Props {
   }) => Promise<EntityDetailData>;
   /** Optional secondary action — delete the entity. */
   onDelete?: () => Promise<void>;
+  /** Let the underlying page keep receiving clicks while the side drawer is open. */
+  allowBackgroundInteraction?: boolean;
   onClose: () => void;
 }
 
@@ -144,6 +146,7 @@ export function EntityDetailDrawer({
   identityReferenceAssetId,
   buildAutoPrompt,
   onSave,
+  allowBackgroundInteraction = false,
   onClose,
 }: Props) {
   const [name, setName] = useState(entity.name);
@@ -169,6 +172,7 @@ export function EntityDetailDrawer({
   const [generationPhase, setGenerationPhase] = useState<ImageGenerationPhase>('idle');
   const fileRef = useRef<HTMLInputElement>(null);
   const activeHistoryKeyRef = useRef<string | null>(null);
+  const activeEntityIdRef = useRef(entity.id);
 
   // Reference image uploaded by user for AI to use during generation.
   const [referenceAssetId, setReferenceAssetId] = useState<string | null>(null);
@@ -177,6 +181,7 @@ export function EntityDetailDrawer({
 
   // Reset state when the entity changes.
   useEffect(() => {
+    activeEntityIdRef.current = entity.id;
     setName(entity.name);
     setDescription(entity.description ?? '');
     const parsed = parseThreeViewPrompt(entity.prompt ?? '');
@@ -274,6 +279,9 @@ export function EntityDetailDrawer({
   };
 
   const handleGenerate = async () => {
+    const generationEntityId = entity.id;
+    const generationResourceKind = resourceKind;
+    const isActiveGeneration = () => activeEntityIdRef.current === generationEntityId;
     let effectivePromptBody = promptBody.trim();
     let effectiveThreeView = threeView;
     if (!effectivePromptBody && !effectiveThreeView) {
@@ -316,30 +324,34 @@ export function EntityDetailDrawer({
             ...(characterId ? { characterId } : {}),
           },
           imageProviderForModel(model || project.imageModel),
-          resourceKind ? { kind: resourceKind, entityId: entity.id } : undefined,
+          generationResourceKind ? { kind: generationResourceKind, entityId: generationEntityId } : undefined,
         );
-        setGenerationPhase(phaseForTaskStatus(task.status));
-        if (resourceKind) await refreshHistory(resourceKind, entity.id);
+        if (isActiveGeneration()) setGenerationPhase(phaseForTaskStatus(task.status));
+        if (generationResourceKind) await refreshHistory(generationResourceKind, generationEntityId);
         const final = await pollTaskUntilDone(task.id, {
           intervalMs: 2000,
           onTick: (tick) => {
-            setGenerationPhase(phaseForTaskStatus(tick.status));
-            if (resourceKind) void refreshHistory(resourceKind, entity.id);
+            if (isActiveGeneration()) setGenerationPhase(phaseForTaskStatus(tick.status));
+            if (generationResourceKind) void refreshHistory(generationResourceKind, generationEntityId);
           },
         });
-        if (resourceKind) await refreshHistory(resourceKind, entity.id);
+        if (generationResourceKind) await refreshHistory(generationResourceKind, generationEntityId);
         if (final.status !== 'SUCCEEDED' || !final.outputAssets?.[0]) {
           throw new Error(final.error || '生成失败');
         }
-        setGenerationPhase('saving');
+        if (isActiveGeneration()) setGenerationPhase('saving');
         const fresh = await onSave({ assetId: final.outputAssets[0].id });
-        setImage(fresh.image || '');
-        setAssetId(fresh.assetId ?? final.outputAssets[0].id);
-        setGenerationPhase('idle');
+        if (isActiveGeneration()) {
+          setImage(fresh.image || '');
+          setAssetId(fresh.assetId ?? final.outputAssets[0].id);
+          setGenerationPhase('idle');
+        }
       });
     } catch (e) {
-      setGenerationPhase('failed');
-      setError(e instanceof Error ? e.message : '生成失败');
+      if (isActiveGeneration()) {
+        setGenerationPhase('failed');
+        setError(e instanceof Error ? e.message : '生成失败');
+      }
     }
   };
 
@@ -422,11 +434,18 @@ export function EntityDetailDrawer({
   const generationLabel = IMAGE_GENERATION_LABEL[
     generating && generationPhase === 'idle' ? 'queueing' : generationPhase
   ];
+  const visibleError = error || remoteError;
 
   return (
-    <div className="fixed inset-0 z-[1900] flex justify-end bg-black/30" onClick={onClose}>
+    <>
+    <div
+      className={`fixed inset-0 z-[1900] flex justify-end bg-black/30 ${
+        allowBackgroundInteraction ? 'pointer-events-none' : ''
+      }`}
+      onClick={allowBackgroundInteraction ? undefined : onClose}
+    >
       <div
-        className="w-[840px] max-w-[100vw] h-full bg-white shadow-2xl flex overflow-hidden"
+        className="pointer-events-auto w-[840px] max-w-[100vw] h-full bg-white shadow-2xl flex overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {resourceKind && (
@@ -459,6 +478,15 @@ export function EntityDetailDrawer({
                   className="mt-1 w-full px-2 py-1 -ml-2 rounded-lg border border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-primary)] outline-none text-sm leading-relaxed text-[var(--color-text-secondary)] bg-transparent resize-none"
                   placeholder={`${KIND_LABEL[kind]}描述`}
                 />
+                {visibleError && (
+                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    <X className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="font-medium">生成失败</div>
+                      <div className="mt-0.5 break-words">{visibleError}</div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
@@ -511,6 +539,21 @@ export function EntityDetailDrawer({
                     <span className="ml-2 text-sm">
                       {generating ? generationLabel || '生成中…' : '上传中…'}
                     </span>
+                  </div>
+                )}
+                {visibleError && !generating && !uploading && (
+                  <div
+                    className={`pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-red-50/95 px-6 text-center text-red-700 ${
+                      image ? 'bg-red-50/85' : ''
+                    }`}
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+                      <X className="h-5 w-5" />
+                    </div>
+                    <div className="mt-3 text-sm font-semibold">生成失败</div>
+                    <div className="mt-1 max-w-[520px] text-xs leading-5 text-red-600">
+                      {visibleError}
+                    </div>
                   </div>
                 )}
               </div>
@@ -696,20 +739,18 @@ export function EntityDetailDrawer({
               )}
             </div>
 
-            {(error || remoteError) && (
-              <div className="text-sm text-red-600">{error || remoteError}</div>
-            )}
           </div>
         </div>
       </div>
-
-      <ImagePreview
-        src={image}
-        alt={name}
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-      />
     </div>
+
+    <ImagePreview
+      src={image}
+      alt={name}
+      open={previewOpen}
+      onClose={() => setPreviewOpen(false)}
+    />
+    </>
   );
 }
 
