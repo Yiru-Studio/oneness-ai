@@ -62,6 +62,7 @@ type DetailView = 'current' | 'history';
 type ResultView = 'image' | 'grid';
 type CompositionViewMode = 'panel' | 'canvas';
 type ReferenceKind = 'characters' | 'scenes' | 'items';
+type ReferenceDialogView = 'selected' | ReferenceKind;
 type HistoryPreview =
   | { type: 'image'; run: CompositionImageRun }
   | { type: 'grid'; run: CompositionGridRun }
@@ -176,7 +177,7 @@ export function CompositionShotsTabContent({
   const [error, setError] = useState<string | null>(null);
   const [promptDrafts, setPromptDrafts] = useState<Record<string, string>>({});
   const [imageSettingsByTask, setImageSettingsByTask] = useState<Record<string, ImageSettings>>({});
-  const [referenceDialog, setReferenceDialog] = useState<ReferenceKind | null>(null);
+  const [referenceDialog, setReferenceDialog] = useState<ReferenceDialogView | null>(null);
   const [candidateRunId, setCandidateRunId] = useState<string | null>(null);
   const [historyPreview, setHistoryPreview] = useState<HistoryPreview>(null);
   const [showApplyPanel, setShowApplyPanel] = useState(false);
@@ -592,7 +593,7 @@ export function CompositionShotsTabContent({
               ...prev,
               [selectedTask.id]: next,
             }))}
-            onOpenReferenceDialog={setReferenceDialog}
+            onOpenReferenceDialog={(kind) => setReferenceDialog(kind)}
             onGenerateImage={handleGenerateImage}
           />
         </div>
@@ -767,12 +768,12 @@ export function CompositionShotsTabContent({
 
       {selectedTask && referenceDialog && (
         <ReferencePickerDialog
-          activeKind={referenceDialog}
+          activeView={referenceDialog}
           task={selectedTask}
           characterOptions={characterOptions}
           sceneOptions={sceneOptions}
           itemOptions={itemOptions}
-          onKindChange={setReferenceDialog}
+          onViewChange={setReferenceDialog}
           onPatch={patchSelected}
           onClose={() => setReferenceDialog(null)}
         />
@@ -1123,7 +1124,7 @@ function CompositionInputsPanel({
   onPatch: (patch: Parameters<typeof updateCompositionTask>[1]) => void;
   onPromptChange: (next: string) => void;
   onImageSettingsChange: (next: ImageSettings) => void;
-  onOpenReferenceDialog: (kind: ReferenceKind) => void;
+  onOpenReferenceDialog: (view: ReferenceDialogView) => void;
   onGenerateImage: () => void;
   onGenerateGrid: () => void;
 }) {
@@ -1159,7 +1160,7 @@ function CompositionInputsPanel({
           characterOptions={characterOptions}
           sceneOptions={sceneOptions}
           itemOptions={itemOptions}
-          onOpen={() => onOpenReferenceDialog('characters')}
+          onOpen={() => onOpenReferenceDialog('selected')}
         />
 
         <div className="space-y-2 min-w-0">
@@ -1643,6 +1644,7 @@ function CompactReferenceBar({
   itemOptions: Array<{ id: string; label: string; image: string }>;
   onOpen: () => void;
 }) {
+  const compactLabel = (label: string) => label.split(' · ')[0]?.trim() || label;
   const selectedOptions = [
     ...characterOptions
       .filter((option) => task.characterStyleIds.includes(option.id))
@@ -1654,127 +1656,160 @@ function CompactReferenceBar({
       .filter((option) => task.itemIds.includes(option.id))
       .map((option) => ({ ...option, kind: '道具' })),
   ];
-  const visibleOptions = selectedOptions.length > 6 ? selectedOptions.slice(0, 5) : selectedOptions.slice(0, 6);
+  const slotCount = 6;
+  const visibleOptions = selectedOptions.length > slotCount
+    ? selectedOptions.slice(0, slotCount - 1)
+    : selectedOptions.slice(0, slotCount);
   const hiddenCount = selectedOptions.length - visibleOptions.length;
-  const [previewOption, setPreviewOption] = useState<(typeof selectedOptions)[number] | null>(null);
+  const emptySlots = Array.from({
+    length: Math.max(0, slotCount - visibleOptions.length - (hiddenCount > 0 ? 1 : 0)),
+  });
 
   return (
-    <>
-      <div className="h-full rounded-lg border border-[var(--color-border)] bg-gray-50/70 px-3 py-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-text)]">
-            <Layers3 className="w-4 h-4" />
-            引用资产
-          </div>
+    <div className="h-full rounded-lg border border-[var(--color-border)] bg-gray-50/70 px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="flex items-center gap-2 text-sm font-medium text-[var(--color-text)] hover:text-[var(--color-primary)]"
+          aria-label="打开引用资产管理"
+        >
+          <Layers3 className="w-4 h-4" />
+          引用资产
+        </button>
+        <button
+          type="button"
+          onClick={onOpen}
+          className="w-7 h-7 rounded-lg border border-[var(--color-border)] bg-white flex items-center justify-center text-[var(--color-primary)] hover:border-[var(--color-primary)]"
+          aria-label="选择引用资产"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {visibleOptions.map((option) => (
+          <button
+            key={`${option.kind}-${option.id}`}
+            type="button"
+            onClick={onOpen}
+            className="aspect-square rounded-md bg-white border border-[var(--color-border)] overflow-hidden flex items-center justify-center hover:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-1"
+            title={`${option.kind} · ${option.label}`}
+            aria-label={`管理${option.kind}：${option.label}`}
+          >
+            {option.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={option.image} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span className="flex h-full w-full flex-col items-center justify-center gap-1 px-1.5 text-center">
+                <ImageIcon className="w-4 h-4 shrink-0 text-gray-400" />
+                <span className="line-clamp-2 max-w-full text-[10px] leading-3 text-gray-500">
+                  {compactLabel(option.label)}
+                </span>
+              </span>
+            )}
+          </button>
+        ))}
+        {hiddenCount > 0 && (
           <button
             type="button"
             onClick={onOpen}
-            className="w-7 h-7 rounded-lg border border-[var(--color-border)] bg-white flex items-center justify-center text-[var(--color-primary)] hover:border-[var(--color-primary)]"
-            aria-label="选择引用资产"
+            className="aspect-square rounded-md bg-white border border-[var(--color-border)] text-sm font-medium text-gray-500 flex items-center justify-center hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+            aria-label="查看更多引用资产"
+          >
+            +{hiddenCount}
+          </button>
+        )}
+        {emptySlots.map((_, index) => (
+          <button
+            key={`empty-${index}`}
+            type="button"
+            onClick={onOpen}
+            className="aspect-square rounded-md border border-dashed border-[var(--color-border)] bg-white/70 flex items-center justify-center text-gray-300 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+            aria-label="添加引用资产"
           >
             <Plus className="w-4 h-4" />
           </button>
-        </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {visibleOptions.map((option) =>
-            option.image ? (
-              <button
-                key={`${option.kind}-${option.id}`}
-                type="button"
-                onClick={() => setPreviewOption(option)}
-                className="aspect-square rounded-md bg-white border border-[var(--color-border)] overflow-hidden flex items-center justify-center cursor-zoom-in hover:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:ring-offset-1"
-                title={`${option.kind} · ${option.label}`}
-                aria-label={`查看${option.kind}：${option.label}`}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={option.image} alt="" className="w-full h-full object-cover" />
-              </button>
-            ) : (
-              <div
-                key={`${option.kind}-${option.id}`}
-                className="aspect-square rounded-md bg-white border border-[var(--color-border)] overflow-hidden flex items-center justify-center"
-                title={`${option.kind} · ${option.label}`}
-              >
-                <ImageIcon className="w-4 h-4 text-gray-400" />
-              </div>
-            ),
-          )}
-          {hiddenCount > 0 && (
-            <button
-              type="button"
-              onClick={onOpen}
-              className="aspect-square rounded-md bg-white border border-[var(--color-border)] text-sm font-medium text-gray-500 flex items-center justify-center hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-              aria-label="查看更多引用资产"
-            >
-              +{hiddenCount}
-            </button>
-          )}
-          {selectedOptions.length === 0 && (
-            <button
-              type="button"
-              onClick={onOpen}
-              className="col-span-3 text-left text-xs text-gray-400 hover:text-[var(--color-primary)]"
-            >
-              点击 + 添加角色、场景或道具
-            </button>
-          )}
-        </div>
+        ))}
       </div>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="mt-2 w-full text-left text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-primary)]"
+      >
+        已选 {selectedOptions.length} 个，点击管理引用
+      </button>
+    </div>
+  );
+}
 
-      {previewOption && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-6"
-          role="dialog"
-          aria-modal="true"
-          aria-label="引用资产预览"
-          onClick={() => setPreviewOption(null)}
-        >
-          <div className="max-w-[90vw]" onClick={(event) => event.stopPropagation()}>
-            <div className="mb-3 flex items-center justify-between gap-4 text-white">
-              <div className="min-w-0">
-                <div className="text-xs text-white/65">{previewOption.kind}</div>
-                <div className="truncate text-sm font-medium">{previewOption.label}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreviewOption(null)}
-                className="w-9 h-9 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center hover:bg-white/20"
-                aria-label="关闭预览"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="rounded-xl bg-black/30 p-2 shadow-2xl">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={previewOption.image}
-                alt={`${previewOption.kind} · ${previewOption.label}`}
-                className="max-h-[76vh] max-w-[86vw] rounded-lg object-contain"
-              />
-            </div>
-          </div>
+type ReferencePickerOption = {
+  id: string;
+  label: string;
+  image: string;
+  kind: ReferenceKind;
+  kindLabel: string;
+  patchKey: 'characterStyleIds' | 'sceneIds' | 'itemIds';
+  selectedIds: string[];
+};
+
+function ReferencePickerCard({
+  option,
+  selected,
+  onToggle,
+}: {
+  option: ReferencePickerOption;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`rounded-xl border overflow-hidden text-left transition-colors ${
+        selected
+          ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/15'
+          : 'border-[var(--color-border)] hover:border-[var(--color-primary)]'
+      }`}
+    >
+      <div className="aspect-video bg-gray-100 flex items-center justify-center">
+        {option.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={option.image} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <ImageIcon className="w-6 h-6 text-gray-400" />
+        )}
+      </div>
+      <div className="p-2 flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="text-xs text-[var(--color-text)] truncate">{option.label}</div>
+          <div className="text-[10px] text-[var(--color-text-secondary)]">{option.kindLabel}</div>
         </div>
-      )}
-    </>
+        <span className={`w-4 h-4 rounded border flex items-center justify-center ${
+          selected ? 'bg-[var(--color-primary)] border-[var(--color-primary)] text-white' : 'border-gray-300'
+        }`}>
+          {selected && <CheckCircle2 className="w-3 h-3" />}
+        </span>
+      </div>
+    </button>
   );
 }
 
 function ReferencePickerDialog({
-  activeKind,
+  activeView,
   task,
   characterOptions,
   sceneOptions,
   itemOptions,
-  onKindChange,
+  onViewChange,
   onPatch,
   onClose,
 }: {
-  activeKind: ReferenceKind;
+  activeView: ReferenceDialogView;
   task: CompositionTask;
   characterOptions: Array<{ id: string; label: string; image: string }>;
   sceneOptions: Array<{ id: string; label: string; image: string }>;
   itemOptions: Array<{ id: string; label: string; image: string }>;
-  onKindChange: (kind: ReferenceKind) => void;
+  onViewChange: (view: ReferenceDialogView) => void;
   onPatch: (patch: Parameters<typeof updateCompositionTask>[1]) => void;
   onClose: () => void;
 }) {
@@ -1803,14 +1838,44 @@ function ReferencePickerDialog({
       patchKey: 'itemIds',
     },
   };
-  const group = groups[activeKind];
 
-  const toggle = (id: string) => {
+  const toPickerOptions = (
+    kind: ReferenceKind,
+    options: Array<{ id: string; label: string; image: string }>,
+  ): ReferencePickerOption[] =>
+    options.map((option) => ({
+      ...option,
+      kind,
+      kindLabel: groups[kind].label,
+      patchKey: groups[kind].patchKey,
+      selectedIds: groups[kind].selectedIds,
+    }));
+
+  const allOptions = [
+    ...toPickerOptions('characters', characterOptions),
+    ...toPickerOptions('scenes', sceneOptions),
+    ...toPickerOptions('items', itemOptions),
+  ];
+  const selectedOptions = allOptions.filter((option) => option.selectedIds.includes(option.id));
+  const activeGroup = activeView === 'selected' ? null : groups[activeView];
+  const activeOptions = activeView === 'selected'
+    ? selectedOptions
+    : toPickerOptions(activeView, activeGroup?.options ?? []);
+  const selectedCount = selectedOptions.length;
+
+  const toggle = (kind: ReferenceKind, id: string) => {
+    const group = groups[kind];
     const nextIds = group.selectedIds.includes(id)
       ? group.selectedIds.filter((selectedId) => selectedId !== id)
       : [...group.selectedIds, id];
     onPatch({ [group.patchKey]: nextIds });
   };
+  const tabs: Array<{ key: ReferenceDialogView; label: string; count: number }> = [
+    { key: 'selected', label: '已选', count: selectedCount },
+    { key: 'characters', label: groups.characters.label, count: groups.characters.selectedIds.length },
+    { key: 'scenes', label: groups.scenes.label, count: groups.scenes.selectedIds.length },
+    { key: 'items', label: groups.items.label, count: groups.items.selectedIds.length },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 bg-black/35 flex items-center justify-center p-6">
@@ -1819,7 +1884,7 @@ function ReferencePickerDialog({
           <div>
             <h3 className="font-semibold text-[var(--color-text)]">选择引用资产</h3>
             <div className="text-xs text-[var(--color-text-secondary)]">
-              用于合成镜头图；可从已有素材中选择，后续可接入本地上传。
+              用于场景图生成；先从已有素材中选择，后续可接入上传与生成。
             </div>
           </div>
           <button
@@ -1833,15 +1898,16 @@ function ReferencePickerDialog({
 
         <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center justify-between gap-3">
           <div className="inline-flex rounded-lg border border-[var(--color-border)] p-1">
-            {(Object.keys(groups) as ReferenceKind[]).map((kind) => (
+            {tabs.map((tab) => (
               <button
-                key={kind}
-                onClick={() => onKindChange(kind)}
+                key={tab.key}
+                onClick={() => onViewChange(tab.key)}
                 className={`px-3 py-1.5 rounded-md text-sm ${
-                  activeKind === kind ? 'bg-[var(--color-dark)] text-white' : 'text-gray-600'
+                  activeView === tab.key ? 'bg-[var(--color-dark)] text-white' : 'text-gray-600'
                 }`}
               >
-                {groups[kind].label}
+                {tab.label}
+                <span className="ml-1.5 text-xs opacity-70">{tab.count}</span>
               </button>
             ))}
           </div>
@@ -1858,48 +1924,28 @@ function ReferencePickerDialog({
 
         <div className="flex-1 overflow-y-auto p-5">
           <div className="grid grid-cols-4 gap-3">
-            {group.options.map((option) => {
-              const selected = group.selectedIds.includes(option.id);
+            {activeOptions.map((option) => {
+              const selected = option.selectedIds.includes(option.id);
               return (
-                <button
-                  key={option.id}
-                  onClick={() => toggle(option.id)}
-                  className={`rounded-xl border overflow-hidden text-left transition-colors ${
-                    selected
-                      ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/15'
-                      : 'border-[var(--color-border)] hover:border-[var(--color-primary)]'
-                  }`}
-                >
-                  <div className="aspect-video bg-gray-100 flex items-center justify-center">
-                    {option.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={option.image} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <ImageIcon className="w-6 h-6 text-gray-400" />
-                    )}
-                  </div>
-                  <div className="p-2 flex items-center gap-2">
-                    <span className="text-xs text-[var(--color-text)] truncate flex-1">{option.label}</span>
-                    <span className={`w-4 h-4 rounded border flex items-center justify-center ${
-                      selected ? 'bg-[var(--color-primary)] border-[var(--color-primary)] text-white' : 'border-gray-300'
-                    }`}>
-                      {selected && <CheckCircle2 className="w-3 h-3" />}
-                    </span>
-                  </div>
-                </button>
+                <ReferencePickerCard
+                  key={`${option.kind}-${option.id}`}
+                  option={option}
+                  selected={selected}
+                  onToggle={() => toggle(option.kind, option.id)}
+                />
               );
             })}
           </div>
-          {group.options.length === 0 && (
+          {activeOptions.length === 0 && (
             <div className="border border-dashed border-gray-200 rounded-xl py-12 text-center text-sm text-gray-400">
-              暂无可选{group.label}
+              {activeView === 'selected' ? '还没有选择引用资产' : `暂无可选${activeGroup?.label ?? ''}`}
             </div>
           )}
         </div>
 
         <div className="px-5 py-4 border-t border-[var(--color-border)] flex items-center justify-between">
           <div className="text-xs text-[var(--color-text-secondary)]">
-            {group.label}已选 {group.selectedIds.length} 个
+            当前已选 {selectedCount} 个引用资产
           </div>
           <button
             onClick={onClose}
