@@ -251,6 +251,13 @@ type LLMCharacterAnalysis = {
   styles: Array<{ name: string; prompt: string }>;
 };
 
+type LLMCharacterAnalysisJson = {
+  description?: string;
+  bio?: string;
+  avatarPrompt?: string;
+  styles?: Array<{ name?: string; prompt?: string }>;
+};
+
 async function analyzeCharacterWithLLM(
   characterName: string,
   existingDescription: string,
@@ -338,15 +345,9 @@ ${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : 
     throw AppError.internal('LLM returned empty content', { model });
   }
 
-  const cleaned = extractJsonObject(raw);
-  let parsed: {
-    description?: string;
-    bio?: string;
-    avatarPrompt?: string;
-    styles?: Array<{ name?: string; prompt?: string }>;
-  };
+  let parsed: LLMCharacterAnalysisJson;
   try {
-    parsed = JSON.parse(cleaned);
+    parsed = parseCharacterAnalysisJson(raw);
   } catch (err) {
     throw AppError.internal(
       `LLM returned invalid JSON: ${(err as Error).message}`,
@@ -414,6 +415,23 @@ ${projectStylePrompt ? `项目整体风格指引：${projectStylePrompt}\n\n` : 
   };
 }
 
+export function parseCharacterAnalysisJson(raw: string): LLMCharacterAnalysisJson {
+  const cleaned = extractJsonObject(raw);
+  const candidates = buildJsonParseCandidates(cleaned);
+  const errors: string[] = [];
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate) as LLMCharacterAnalysisJson;
+    } catch (err) {
+      errors.push((err as Error).message);
+    }
+  }
+
+  const uniqueErrors = [...new Set(errors)];
+  throw new Error(uniqueErrors.join('; after repair: '));
+}
+
 /**
  * Strip markdown fences and prose around a JSON object — mirrors the worker's
  * extractJsonObject so Claude/Opus responses that wrap the JSON in ```json …```
@@ -439,4 +457,128 @@ function extractJsonObject(raw: string): string {
   const last = trimmed.lastIndexOf('}');
   if (first === -1 || last === -1 || last < first) return trimmed;
   return trimmed.slice(first, last + 1);
+}
+
+function buildJsonParseCandidates(cleaned: string): string[] {
+  const normalized = cleaned.trim().replace(/^\uFEFF/, '');
+  const withoutTrailingCommas = removeTrailingCommas(normalized);
+  const quotedKeys = quoteUnquotedJsonKeys(withoutTrailingCommas);
+  const quotedThenTrimmedCommas = removeTrailingCommas(quoteUnquotedJsonKeys(normalized));
+
+  return [
+    cleaned,
+    normalized,
+    withoutTrailingCommas,
+    quotedKeys,
+    quotedThenTrimmedCommas,
+  ].filter((candidate, index, candidates) => candidate && candidates.indexOf(candidate) === index);
+}
+
+function removeTrailingCommas(input: string): string {
+  let output = '';
+  let inString = false;
+  let escaping = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+
+    if (inString) {
+      output += char;
+      if (escaping) {
+        escaping = false;
+      } else if (char === '\\') {
+        escaping = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      output += char;
+      continue;
+    }
+
+    if (char === ',') {
+      let next = i + 1;
+      while (next < input.length && /\s/.test(input[next])) next++;
+      if (input[next] === '}' || input[next] === ']') continue;
+    }
+
+    output += char;
+  }
+
+  return output;
+}
+
+function quoteUnquotedJsonKeys(input: string): string {
+  let output = '';
+  let inString = false;
+  let escaping = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+
+    if (inString) {
+      output += char;
+      if (escaping) {
+        escaping = false;
+      } else if (char === '\\') {
+        escaping = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      output += char;
+      continue;
+    }
+
+    if (char !== '{' && char !== ',') {
+      output += char;
+      continue;
+    }
+
+    output += char;
+    let cursor = i + 1;
+    while (cursor < input.length && /\s/.test(input[cursor])) {
+      output += input[cursor];
+      cursor++;
+    }
+
+    if (!isUnquotedKeyStart(input[cursor])) {
+      i = cursor - 1;
+      continue;
+    }
+
+    let end = cursor + 1;
+    while (end < input.length && isUnquotedKeyChar(input[end])) end++;
+
+    let colon = end;
+    while (colon < input.length && /\s/.test(input[colon])) colon++;
+
+    if (input[colon] !== ':') {
+      output += input.slice(cursor, end);
+      i = end - 1;
+      continue;
+    }
+
+    output += `"${input.slice(cursor, end)}"`;
+    output += input.slice(end, colon + 1);
+    i = colon;
+  }
+
+  return output;
+}
+
+function isUnquotedKeyStart(char: string | undefined): boolean {
+  return Boolean(char && /[A-Za-z_$\u4e00-\u9fff]/.test(char));
+}
+
+function isUnquotedKeyChar(char: string | undefined): boolean {
+  return Boolean(char && /[A-Za-z0-9_$\-\u4e00-\u9fff]/.test(char));
 }
