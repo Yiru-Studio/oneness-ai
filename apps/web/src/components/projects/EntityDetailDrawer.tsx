@@ -108,6 +108,17 @@ const KIND_LABEL: Record<EntityKind, string> = {
   'character-avatar': '角色头像',
 };
 
+const INTERACTIVE_BACKGROUND_SELECTOR = [
+  'a',
+  'button',
+  'input',
+  'select',
+  'textarea',
+  '[role="button"]',
+  '[role="link"]',
+  '[contenteditable="true"]',
+].join(',');
+
 type ImageGenerationPhase = 'idle' | 'queueing' | 'queued' | 'running' | 'saving' | 'failed';
 
 const IMAGE_GENERATION_LABEL: Record<ImageGenerationPhase, string> = {
@@ -171,6 +182,7 @@ export function EntityDetailDrawer({
   const [historyBusy, setHistoryBusy] = useState<string | null>(null);
   const [generationPhase, setGenerationPhase] = useState<ImageGenerationPhase>('idle');
   const fileRef = useRef<HTMLInputElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
   const activeHistoryKeyRef = useRef<string | null>(null);
   const activeEntityIdRef = useRef(entity.id);
 
@@ -212,6 +224,23 @@ export function EntityDetailDrawer({
     setHistoryLoading(true);
     void refreshHistory(resourceKind, entity.id);
   }, [resourceKind, entity.id]);
+
+  useEffect(() => {
+    if (!open || !allowBackgroundInteraction || previewOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (drawerRef.current?.contains(target)) return;
+      if (target.closest(INTERACTIVE_BACKGROUND_SELECTOR)) return;
+      onClose();
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+    };
+  }, [allowBackgroundInteraction, onClose, open, previewOpen]);
 
   async function refreshHistory(kind: ResourceImageKind, entityId: string) {
     const key = historyKey(kind, entityId);
@@ -450,6 +479,7 @@ export function EntityDetailDrawer({
       onClick={allowBackgroundInteraction ? undefined : onClose}
     >
       <div
+        ref={drawerRef}
         className="pointer-events-auto w-[840px] max-w-[100vw] h-full bg-white shadow-2xl flex overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
