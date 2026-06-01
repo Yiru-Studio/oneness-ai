@@ -42,28 +42,7 @@ export function AnalysisProgressPanel({
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4 mb-4 space-y-1">
       {/* Step 1 — scene-list analysis */}
       <Row done={sceneListDone} label="场景列表分析">
-        {sceneListDone ? (
-          <div className="flex flex-wrap gap-1.5 justify-end max-w-[60%]">
-            {scenes.slice(0, 6).map((s) => (
-              <span
-                key={s.index}
-                className={`px-2 py-0.5 rounded-md text-xs whitespace-nowrap ${
-                  selectedScene?.index === s.index
-                    ? 'bg-[var(--color-primary)] text-white'
-                    : 'bg-blue-50 text-blue-600'
-                }`}
-                title={s.title}
-              >
-                {truncate(s.title, 14)}
-              </span>
-            ))}
-            {scenes.length > 6 && (
-              <span className="px-2 py-0.5 text-xs text-gray-400">+{scenes.length - 6}</span>
-            )}
-          </div>
-        ) : (
-          <span className="text-xs text-gray-400">待分析剧集</span>
-        )}
+        {sceneListDone ? null : <span className="text-xs text-gray-400">待分析剧集</span>}
       </Row>
 
       {/* Step 2 — batch shot generation */}
@@ -148,8 +127,4 @@ function Row({
       <div className="ml-auto">{children}</div>
     </div>
   );
-}
-
-function truncate(s: string, n: number): string {
-  return s.length > n ? s.slice(0, n) + '…' : s;
 }
