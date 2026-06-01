@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
   CheckCircle2,
-  ChevronDown,
   Clapperboard,
   Grid3X3,
   Image as ImageIcon,
@@ -42,10 +41,16 @@ import {
   getCompositionTasks,
   setCurrentCompositionGridRun,
   setCurrentCompositionImageRun,
+  updateCharacterStyle,
   updateCompositionTask,
+  updateItem,
+  updateScene,
   type CompositionImageGenerationSettings,
 } from '@/lib/api';
 import { IMAGE_MODEL_OPTIONS, imageModelLabel } from '@/data/style-presets';
+import { EntityDetailDrawer, type EntityDetailData } from '@/components/projects/EntityDetailDrawer';
+import { useGeneration, type GenerationKind } from '@/contexts/GenerationContext';
+import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 import { CompositionCanvasView } from './CompositionCanvasView';
 
 interface Props {
@@ -55,6 +60,7 @@ interface Props {
   scenes: Scene[];
   items: Item[];
   onOpenTab?: (tab: ProjectTab) => void;
+  onRefreshReferences?: () => Promise<void>;
 }
 
 type FilterValue = 'all' | 'draft' | 'running' | 'image' | 'grid' | 'applied' | 'failed';
@@ -75,6 +81,47 @@ type ImageSettings = {
   outputCount: number;
   negativePrompt: string;
 };
+
+type ReferenceBaseOption = {
+  id: string;
+  label: string;
+  image: string;
+};
+
+type CharacterReferenceOption = ReferenceBaseOption & {
+  assetId: string | null;
+  characterId: string;
+  characterName: string;
+  characterDescription: string;
+  characterBio: string;
+  styleName: string;
+  prompt: string;
+  model: string | null;
+  ratio: string | null;
+};
+
+type SceneReferenceOption = ReferenceBaseOption & {
+  assetId: string | null;
+  name: string;
+  description: string;
+  prompt: string;
+  model: string | null;
+  ratio: string | null;
+};
+
+type ItemReferenceOption = ReferenceBaseOption & {
+  assetId: string | null;
+  name: string;
+  description: string;
+  prompt: string;
+  model: string | null;
+  ratio: string | null;
+};
+
+type EditableReferenceOption =
+  | CharacterReferenceOption
+  | SceneReferenceOption
+  | ItemReferenceOption;
 
 const FILTERS: Array<{ value: FilterValue; label: string }> = [
   { value: 'all', label: '全部' },
@@ -164,6 +211,7 @@ export function CompositionShotsTabContent({
   scenes,
   items,
   onOpenTab,
+  onRefreshReferences,
 }: Props) {
   const router = useRouter();
   const [tasks, setTasks] = useState<CompositionTask[]>([]);
@@ -191,16 +239,45 @@ export function CompositionShotsTabContent({
           id: style.id ?? '',
           label: `${character.name} · ${style.name}`,
           image: style.image,
+          assetId: style.assetId ?? null,
+          characterId: character.id,
+          characterName: character.name,
+          characterDescription: character.description,
+          characterBio: character.bio,
+          styleName: style.name,
+          prompt: style.prompt ?? '',
+          model: style.model ?? null,
+          ratio: style.ratio ?? null,
         })),
       ).filter((option) => option.id),
     [characters],
   );
   const sceneOptions = useMemo(
-    () => scenes.map((scene) => ({ id: scene.id, label: scene.name, image: scene.image })),
+    () => scenes.map((scene) => ({
+      id: scene.id,
+      label: scene.name,
+      image: scene.image,
+      assetId: scene.assetId ?? null,
+      name: scene.name,
+      description: scene.description ?? '',
+      prompt: scene.prompt ?? '',
+      model: scene.model ?? null,
+      ratio: scene.ratio ?? null,
+    })),
     [scenes],
   );
   const itemOptions = useMemo(
-    () => items.map((item) => ({ id: item.id, label: item.name, image: item.image })),
+    () => items.map((item) => ({
+      id: item.id,
+      label: item.name,
+      image: item.image,
+      assetId: item.assetId ?? null,
+      name: item.name,
+      description: item.description ?? '',
+      prompt: item.prompt ?? '',
+      model: item.model ?? null,
+      ratio: item.ratio ?? null,
+    })),
     [items],
   );
 
@@ -770,9 +847,11 @@ export function CompositionShotsTabContent({
         <ReferencePickerDialog
           activeView={referenceDialog}
           task={selectedTask}
+          project={project}
           characterOptions={characterOptions}
           sceneOptions={sceneOptions}
           itemOptions={itemOptions}
+          onRefreshReferences={onRefreshReferences}
           onViewChange={setReferenceDialog}
           onPatch={patchSelected}
           onClose={() => setReferenceDialog(null)}
@@ -1179,19 +1258,6 @@ function CompositionInputsPanel({
             rows={3}
             className="w-full min-h-[92px] rounded-lg border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] outline-none px-3 py-2 text-sm leading-relaxed resize-none"
           />
-          <details className="group">
-            <summary className="flex cursor-pointer list-none items-center justify-between text-xs text-[var(--color-text-secondary)]">
-              Negative Prompt
-              <ChevronDown className="w-3.5 h-3.5 transition group-open:rotate-180" />
-            </summary>
-            <textarea
-              value={imageSettings.negativePrompt}
-              onChange={(e) => onImageSettingsChange({ ...imageSettings, negativePrompt: e.target.value })}
-              rows={2}
-              className="mt-2 w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)] resize-none"
-              placeholder="不希望出现的画面元素"
-            />
-          </details>
         </div>
 
         <div className="space-y-2 min-w-0">
@@ -1667,7 +1733,7 @@ function CompactReferenceBar({
 
   return (
     <div className="h-full rounded-lg border border-[var(--color-border)] bg-gray-50/70 px-3 py-2">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={onOpen}
@@ -1676,14 +1742,6 @@ function CompactReferenceBar({
         >
           <Layers3 className="w-4 h-4" />
           引用资产
-        </button>
-        <button
-          type="button"
-          onClick={onOpen}
-          className="w-7 h-7 rounded-lg border border-[var(--color-border)] bg-white flex items-center justify-center text-[var(--color-primary)] hover:border-[var(--color-primary)]"
-          aria-label="选择引用资产"
-        >
-          <Plus className="w-4 h-4" />
         </button>
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2">
@@ -1750,72 +1808,140 @@ type ReferencePickerOption = {
   kindLabel: string;
   patchKey: 'characterStyleIds' | 'sceneIds' | 'itemIds';
   selectedIds: string[];
-};
+} & EditableReferenceOption;
 
 function ReferencePickerCard({
   option,
   selected,
+  generating,
+  generationError,
   onToggle,
+  onEdit,
+  onPreview,
 }: {
   option: ReferencePickerOption;
   selected: boolean;
+  generating: boolean;
+  generationError: string | null;
   onToggle: () => void;
+  onEdit: () => void;
+  onPreview: () => void;
 }) {
+  const hasImage = Boolean(option.image);
+
   return (
-    <button
-      type="button"
-      onClick={onToggle}
+    <div
       className={`rounded-xl border overflow-hidden text-left transition-colors ${
         selected
           ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/15'
           : 'border-[var(--color-border)] hover:border-[var(--color-primary)]'
       }`}
     >
-      <div className="aspect-video bg-gray-100 flex items-center justify-center">
-        {option.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={option.image} alt="" className="w-full h-full object-cover" />
-        ) : (
-          <ImageIcon className="w-6 h-6 text-gray-400" />
-        )}
-      </div>
-      <div className="p-2 flex items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-[var(--color-text)] truncate">{option.label}</div>
-          <div className="text-[10px] text-[var(--color-text-secondary)]">{option.kindLabel}</div>
+      <button
+        type="button"
+        onClick={hasImage ? onPreview : selected ? undefined : onToggle}
+        className={`block w-full text-left ${hasImage ? 'cursor-zoom-in' : selected ? 'cursor-default' : ''}`}
+        aria-label={
+          hasImage
+            ? `放大查看${option.kindLabel}：${option.label}`
+            : selected
+              ? `${option.label} 已选`
+              : `选择${option.kindLabel}：${option.label}`
+        }
+      >
+        <div className="relative aspect-video bg-gray-100 flex items-center justify-center">
+          {option.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={option.image}
+              alt=""
+              className={`w-full h-full ${referenceImageObjectClass(option.kind)}`}
+            />
+          ) : (
+            <ImageIcon className="w-6 h-6 text-gray-400" />
+          )}
+          {generating && (
+            <div className="absolute inset-0 bg-black/40 text-white flex flex-col items-center justify-center gap-1">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-xs">生成中...</span>
+            </div>
+          )}
         </div>
-        <span className={`w-4 h-4 rounded border flex items-center justify-center ${
-          selected ? 'bg-[var(--color-primary)] border-[var(--color-primary)] text-white' : 'border-gray-300'
-        }`}>
-          {selected && <CheckCircle2 className="w-3 h-3" />}
-        </span>
+      </button>
+      <div className="p-2 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={selected ? undefined : onToggle}
+          className={`min-w-0 flex-1 text-left ${selected ? 'cursor-default' : 'hover:text-[var(--color-primary)]'}`}
+          aria-label={selected ? `${option.label} 已选` : `选择${option.kindLabel}：${option.label}`}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="text-xs text-[var(--color-text)] truncate">{option.label}</div>
+            <div className="text-[10px] text-[var(--color-text-secondary)]">{option.kindLabel}</div>
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={selected ? `移除引用：${option.label}` : `选择引用：${option.label}`}
+          title={selected ? '移除引用' : '选择引用'}
+          className={`w-4 h-4 rounded border flex shrink-0 items-center justify-center ${
+            selected ? 'bg-[var(--color-primary)] border-[var(--color-primary)] text-white' : 'border-gray-300'
+          }`}>
+            {selected && <CheckCircle2 className="w-3 h-3" />}
+        </button>
       </div>
-    </button>
+      {!option.image && (
+        <div className="px-2 pb-2">
+          <button
+            type="button"
+            onClick={onEdit}
+            disabled={generating}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-white px-2 py-1.5 text-xs font-medium text-[var(--color-primary)] hover:border-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+            {generating ? '生成中...' : '生成图片'}
+          </button>
+          {generationError && !generating && (
+            <div className="mt-1 line-clamp-2 text-[10px] leading-3 text-red-500">
+              {generationError}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
 function ReferencePickerDialog({
   activeView,
   task,
+  project,
   characterOptions,
   sceneOptions,
   itemOptions,
+  onRefreshReferences,
   onViewChange,
   onPatch,
   onClose,
 }: {
   activeView: ReferenceDialogView;
   task: CompositionTask;
-  characterOptions: Array<{ id: string; label: string; image: string }>;
-  sceneOptions: Array<{ id: string; label: string; image: string }>;
-  itemOptions: Array<{ id: string; label: string; image: string }>;
+  project: Project;
+  characterOptions: CharacterReferenceOption[];
+  sceneOptions: SceneReferenceOption[];
+  itemOptions: ItemReferenceOption[];
+  onRefreshReferences?: () => Promise<void>;
   onViewChange: (view: ReferenceDialogView) => void;
   onPatch: (patch: Parameters<typeof updateCompositionTask>[1]) => void;
   onClose: () => void;
 }) {
+  const [editingOption, setEditingOption] = useState<ReferencePickerOption | null>(null);
+  const [previewOption, setPreviewOption] = useState<ReferencePickerOption | null>(null);
+  const { isGenerating, getError } = useGeneration();
   const groups: Record<ReferenceKind, {
     label: string;
-    options: Array<{ id: string; label: string; image: string }>;
+    options: EditableReferenceOption[];
     selectedIds: string[];
     patchKey: 'characterStyleIds' | 'sceneIds' | 'itemIds';
   }> = {
@@ -1841,7 +1967,7 @@ function ReferencePickerDialog({
 
   const toPickerOptions = (
     kind: ReferenceKind,
-    options: Array<{ id: string; label: string; image: string }>,
+    options: EditableReferenceOption[],
   ): ReferencePickerOption[] =>
     options.map((option) => ({
       ...option,
@@ -1849,7 +1975,7 @@ function ReferencePickerDialog({
       kindLabel: groups[kind].label,
       patchKey: groups[kind].patchKey,
       selectedIds: groups[kind].selectedIds,
-    }));
+    } as ReferencePickerOption));
 
   const allOptions = [
     ...toPickerOptions('characters', characterOptions),
@@ -1876,87 +2002,327 @@ function ReferencePickerDialog({
     { key: 'scenes', label: groups.scenes.label, count: groups.scenes.selectedIds.length },
     { key: 'items', label: groups.items.label, count: groups.items.selectedIds.length },
   ];
+  const editorConfig = editingOption
+    ? referenceEditorConfig({
+        option: editingOption,
+        project,
+        task,
+        onRefreshReferences,
+      })
+    : null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/35 flex items-center justify-center p-6">
-      <div className="w-full max-w-[900px] max-h-[84vh] rounded-xl bg-white shadow-2xl overflow-hidden flex flex-col">
-        <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between gap-4">
-          <div>
-            <h3 className="font-semibold text-[var(--color-text)]">选择引用资产</h3>
-            <div className="text-xs text-[var(--color-text-secondary)]">
-              用于场景图生成；先从已有素材中选择，后续可接入上传与生成。
+    <>
+      <div className="fixed inset-0 z-50 bg-black/35 flex items-center justify-center p-6">
+        <div className="w-full max-w-[900px] max-h-[84vh] rounded-xl bg-white shadow-2xl overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between gap-4">
+            <div>
+              <h3 className="font-semibold text-[var(--color-text)]">选择引用资产</h3>
+              <div className="text-xs text-[var(--color-text-secondary)]">
+                用于场景图生成；缺少图片的素材可在这里直接生成或上传。
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center hover:border-[var(--color-primary)]"
+              aria-label="关闭"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center justify-between gap-3">
+            <div className="inline-flex rounded-lg border border-[var(--color-border)] p-1">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => onViewChange(tab.key)}
+                  className={`px-3 py-1.5 rounded-md text-sm ${
+                    activeView === tab.key ? 'bg-[var(--color-dark)] text-white' : 'text-gray-600'
+                  }`}
+                >
+                  {tab.label}
+                  <span className="ml-1.5 text-xs opacity-70">{tab.count}</span>
+                </button>
+              ))}
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-lg border border-dashed border-[var(--color-border)] px-3 py-2 text-sm text-gray-400">
+              <Upload className="w-4 h-4" />
+              上传在详情面板中完成
             </div>
           </div>
+
+          <div className="flex-1 overflow-y-auto p-5">
+            <div className="grid grid-cols-4 gap-3">
+              {activeOptions.map((option) => {
+                const selected = option.selectedIds.includes(option.id);
+                const generationKind = generationKindForReference(option.kind);
+                const generating = isGenerating(generationKind, option.id);
+                return (
+                  <ReferencePickerCard
+                    key={`${option.kind}-${option.id}`}
+                    option={option}
+                    selected={selected}
+                    generating={generating}
+                    generationError={getError(generationKind, option.id)}
+                    onToggle={() => toggle(option.kind, option.id)}
+                    onEdit={() => setEditingOption(option)}
+                    onPreview={() => setPreviewOption(option)}
+                  />
+                );
+              })}
+            </div>
+            {activeOptions.length === 0 && (
+              <div className="border border-dashed border-gray-200 rounded-xl py-12 text-center text-sm text-gray-400">
+                {activeView === 'selected' ? '还没有选择引用资产' : `暂无可选${activeGroup?.label ?? ''}`}
+              </div>
+            )}
+          </div>
+
+          <div className="px-5 py-4 border-t border-[var(--color-border)] flex items-center justify-between">
+            <div className="text-xs text-[var(--color-text-secondary)]">
+              当前已选 {selectedCount} 个引用资产
+            </div>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg bg-[var(--color-dark)] text-white text-sm"
+            >
+              完成
+            </button>
+          </div>
+        </div>
+      </div>
+      {editorConfig && (
+        <EntityDetailDrawer
+          open
+          kind={editorConfig.kind}
+          entity={editorConfig.entity}
+          project={project}
+          characterId={editorConfig.characterId}
+          buildAutoPrompt={editorConfig.buildAutoPrompt}
+          onSave={editorConfig.onSave}
+          onClose={() => setEditingOption(null)}
+        />
+      )}
+      {previewOption && (
+        <ReferenceImagePreview
+          option={previewOption}
+          onClose={() => setPreviewOption(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function ReferenceImagePreview({
+  option,
+  onClose,
+}: {
+  option: ReferencePickerOption;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/75 flex items-center justify-center p-6"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-5xl max-h-[90vh] flex flex-col gap-3"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-4 text-white">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium">{option.label}</div>
+            <div className="text-xs text-white/65">{option.kindLabel}</div>
+          </div>
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center hover:border-[var(--color-primary)]"
-            aria-label="关闭"
+            className="w-9 h-9 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center hover:bg-white/20"
+            aria-label="关闭预览"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
-
-        <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center justify-between gap-3">
-          <div className="inline-flex rounded-lg border border-[var(--color-border)] p-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => onViewChange(tab.key)}
-                className={`px-3 py-1.5 rounded-md text-sm ${
-                  activeView === tab.key ? 'bg-[var(--color-dark)] text-white' : 'text-gray-600'
-                }`}
-              >
-                {tab.label}
-                <span className="ml-1.5 text-xs opacity-70">{tab.count}</span>
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            disabled
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-[var(--color-border)] text-sm text-gray-400 disabled:cursor-not-allowed"
-            title="本地上传会在接入素材上传接口后启用"
-          >
-            <Upload className="w-4 h-4" />
-            上传本地文件
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5">
-          <div className="grid grid-cols-4 gap-3">
-            {activeOptions.map((option) => {
-              const selected = option.selectedIds.includes(option.id);
-              return (
-                <ReferencePickerCard
-                  key={`${option.kind}-${option.id}`}
-                  option={option}
-                  selected={selected}
-                  onToggle={() => toggle(option.kind, option.id)}
-                />
-              );
-            })}
-          </div>
-          {activeOptions.length === 0 && (
-            <div className="border border-dashed border-gray-200 rounded-xl py-12 text-center text-sm text-gray-400">
-              {activeView === 'selected' ? '还没有选择引用资产' : `暂无可选${activeGroup?.label ?? ''}`}
-            </div>
-          )}
-        </div>
-
-        <div className="px-5 py-4 border-t border-[var(--color-border)] flex items-center justify-between">
-          <div className="text-xs text-[var(--color-text-secondary)]">
-            当前已选 {selectedCount} 个引用资产
-          </div>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-[var(--color-dark)] text-white text-sm"
-          >
-            完成
-          </button>
+        <div className="min-h-[320px] max-h-[78vh] rounded-xl border border-white/15 bg-black/30 flex items-center justify-center overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={option.image}
+            alt=""
+            className="max-h-[78vh] w-full object-contain"
+          />
         </div>
       </div>
     </div>
   );
+}
+
+type EntitySavePatch = {
+  name?: string;
+  description?: string;
+  prompt?: string;
+  model?: string | null;
+  ratio?: string | null;
+  assetId?: string | null;
+};
+
+type ReferenceEditorConfig = {
+  kind: 'style' | 'scene' | 'item';
+  entity: EntityDetailData;
+  characterId?: string;
+  buildAutoPrompt: () => string;
+  onSave: (patch: EntitySavePatch) => Promise<EntityDetailData>;
+};
+
+function generationKindForReference(kind: ReferenceKind): GenerationKind {
+  if (kind === 'characters') return 'style';
+  if (kind === 'scenes') return 'scene';
+  return 'item';
+}
+
+function referenceImageObjectClass(kind: ReferenceKind): string {
+  return kind === 'scenes' ? 'object-cover' : 'object-contain';
+}
+
+function referenceEditorConfig({
+  option,
+  project,
+  task,
+  onRefreshReferences,
+}: {
+  option: ReferencePickerOption;
+  project: Project;
+  task: CompositionTask;
+  onRefreshReferences?: () => Promise<void>;
+}): ReferenceEditorConfig {
+  const refreshReferences = async () => {
+    await onRefreshReferences?.();
+  };
+
+  if (option.kind === 'characters') {
+    const characterOption = option as ReferencePickerOption & CharacterReferenceOption;
+    return {
+      kind: 'style',
+      characterId: characterOption.characterId,
+      entity: {
+        id: characterOption.id,
+        name: characterOption.styleName,
+        prompt: characterOption.prompt,
+        model: characterOption.model,
+        ratio: characterOption.ratio,
+        image: characterOption.image,
+        assetId: characterOption.assetId,
+      },
+      buildAutoPrompt: () =>
+        buildResourceImagePrompt({
+          kind: 'character-style',
+          name: characterOption.characterName,
+          description: characterOption.characterDescription,
+          bio: characterOption.characterBio,
+          styleName: characterOption.styleName,
+          userPrompt: characterOption.prompt,
+          projectStylePrompt: project.stylePrompt,
+          ratio: characterOption.ratio || project.ratio,
+        }),
+      onSave: async (patch) => {
+        const fresh = await updateCharacterStyle(characterOption.id, patch);
+        await refreshReferences();
+        return {
+          id: fresh.id,
+          name: fresh.name,
+          prompt: fresh.prompt,
+          model: fresh.model,
+          ratio: fresh.ratio,
+          image: fresh.image,
+          assetId: fresh.assetId,
+        };
+      },
+    };
+  }
+
+  if (option.kind === 'scenes') {
+    const sceneOption = option as ReferencePickerOption & SceneReferenceOption;
+    const scriptContext = task.scriptExcerpt ? `剧本节选：\n${task.scriptExcerpt}` : '';
+    return {
+      kind: 'scene',
+      entity: {
+        id: sceneOption.id,
+        name: sceneOption.name,
+        description: sceneOption.description,
+        prompt: sceneOption.prompt,
+        model: sceneOption.model,
+        ratio: sceneOption.ratio,
+        image: sceneOption.image,
+        assetId: sceneOption.assetId,
+      },
+      buildAutoPrompt: () =>
+        buildResourceImagePrompt({
+          kind: 'scene',
+          name: sceneOption.name,
+          description: sceneOption.description,
+          userPrompt: sceneOption.prompt || scriptContext,
+          projectStylePrompt: project.stylePrompt,
+          ratio: sceneOption.ratio || project.ratio,
+        }),
+      onSave: async (patch) => {
+        const fresh = await updateScene(sceneOption.id, patch);
+        await refreshReferences();
+        return {
+          id: fresh.id,
+          name: fresh.name,
+          description: fresh.description ?? '',
+          prompt: fresh.prompt ?? '',
+          model: fresh.model ?? null,
+          ratio: fresh.ratio ?? null,
+          image: fresh.image,
+          assetId: fresh.assetId ?? null,
+        };
+      },
+    };
+  }
+
+  const itemOption = option as ReferencePickerOption & ItemReferenceOption;
+  const itemScriptContext = task.scriptExcerpt
+    .split(/\n+/)
+    .filter((line) => line.includes(itemOption.name))
+    .slice(0, 6)
+    .join('\n');
+  return {
+    kind: 'item',
+    entity: {
+      id: itemOption.id,
+      name: itemOption.name,
+      description: itemOption.description,
+      prompt: itemOption.prompt,
+      model: itemOption.model,
+      ratio: itemOption.ratio,
+      image: itemOption.image,
+      assetId: itemOption.assetId,
+    },
+    buildAutoPrompt: () =>
+      buildResourceImagePrompt({
+        kind: 'item',
+        name: itemOption.name,
+        description: itemOption.description,
+        userPrompt: itemOption.prompt || (itemScriptContext ? `剧本节选：\n${itemScriptContext}` : ''),
+        projectStylePrompt: project.stylePrompt,
+        ratio: itemOption.ratio || project.ratio,
+      }),
+    onSave: async (patch) => {
+      const fresh = await updateItem(itemOption.id, patch);
+      await refreshReferences();
+      return {
+        id: fresh.id,
+        name: fresh.name,
+        description: fresh.description ?? '',
+        prompt: fresh.prompt ?? '',
+        model: fresh.model ?? null,
+        ratio: fresh.ratio ?? null,
+        image: fresh.image,
+        assetId: fresh.assetId ?? null,
+      };
+    },
+  };
 }
 
 function SettingSelect({

@@ -64,6 +64,11 @@ export default function ProjectDetailPage() {
     return { proj, chars, itms, scns };
   }, []);
 
+  const refreshCurrentEntities = useCallback(async () => {
+    if (!params.id) return;
+    await refreshEntities(params.id as string);
+  }, [params.id, refreshEntities]);
+
   const startPolling = useCallback(
     (id: string) => {
       stopPolling();
@@ -217,6 +222,7 @@ export default function ProjectDetailPage() {
               scenes={scenes}
               items={items}
               onOpenTab={setActiveTab}
+              onRefreshReferences={refreshCurrentEntities}
             />
           )}
           {activeTab === 'storyboard' && (
