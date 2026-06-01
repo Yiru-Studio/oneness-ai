@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
@@ -69,6 +69,7 @@ type ResultView = 'image' | 'grid';
 type CompositionViewMode = 'panel' | 'canvas';
 type ReferenceKind = 'characters' | 'scenes' | 'items';
 type ReferenceDialogView = 'selected' | ReferenceKind;
+type ReferenceSelections = Record<ReferenceKind, string[]>;
 type HistoryPreview =
   | { type: 'image'; run: CompositionImageRun }
   | { type: 'grid'; run: CompositionGridRun }
@@ -231,6 +232,7 @@ export function CompositionShotsTabContent({
   const [showApplyPanel, setShowApplyPanel] = useState(false);
   const [applyMode, setApplyMode] = useState<ApplyCompositionMode>('create_shots');
   const [viewMode, setViewMode] = useState<CompositionViewMode>('panel');
+  const patchQueuesRef = useRef<Record<string, Promise<void>>>({});
 
   const characterOptions = useMemo(
     () =>
@@ -398,6 +400,10 @@ export function CompositionShotsTabContent({
     setSelectedId(next.id);
   };
 
+  const clearBusy = (key: string) => {
+    setBusy((current) => (current === key ? null : current));
+  };
+
   const handleAnalyze = async () => {
     if (!compositionGate.ready) {
       if (compositionGate.tab) onOpenTab?.(compositionGate.tab);
@@ -412,22 +418,36 @@ export function CompositionShotsTabContent({
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成合成镜头任务失败');
     } finally {
-      setBusy(null);
+      clearBusy('analyze');
     }
   };
 
   const patchSelected = async (patch: Parameters<typeof updateCompositionTask>[1]) => {
     if (!selectedTask) return;
-    setBusy(`patch-${selectedTask.id}`);
-    setError(null);
+    const taskId = selectedTask.id;
+    const busyKey = `patch-${taskId}`;
+    const runPatch = async () => {
+      setBusy(busyKey);
+      setError(null);
+      try {
+        const next = await updateCompositionTask(taskId, patch);
+        updateTaskInList(next);
+        void reloadRuns(next.id).catch(() => {});
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '保存失败');
+      } finally {
+        clearBusy(busyKey);
+      }
+    };
+    const previous = patchQueuesRef.current[taskId] ?? Promise.resolve();
+    const queued = previous.catch(() => {}).then(runPatch);
+    patchQueuesRef.current[taskId] = queued;
     try {
-      const next = await updateCompositionTask(selectedTask.id, patch);
-      updateTaskInList(next);
-      void reloadRuns(next.id).catch(() => {});
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '保存失败');
+      await queued;
     } finally {
-      setBusy(null);
+      if (patchQueuesRef.current[taskId] === queued) {
+        delete patchQueuesRef.current[taskId];
+      }
     }
   };
 
@@ -440,9 +460,11 @@ export function CompositionShotsTabContent({
 
   const handleGenerateImage = async () => {
     if (!selectedTask) return;
-    setBusy(`image-${selectedTask.id}`);
+    const busyKey = `image-${selectedTask.id}`;
+    setBusy(busyKey);
     setError(null);
     try {
+      await patchQueuesRef.current[selectedTask.id]?.catch(() => {});
       const taskForPrompt = await savePromptIfNeeded();
       const payload: CompositionImageGenerationSettings = imageSettings;
       const next = await generateCompositionImage(taskForPrompt.id, payload);
@@ -453,15 +475,17 @@ export function CompositionShotsTabContent({
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成合成镜头图失败');
     } finally {
-      setBusy(null);
+      clearBusy(busyKey);
     }
   };
 
   const handleGenerateGrid = async (imageRunId = currentImageRun?.id) => {
     if (!selectedTask || !imageRunId) return;
-    setBusy(`grid-${imageRunId}`);
+    const busyKey = `grid-${imageRunId}`;
+    setBusy(busyKey);
     setError(null);
     try {
+      await patchQueuesRef.current[selectedTask.id]?.catch(() => {});
       const sourceRun = runs?.imageRuns.find((run) => run.id === imageRunId) ?? currentImageRun;
       const next = await generateCompositionGrid(imageRunId, {
         model: sourceRun?.model ?? project.imageModel,
@@ -475,13 +499,14 @@ export function CompositionShotsTabContent({
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成分镜网格失败');
     } finally {
-      setBusy(null);
+      clearBusy(busyKey);
     }
   };
 
   const handleSetCurrentImageRun = async (runId: string) => {
     if (!selectedTask) return;
-    setBusy(`current-${runId}`);
+    const busyKey = `current-${runId}`;
+    setBusy(busyKey);
     setError(null);
     try {
       const next = await setCurrentCompositionImageRun(runId);
@@ -492,13 +517,14 @@ export function CompositionShotsTabContent({
     } catch (e) {
       setError(e instanceof Error ? e.message : '设置当前镜头图失败');
     } finally {
-      setBusy(null);
+      clearBusy(busyKey);
     }
   };
 
   const handleSetCurrentGridRun = async (runId: string) => {
     if (!selectedTask) return;
-    setBusy(`current-grid-${runId}`);
+    const busyKey = `current-grid-${runId}`;
+    setBusy(busyKey);
     setError(null);
     try {
       const next = await setCurrentCompositionGridRun(runId);
@@ -510,7 +536,7 @@ export function CompositionShotsTabContent({
     } catch (e) {
       setError(e instanceof Error ? e.message : '设置当前分镜网格失败');
     } finally {
-      setBusy(null);
+      clearBusy(busyKey);
     }
   };
 
@@ -537,7 +563,8 @@ export function CompositionShotsTabContent({
     const candidateIds = run.candidates
       .filter((candidate) => candidate.selected)
       .map((candidate) => candidate.id);
-    setBusy(`apply-${run.id}`);
+    const busyKey = `apply-${run.id}`;
+    setBusy(busyKey);
     setError(null);
     try {
       const next = await applyCompositionGridToShots(run.id, {
@@ -550,7 +577,7 @@ export function CompositionShotsTabContent({
     } catch (e) {
       setError(e instanceof Error ? e.message : '应用到分镜失败');
     } finally {
-      setBusy(null);
+      clearBusy(busyKey);
     }
   };
 
@@ -845,6 +872,7 @@ export function CompositionShotsTabContent({
 
       {selectedTask && referenceDialog && (
         <ReferencePickerDialog
+          key={selectedTask.id}
           activeView={referenceDialog}
           task={selectedTask}
           project={project}
@@ -1207,30 +1235,35 @@ function CompositionInputsPanel({
   onGenerateImage: () => void;
   onGenerateGrid: () => void;
 }) {
+  const taskSaving = busy === `patch-${selectedTask.id}`;
   const imageSubmitting = busy === `image-${selectedTask.id}`;
   const imageQueued = selectedTask.status === 'IMAGE_QUEUED' || currentImageRun?.status === 'QUEUED';
   const imageRunning = selectedTask.status === 'IMAGE_RUNNING' || currentImageRun?.status === 'RUNNING';
-  const imageBusy = imageSubmitting || imageQueued || imageRunning;
-  const imageButtonLabel = imageSubmitting
-    ? '提交中…'
-    : imageQueued
-      ? '排队中…'
-      : imageRunning
-        ? '生成中…'
-        : selectedTask.image
-          ? '重新生成'
-          : '生成镜头图';
+  const imageBusy = taskSaving || imageSubmitting || imageQueued || imageRunning;
+  const imageButtonLabel = taskSaving
+    ? '保存中…'
+    : imageSubmitting
+      ? '提交中…'
+      : imageQueued
+        ? '排队中…'
+        : imageRunning
+          ? '生成中…'
+          : selectedTask.image
+            ? '重新生成'
+            : '生成镜头图';
   const gridSubmitting = currentImageRun ? busy === `grid-${currentImageRun.id}` : false;
   const gridQueued = selectedTask.status === 'GRID_QUEUED' || currentGridRun?.status === 'QUEUED';
   const gridRunning = selectedTask.status === 'GRID_RUNNING' || currentGridRun?.status === 'RUNNING';
-  const gridBusy = gridSubmitting || gridQueued || gridRunning;
-  const gridButtonLabel = gridSubmitting
-    ? '提交中…'
-    : gridQueued
-      ? '网格排队中…'
-      : gridRunning
-        ? '网格生成中…'
-        : '生成网格';
+  const gridBusy = taskSaving || gridSubmitting || gridQueued || gridRunning;
+  const gridButtonLabel = taskSaving
+    ? '保存中…'
+    : gridSubmitting
+      ? '提交中…'
+      : gridQueued
+        ? '网格排队中…'
+        : gridRunning
+          ? '网格生成中…'
+          : '生成网格';
   return (
     <section className="rounded-xl border border-[var(--color-border)] bg-white p-3">
       <div className="grid grid-cols-[220px_minmax(0,1fr)_320px] gap-3 items-stretch">
@@ -1938,7 +1971,14 @@ function ReferencePickerDialog({
 }) {
   const [editingOption, setEditingOption] = useState<ReferencePickerOption | null>(null);
   const [previewOption, setPreviewOption] = useState<ReferencePickerOption | null>(null);
+  const [draftSelections, setDraftSelections] = useState<ReferenceSelections>(() => ({
+    characters: task.characterStyleIds,
+    scenes: task.sceneIds,
+    items: task.itemIds,
+  }));
+  const draftSelectionsRef = useRef<ReferenceSelections>(draftSelections);
   const { isGenerating, getError } = useGeneration();
+
   const groups: Record<ReferenceKind, {
     label: string;
     options: EditableReferenceOption[];
@@ -1948,19 +1988,19 @@ function ReferencePickerDialog({
     characters: {
       label: '角色造型',
       options: characterOptions,
-      selectedIds: task.characterStyleIds,
+      selectedIds: draftSelections.characters,
       patchKey: 'characterStyleIds',
     },
     scenes: {
       label: '场景素材',
       options: sceneOptions,
-      selectedIds: task.sceneIds,
+      selectedIds: draftSelections.scenes,
       patchKey: 'sceneIds',
     },
     items: {
       label: '道具',
       options: itemOptions,
-      selectedIds: task.itemIds,
+      selectedIds: draftSelections.items,
       patchKey: 'itemIds',
     },
   };
@@ -1991,9 +2031,17 @@ function ReferencePickerDialog({
 
   const toggle = (kind: ReferenceKind, id: string) => {
     const group = groups[kind];
-    const nextIds = group.selectedIds.includes(id)
-      ? group.selectedIds.filter((selectedId) => selectedId !== id)
-      : [...group.selectedIds, id];
+    const currentSelections = draftSelectionsRef.current;
+    const currentIds = currentSelections[kind];
+    const nextIds = currentIds.includes(id)
+      ? currentIds.filter((selectedId) => selectedId !== id)
+      : [...currentIds, id];
+    const nextSelections = {
+      ...currentSelections,
+      [kind]: nextIds,
+    };
+    draftSelectionsRef.current = nextSelections;
+    setDraftSelections(nextSelections);
     onPatch({ [group.patchKey]: nextIds });
   };
   const tabs: Array<{ key: ReferenceDialogView; label: string; count: number }> = [

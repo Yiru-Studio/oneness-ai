@@ -34,6 +34,10 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const clearBusy = (key: string) => {
+    setBusy((current) => (current === key ? null : current));
+  };
+
   const reload = async () => {
     const fresh = await getProjectStoryboard(project.id);
     onChange(fresh);
@@ -52,7 +56,8 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
 
   const handleDelete = async (id: string) => {
     if (!confirm('确认删除该剧集？此操作不可撤销。')) return;
-    setBusy(`del-${id}`);
+    const busyKey = `del-${id}`;
+    setBusy(busyKey);
     try {
       await deleteEpisode(id);
       onChange((prev) => prev.filter((e) => e.id !== id));
@@ -60,12 +65,13 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除失败');
     } finally {
-      setBusy(null);
+      clearBusy(busyKey);
     }
   };
 
   const handleAnalyze = async (id: string) => {
-    setBusy(`an-${id}`);
+    const busyKey = `an-${id}`;
+    setBusy(busyKey);
     setError(null);
     try {
       await analyzeEpisode(project.id, id);
@@ -73,7 +79,7 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
     } catch (e) {
       setError(e instanceof Error ? e.message : '分析任务启动失败');
     } finally {
-      setBusy(null);
+      clearBusy(busyKey);
     }
   };
 

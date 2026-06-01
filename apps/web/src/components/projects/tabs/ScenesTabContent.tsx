@@ -31,6 +31,10 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
   const [error, setError] = useState<string | null>(null);
   const { isGenerating } = useGeneration();
 
+  const clearBusy = (key: string) => {
+    setBusy((current) => (current === key ? null : current));
+  };
+
   const aspect =
     project.ratio === '16:9'
       ? 'aspect-video'
@@ -58,7 +62,8 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
 
   const handleDelete = async (id: string) => {
     if (!confirm('确认删除该场景？')) return;
-    setBusy(`del-${id}`);
+    const busyKey = `del-${id}`;
+    setBusy(busyKey);
     try {
       await deleteScene(id);
       onChange((prev) => prev.filter((s) => s.id !== id));
@@ -66,7 +71,7 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除失败');
     } finally {
-      setBusy(null);
+      clearBusy(busyKey);
     }
   };
 

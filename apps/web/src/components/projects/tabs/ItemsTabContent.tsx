@@ -35,6 +35,10 @@ export function ItemsTabContent({ items, project, scriptContent, onChange }: Pro
   const [error, setError] = useState<string | null>(null);
   const { isGenerating } = useGeneration();
 
+  const clearBusy = (key: string) => {
+    setBusy((current) => (current === key ? null : current));
+  };
+
   const reload = async () => {
     const fresh = await getProjectItems(project.id);
     onChange(fresh);
@@ -56,7 +60,8 @@ export function ItemsTabContent({ items, project, scriptContent, onChange }: Pro
 
   const handleDelete = async (id: string) => {
     if (!confirm('确认删除该物品？')) return;
-    setBusy(`del-${id}`);
+    const busyKey = `del-${id}`;
+    setBusy(busyKey);
     try {
       await deleteItem(id);
       onChange((prev) => prev.filter((i) => i.id !== id));
@@ -64,7 +69,7 @@ export function ItemsTabContent({ items, project, scriptContent, onChange }: Pro
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除失败');
     } finally {
-      setBusy(null);
+      clearBusy(busyKey);
     }
   };
 
