@@ -667,26 +667,56 @@ type AnalyzedShot = {
   items: string[];
 };
 
-function shotBreakdownSystemPrompt(stylePrompt: string): string {
+export function shotBreakdownSystemPrompt(stylePrompt: string): string {
   return [
     'You are a professional AI film storyboard director. Given ONE scene, break it into a',
-    'sequence of video shots (镜头). Each shot becomes one AI-generated video clip.',
+    'sequence of production-ready video shots (镜头). Each shot becomes one AI-generated video clip.',
     '',
     'Return a single JSON object EXACTLY of this shape:',
     '{ "shots": [{ "shotType": "new" | "continue", "duration": number, "prompt": string, "roles": string[], "items": string[] }] }',
     '',
-    "Write each `prompt` (camera description) in the script's native language following:",
-    '景别 + 运镜方式 + 视角 + 画面内容及运动方式 + 效果提示词（光影/色调/构图/细节）。若有台词或音效，附在末尾。',
+    'Write every `prompt` in the script\'s native language as ONE detailed Chinese production paragraph.',
+    'Use this exact field order and labels inside each `prompt`:',
+    '镜头功能：开场/动作/反应/关系/细节/转场；秒级动作拆解：0-Ns：具体动作、机位、运动、起止状态；台词同步：无/角色名+台词；人物关系位置：人物在画面和彼此之间的位置；空间关系位置：人物/道具/场景在空间里的位置；电影级视觉参数：光感：...；色调：...；构图：...；细节：...；音效设计：基础环境音：...；动作触发音：...；特效音：...；台词/OS：...',
     '',
     'Rules:',
-    `- Honour the project visual style: ${stylePrompt || 'cinematic, realistic'}.`,
-    '- Produce 6 to 12 shots, in story order. Each `duration` is an integer 3–8 (seconds).',
+    `- Project visual style hint: ${stylePrompt || 'cinematic, realistic'}. If the episode setup specifies a different visual style, prioritize the episode setup and adapt the project hint quietly.`,
+    '- Do NOT append raw prompt tags such as "game cg", "splash art", "masterpiece", "highly detailed", "cinematic lighting", or comma-separated style keywords. Convert style into natural film parameters instead.',
+    '- Produce 4 to 7 shots for a normal short scene, in story order. Prefer about 5 shots when the scene has 3 to 6 action/dialogue beats. Each `duration` is an integer 3–8 (seconds).',
+    '- The seconds in `秒级动作拆解：0-Ns` must match the `duration` value.',
     '- The first shot must be "new". Use "continue" only when the shot flows seamlessly from the previous one (same action/camera continuation).',
-    '- `roles` = character names that appear in the shot (reuse names from the scene). `items` = notable props.',
-    '- The AI video model has real-human face-consistency limits: PREFER wide / medium / environment / over-the-shoulder / silhouette / stylized compositions. AVOID extreme facial close-ups of real humans.',
+    '- Preserve exact script facts: named props, signs, clothing, spatial positions, short dialogue, sound cues, and character relationships. Do not invent new props or events.',
+    '- `roles` = character names that visibly appear or speak in the shot. `items` = notable props visible or used in that shot.',
+    '- For realistic human video, prefer wide / medium / over-the-shoulder / silhouette / object-detail shots. Avoid beauty-shot closeups unless the script requires a reaction.',
+    '- Each prompt should be 280 to 700 Chinese characters, concrete enough for video generation, and should not collapse into only "景别 + 运镜 + content".',
     '- NEVER use double-quote characters (") inside field values; use single quotes or 「」 instead.',
     '- No prose outside the JSON object.',
   ].join('\n');
+}
+
+export function episodeSetupForShotBreakdown(content: string): string {
+  const firstSceneIndex = findFirstSceneHeadingIndex(content);
+  const setup = firstSceneIndex > 0 ? content.slice(0, firstSceneIndex) : content;
+  return truncateForPrompt(setup.trim(), 2400);
+}
+
+function findFirstSceneHeadingIndex(content: string): number {
+  const markers = [
+    /(?:^|\n)\s*场景[一二三四五六七八九十\d]+[ \t　]+/u,
+    /(?:^|\n)\s*第[一二三四五六七八九十\d]+场[ \t　]+/u,
+    /(?:^|\n)\s*(?:INT|EXT|内景|外景)[.．\s　]/iu,
+  ];
+  const indexes = markers
+    .map((pattern) => {
+      const match = pattern.exec(content);
+      return match ? match.index + (match[0].startsWith('\n') ? 1 : 0) : -1;
+    })
+    .filter((index) => index >= 0);
+  return indexes.length > 0 ? Math.min(...indexes) : -1;
+}
+
+function truncateForPrompt(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max)}...` : value;
 }
 
 function safeParseShots(raw: string): AnalyzedShot[] {
@@ -755,6 +785,7 @@ async function analyzeShotBreakdown(args: {
           {
             role: 'user',
             content:
+              `全片设定：\n${episodeSetupForShotBreakdown(ep.content) || '（无）'}\n\n` +
               `场景标题：${scene.title}\n` +
               `出场角色：${scene.characters.join('、') || '（未知）'}\n` +
               `环境：${scene.environment}\n\n` +
@@ -762,7 +793,7 @@ async function analyzeShotBreakdown(args: {
           },
         ],
         response_format: { type: 'json_object' },
-        max_tokens: 8000,
+        max_tokens: 12000,
       },
       { signal: ctx.abortSignal },
     );
