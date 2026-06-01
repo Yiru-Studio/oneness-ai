@@ -816,7 +816,7 @@ function CurrentResultPanel({
             onClick={() => onResultViewChange('image')}
             className={`px-3 py-1.5 rounded-md text-sm ${resultView === 'image' ? 'bg-[var(--color-dark)] text-white' : 'text-gray-600'}`}
           >
-            镜头图
+            场景图
           </button>
           <button
             onClick={() => onResultViewChange('grid')}
