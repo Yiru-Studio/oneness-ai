@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 import { Character, Project } from '@/types';
 import { User, ImagePlus, Plus, Trash2, Sparkles, Loader2, Pencil } from 'lucide-react';
 import {
@@ -22,7 +22,7 @@ interface Props {
   characters: Character[];
   project: Project;
   scriptContent?: string;
-  onChange: (next: Character[]) => void;
+  onChange: Dispatch<SetStateAction<Character[]>>;
 }
 
 /**
@@ -64,9 +64,9 @@ export function CharactersTabContent({ characters, project, onChange }: Props) {
     setActionError(null);
     try {
       await deleteCharacter(charId);
-      const fresh = characters.filter((c) => c.id !== charId);
-      onChange(fresh);
-      if (effectiveId === charId) setPickedId(fresh[0]?.id ?? null);
+      const nextSelectedId = characters.find((c) => c.id !== charId)?.id ?? null;
+      onChange((prev) => prev.filter((c) => c.id !== charId));
+      if (effectiveId === charId) setPickedId(nextSelectedId);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : '删除失败');
     } finally {
@@ -143,7 +143,7 @@ export function CharactersTabContent({ characters, project, onChange }: Props) {
             character={selected}
             project={project}
             onUpdated={(updated) => {
-              onChange(characters.map((c) => (c.id === updated.id ? updated : c)));
+              onChange((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
             }}
             onStyleChanged={() => void reload()}
           />

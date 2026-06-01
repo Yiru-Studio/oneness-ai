@@ -43,6 +43,35 @@ export function entityIdFromResourceImage(row: {
   return null;
 }
 
+function parseResourceImageKind(kind: string): ResourceImageKind | null {
+  if (kind === 'character-style' || kind === 'scene' || kind === 'item') return kind;
+  return null;
+}
+
+export async function isLatestResourceImageForEntity(
+  db: Db,
+  row: {
+    id: string;
+    kind: string;
+    characterStyleId: string | null;
+    sceneId: string | null;
+    itemId: string | null;
+  },
+): Promise<boolean> {
+  const kind = parseResourceImageKind(row.kind);
+  const entityId = entityIdFromResourceImage(row);
+  if (!kind || !entityId) return false;
+  const latest = await db.resourceImage.findFirst({
+    where: {
+      kind,
+      ...resourceImageEntityWhere(kind, entityId),
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true },
+  });
+  return latest?.id === row.id;
+}
+
 export async function loadOwnedResourceTarget(
   db: Db,
   kind: ResourceImageKind,
@@ -176,7 +205,10 @@ export async function linkResourceImageTaskResult(
       },
     });
     if (status === TaskStatus.SUCCEEDED && firstOutputAssetId && entityId) {
-      await setCurrentResourceAsset(db, kind, entityId, firstOutputAssetId);
+      const shouldSetCurrent = await isLatestResourceImageForEntity(db, row);
+      if (shouldSetCurrent) {
+        await setCurrentResourceAsset(db, kind, entityId, firstOutputAssetId);
+      }
     }
   }
 }

@@ -389,6 +389,8 @@ async function linkResourceImageOutputs(
       },
     });
     if (!firstOutputAssetId) continue;
+    const shouldSetCurrent = await isLatestResourceImageForEntity(tx, row);
+    if (!shouldSetCurrent) continue;
     if (row.kind === 'character-style' && row.characterStyleId) {
       await tx.characterStyle.update({
         where: { id: row.characterStyleId },
@@ -406,6 +408,44 @@ async function linkResourceImageOutputs(
       });
     }
   }
+}
+
+function resourceImageEntityWhereForRow(row: {
+  kind: string;
+  characterStyleId: string | null;
+  sceneId: string | null;
+  itemId: string | null;
+}): Prisma.ResourceImageWhereInput | null {
+  if (row.kind === 'character-style' && row.characterStyleId) {
+    return { kind: 'character-style', characterStyleId: row.characterStyleId };
+  }
+  if (row.kind === 'scene' && row.sceneId) {
+    return { kind: 'scene', sceneId: row.sceneId };
+  }
+  if (row.kind === 'item' && row.itemId) {
+    return { kind: 'item', itemId: row.itemId };
+  }
+  return null;
+}
+
+async function isLatestResourceImageForEntity(
+  tx: Prisma.TransactionClient,
+  row: {
+    id: string;
+    kind: string;
+    characterStyleId: string | null;
+    sceneId: string | null;
+    itemId: string | null;
+  },
+): Promise<boolean> {
+  const where = resourceImageEntityWhereForRow(row);
+  if (!where) return false;
+  const latest = await tx.resourceImage.findFirst({
+    where,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true },
+  });
+  return latest?.id === row.id;
 }
 
 async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {

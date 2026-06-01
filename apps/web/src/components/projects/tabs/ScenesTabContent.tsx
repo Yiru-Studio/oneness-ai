@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 import { Scene, Project } from '@/types';
 import { Plus, Trash2, Loader2, ImagePlus, X } from 'lucide-react';
 import {
@@ -17,7 +17,7 @@ interface Props {
   scenes: Scene[];
   project: Project;
   scriptContent?: string;
-  onChange: (next: Scene[]) => void;
+  onChange: Dispatch<SetStateAction<Scene[]>>;
 }
 
 /**
@@ -61,7 +61,7 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
     setBusy(`del-${id}`);
     try {
       await deleteScene(id);
-      onChange(scenes.filter((s) => s.id !== id));
+      onChange((prev) => prev.filter((s) => s.id !== id));
       if (openId === id) setOpenId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除失败');
@@ -163,12 +163,12 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
           buildAutoPrompt={() => buildAutoPrompt(opened)}
           onSave={async (patch) => {
             const fresh = await updateScene(opened.id, patch);
-            onChange(scenes.map((s) => (s.id === fresh.id ? fresh : s)));
+            onChange((prev) => prev.map((s) => (s.id === fresh.id ? fresh : s)));
             return fresh;
           }}
           onDelete={async () => {
             await deleteScene(opened.id);
-            onChange(scenes.filter((s) => s.id !== opened.id));
+            onChange((prev) => prev.filter((s) => s.id !== opened.id));
           }}
           onClose={() => setOpenId(null)}
         />

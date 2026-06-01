@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -39,6 +40,7 @@ const GenerationContext = createContext<GenerationContextValue | null>(null);
 
 export function GenerationProvider({ children }: { children: React.ReactNode }) {
   const [statuses, setStatuses] = useState<Record<Key, Status>>({});
+  const inFlightRef = useRef<Record<Key, Promise<unknown>>>({});
 
   const isGenerating = useCallback(
     (kind: GenerationKind, id: string) =>
@@ -71,20 +73,31 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
       fn: () => Promise<T>,
     ): Promise<T> => {
       const key = keyOf(kind, id);
-      setStatuses((prev) => ({ ...prev, [key]: { pending: true, error: null } }));
-      try {
-        const result = await fn();
-        setStatuses((prev) => {
-          const next = { ...prev };
-          delete next[key];
-          return next;
-        });
-        return result;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : '生成失败';
-        setStatuses((prev) => ({ ...prev, [key]: { pending: false, error: msg } }));
-        throw e;
-      }
+      const existing = inFlightRef.current[key] as Promise<T> | undefined;
+      if (existing) return existing;
+
+      const promise = Promise.resolve().then(async () => {
+        setStatuses((prev) => ({ ...prev, [key]: { pending: true, error: null } }));
+        try {
+          const result = await fn();
+          setStatuses((prev) => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+          });
+          return result;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : '生成失败';
+          setStatuses((prev) => ({ ...prev, [key]: { pending: false, error: msg } }));
+          throw e;
+        } finally {
+          if (inFlightRef.current[key] === promise) {
+            delete inFlightRef.current[key];
+          }
+        }
+      });
+      inFlightRef.current[key] = promise;
+      return promise;
     },
     [],
   );
