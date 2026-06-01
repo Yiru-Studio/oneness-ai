@@ -14,7 +14,7 @@ export const CreateShotSchema = z.object({
   preId: z.number().int().min(1).optional(),
   duration: z.number().int().min(1).max(60).default(4),
   prompt: z.string().max(8000).default('').transform(stripNul),
-  model: z.string().min(1).default('seedance'),
+  model: z.string().min(1).default('doubao-seedance-2-0-fast-260128'),
   ratio: z.string().min(1).default('16:9'),
   resolution: z.string().min(1).default('720p'),
   // 音画同出 (synchronized audio+video) is the default per product spec.

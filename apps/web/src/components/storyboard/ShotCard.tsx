@@ -9,10 +9,17 @@ import { ReferencePickerDialog } from './ReferencePickerDialog';
 // Models we actually have registered in the worker registry. Adding more is
 // a backend change — DO NOT add cosmetic-only options here.
 export const VIDEO_MODEL_OPTIONS = [
-  { value: 'seedance', label: 'Seedance 2.0' },
-  { value: 'seedance-fast', label: 'Seedance 2.0 Fast' },
-  { value: 'stub', label: '测试 Stub' },
+  { value: 'doubao-seedance-2-0-260128', label: 'Seedance 2.0 Pro' },
+  { value: 'doubao-seedance-2-0-fast-260128', label: 'Seedance 2.0 Fast' },
+  { value: 'stub/placeholder', label: '测试 Stub' },
 ] as const;
+
+function normalizeVideoModelValue(model: string): string {
+  if (model === 'seedance') return 'doubao-seedance-2-0-260128';
+  if (model === 'seedance-fast') return 'doubao-seedance-2-0-fast-260128';
+  if (model === 'stub') return 'stub/placeholder';
+  return model;
+}
 
 export const SHOT_TYPE_OPTIONS = [
   { value: 'new', label: '全新镜头' },
@@ -140,7 +147,7 @@ export function ShotCard({
         </div>
 
         <Select
-          value={shot.model}
+          value={normalizeVideoModelValue(shot.model)}
           options={VIDEO_MODEL_OPTIONS}
           onChange={(v) => onUpdate(shot.id, { model: v })}
           disabled={busy}

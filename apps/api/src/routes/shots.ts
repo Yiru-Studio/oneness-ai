@@ -397,16 +397,22 @@ function jsonArr(v: unknown): string[] {
   return Array.isArray(v) ? (v.filter((x) => typeof x === 'string') as string[]) : [];
 }
 
+const SEEDANCE_PRO_MODEL = 'doubao-seedance-2-0-260128';
+const SEEDANCE_FAST_MODEL = 'doubao-seedance-2-0-fast-260128';
+
 /**
  * Map UI-visible model id (one of MODEL_OPTIONS) → registered worker provider
  * name. Phase-1 ships only providers we actually have wired.
  */
 function pickVideoProvider(uiModel: string): string {
   switch (uiModel) {
+    case 'stub/placeholder':
     case 'stub':
       return 'stub';
+    case SEEDANCE_FAST_MODEL:
     case 'seedance-fast':
       return 'seedance-fast';
+    case SEEDANCE_PRO_MODEL:
     case 'seedance':
     default:
       return 'seedance';
@@ -414,10 +420,12 @@ function pickVideoProvider(uiModel: string): string {
 }
 
 /**
- * The provider's `pinnedModel` is the source of truth for the actual model
- * string sent to Volcengine. We pass an empty string so the provider falls
- * back to that default — the UI selector chooses provider, not model SKU.
+ * Full Ark model IDs are passed through exactly; legacy selector shorthands
+ * leave model blank so each provider can use its pinned default.
  */
-function modelIdForProvider(_provider: string, _uiModel: string): string {
+function modelIdForProvider(_provider: string, uiModel: string): string {
+  if (uiModel === SEEDANCE_PRO_MODEL || uiModel === SEEDANCE_FAST_MODEL) {
+    return uiModel;
+  }
   return '';
 }
