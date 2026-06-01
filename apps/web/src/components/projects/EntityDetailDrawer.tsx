@@ -435,6 +435,11 @@ export function EntityDetailDrawer({
     generating && generationPhase === 'idle' ? 'queueing' : generationPhase
   ];
   const visibleError = error || remoteError;
+  const hasPreviewImage = Boolean(image);
+  const showPreviewBusyOverlay = (generating || uploading) && !hasPreviewImage;
+  const showPreviewBusyBadge = (generating || uploading) && hasPreviewImage;
+  const showPreviewErrorOverlay = Boolean(visibleError) && !generating && !uploading && !hasPreviewImage;
+  const showPreviewErrorBadge = Boolean(visibleError) && !generating && !uploading && hasPreviewImage;
 
   return (
     <>
@@ -533,7 +538,7 @@ export function EntityDetailDrawer({
                     </button>
                   </div>
                 )}
-                {(generating || uploading) && (
+                {showPreviewBusyOverlay && (
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white">
                     <Loader2 className="w-7 h-7 animate-spin" />
                     <span className="ml-2 text-sm">
@@ -541,11 +546,15 @@ export function EntityDetailDrawer({
                     </span>
                   </div>
                 )}
-                {visibleError && !generating && !uploading && (
+                {showPreviewBusyBadge && (
+                  <div className="pointer-events-none absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {generating ? generationLabel || '生成中…' : '上传中…'}
+                  </div>
+                )}
+                {showPreviewErrorOverlay && (
                   <div
-                    className={`pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-red-50/95 px-6 text-center text-red-700 ${
-                      image ? 'bg-red-50/85' : ''
-                    }`}
+                    className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-red-50/95 px-6 text-center text-red-700"
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
                       <X className="h-5 w-5" />
@@ -554,6 +563,15 @@ export function EntityDetailDrawer({
                     <div className="mt-1 max-w-[520px] text-xs leading-5 text-red-600">
                       {visibleError}
                     </div>
+                  </div>
+                )}
+                {showPreviewErrorBadge && (
+                  <div
+                    className="pointer-events-none absolute right-3 top-3 inline-flex max-w-[min(520px,calc(100%-24px))] items-center gap-1.5 rounded-full bg-red-600 px-3 py-1.5 text-xs font-medium text-white"
+                    title={visibleError ?? undefined}
+                  >
+                    <X className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">生成失败</span>
                   </div>
                 )}
               </div>
