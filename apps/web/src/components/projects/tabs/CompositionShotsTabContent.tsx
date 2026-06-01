@@ -822,7 +822,7 @@ function CurrentResultPanel({
             onClick={() => onResultViewChange('grid')}
             className={`px-3 py-1.5 rounded-md text-sm ${resultView === 'grid' ? 'bg-[var(--color-dark)] text-white' : 'text-gray-600'}`}
           >
-            分镜网格
+            分镜图网格
           </button>
         </div>
         <div className="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
