@@ -784,7 +784,7 @@ export function EntityDetailDrawer({
                     </div>
                     {isStyle && (
                       <div className="mt-2 text-xs leading-5 text-[var(--color-text-secondary)]">
-                        生成时会使用：身份母版 + 用户参考图 + 提示词。
+                        生成时会使用：身份母版 + 用户参考图 + 造型描述。
                       </div>
                     )}
                   </div>
@@ -874,14 +874,16 @@ export function EntityDetailDrawer({
                     className="w-full px-3 py-2 outline-none text-sm resize-none leading-relaxed bg-transparent"
                   />
                 </div>
-                <details className="mt-3 rounded-lg border border-[var(--color-border)] bg-gray-50 px-3 py-2">
-                  <summary className="cursor-pointer text-xs font-medium text-[var(--color-text-secondary)]">
-                    高级提示词
-                  </summary>
-                  <div className="mt-2 whitespace-pre-wrap rounded-md bg-white p-3 text-xs leading-5 text-[var(--color-text-secondary)]">
-                    {composedPrompt || '暂无提示词'}
-                  </div>
-                </details>
+                {!isStyle && (
+                  <details className="mt-3 rounded-lg border border-[var(--color-border)] bg-gray-50 px-3 py-2">
+                    <summary className="cursor-pointer text-xs font-medium text-[var(--color-text-secondary)]">
+                      高级提示词
+                    </summary>
+                    <div className="mt-2 whitespace-pre-wrap rounded-md bg-white p-3 text-xs leading-5 text-[var(--color-text-secondary)]">
+                      {composedPrompt || '暂无提示词'}
+                    </div>
+                  </details>
+                )}
               </div>
 
               <div className="px-4 py-3 border-t border-[var(--color-border)] flex flex-wrap items-end gap-3">
