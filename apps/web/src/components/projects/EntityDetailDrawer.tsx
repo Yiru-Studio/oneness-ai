@@ -137,55 +137,6 @@ function historyKey(kind: ResourceImageKind, entityId: string): string {
   return `${kind}:${entityId}`;
 }
 
-type GenerationMode = 'single' | 'three-view';
-
-type ViewingImageState = {
-  historyId: string | null;
-  assetId: string | null;
-  image: string;
-  status: ResourceImage['status'] | null;
-  error: string | null;
-  source: ResourceImage['source'] | null;
-};
-
-function generationModeFromPrompt(raw: string): { mode: GenerationMode; body: string } {
-  const parsed = parseThreeViewPrompt(raw);
-  return {
-    mode: parsed.threeView ? 'three-view' : 'single',
-    body: parsed.body,
-  };
-}
-
-function composePromptForMode(mode: GenerationMode, body: string): string {
-  return composeThreeViewPrompt(mode === 'three-view', body);
-}
-
-function statusForResourceImage(row: ResourceImage): ResourceImage['status'] {
-  return row.taskStatus ?? row.status;
-}
-
-function viewingFromEntity(entity: EntityDetailData): ViewingImageState {
-  return {
-    historyId: null,
-    assetId: entity.assetId ?? null,
-    image: entity.image || '',
-    status: null,
-    error: null,
-    source: null,
-  };
-}
-
-function viewingFromResource(row: ResourceImage): ViewingImageState {
-  return {
-    historyId: row.id,
-    assetId: row.assetId,
-    image: row.image || '',
-    status: statusForResourceImage(row),
-    error: row.error,
-    source: row.source,
-  };
-}
-
 export function EntityDetailDrawer({
   open,
   kind,
@@ -200,16 +151,15 @@ export function EntityDetailDrawer({
 }: Props) {
   const [name, setName] = useState(entity.name);
   const [description, setDescription] = useState(entity.description ?? '');
-  const initialParsed = generationModeFromPrompt(entity.prompt ?? '');
+  const initialParsed = parseThreeViewPrompt(entity.prompt ?? '');
   const [promptBody, setPromptBody] = useState(initialParsed.body);
-  const [generationMode, setGenerationMode] = useState<GenerationMode>(initialParsed.mode);
+  const [threeView, setThreeView] = useState(initialParsed.threeView);
   const [model, setModel] = useState(entity.model || project.imageModel);
   const [ratio, setRatio] = useState(
     entity.ratio || project.ratio,
   );
   const [image, setImage] = useState(entity.image || '');
   const [assetId, setAssetId] = useState(entity.assetId ?? null);
-  const [viewing, setViewing] = useState<ViewingImageState>(() => viewingFromEntity(entity));
   const { isGenerating, getError, clearError, runGeneration } = useGeneration();
   const generating = isGenerating(kind, entity.id);
   const remoteError = getError(kind, entity.id);
@@ -223,42 +173,26 @@ export function EntityDetailDrawer({
   const fileRef = useRef<HTMLInputElement>(null);
   const activeHistoryKeyRef = useRef<string | null>(null);
   const activeEntityIdRef = useRef(entity.id);
-  const currentAssetIdRef = useRef(entity.assetId ?? null);
 
   // Reference image uploaded by user for AI to use during generation.
   const [referenceAssetId, setReferenceAssetId] = useState<string | null>(null);
   const [referenceImageUrl, setReferenceImageUrl] = useState<string>('');
   const refFileRef = useRef<HTMLInputElement>(null);
 
-  const setCurrentImageState = (nextAssetId: string | null, nextImage: string) => {
-    currentAssetIdRef.current = nextAssetId;
-    setAssetId(nextAssetId);
-    setImage(nextImage);
-  };
-
   // Reset state when the entity changes.
   useEffect(() => {
     activeEntityIdRef.current = entity.id;
-    currentAssetIdRef.current = entity.assetId ?? null;
     setName(entity.name);
     setDescription(entity.description ?? '');
-    const parsed = generationModeFromPrompt(entity.prompt ?? '');
+    const parsed = parseThreeViewPrompt(entity.prompt ?? '');
     setPromptBody(parsed.body);
-    setGenerationMode(parsed.mode);
+    setThreeView(parsed.threeView);
     setModel(entity.model || project.imageModel);
     setRatio(
       entity.ratio || project.ratio,
     );
     setImage(entity.image || '');
     setAssetId(entity.assetId ?? null);
-    setViewing({
-      historyId: null,
-      assetId: entity.assetId ?? null,
-      image: entity.image || '',
-      status: null,
-      error: null,
-      source: null,
-    });
     setError(null);
     setGenerationPhase('idle');
     setPreviewOpen(false);
@@ -279,25 +213,6 @@ export function EntityDetailDrawer({
     void refreshHistory(resourceKind, entity.id);
   }, [resourceKind, entity.id]);
 
-  useEffect(() => {
-    if (!viewing.historyId) return;
-    const row = history.find((item) => item.id === viewing.historyId);
-    if (!row) return;
-    const next = viewingFromResource(row);
-    setViewing((prev) => {
-      if (
-        prev.historyId === next.historyId &&
-        prev.assetId === next.assetId &&
-        prev.image === next.image &&
-        prev.status === next.status &&
-        prev.error === next.error
-      ) {
-        return prev;
-      }
-      return next;
-    });
-  }, [history, viewing.historyId]);
-
   async function refreshHistory(kind: ResourceImageKind, entityId: string) {
     const key = historyKey(kind, entityId);
     if (activeHistoryKeyRef.current !== key) return;
@@ -316,10 +231,10 @@ export function EntityDetailDrawer({
 
   if (!open) return null;
 
-  const composedPrompt = composePromptForMode(generationMode, promptBody);
+  const composedPrompt = composeThreeViewPrompt(threeView, promptBody);
   // The 三视图 chip alone is a valid prompt (the worker expands it); otherwise
   // there must be prompt text. Empty → Generate is disabled to block invalid requests.
-  const hasPrompt = generationMode === 'three-view' || promptBody.trim().length > 0;
+  const hasPrompt = threeView || promptBody.trim().length > 0;
   const dirty =
     name !== entity.name ||
     description !== (entity.description ?? '') ||
@@ -334,16 +249,18 @@ export function EntityDetailDrawer({
   const hasStyleIdentityReference = !isStyle || Boolean(identityReferenceAssetId);
   const generateDisabled = generating || uploading || !hasPrompt || !hasStyleIdentityReference;
   const generateTitle = !hasPrompt
-    ? isStyle
-      ? '请先填写造型描述或选择「三视图」'
-      : '请先填写提示词'
+    ? '请先填写提示词或点击「三视图」'
     : !hasStyleIdentityReference
       ? '请先生成或上传角色头像'
       : undefined;
   const handleAutoFill = () => {
+    if (isStyle) {
+      setThreeView(true);
+      return;
+    }
     const auto = buildAutoPrompt();
-    const parsed = generationModeFromPrompt(auto);
-    setGenerationMode(parsed.mode);
+    const parsed = parseThreeViewPrompt(auto);
+    setThreeView(parsed.threeView);
     setPromptBody(parsed.body);
   };
 
@@ -366,13 +283,13 @@ export function EntityDetailDrawer({
     const generationResourceKind = resourceKind;
     const isActiveGeneration = () => activeEntityIdRef.current === generationEntityId;
     let effectivePromptBody = promptBody.trim();
-    let effectiveGenerationMode = generationMode;
-    if (!effectivePromptBody && effectiveGenerationMode !== 'three-view') {
-      const parsed = generationModeFromPrompt(buildAutoPrompt());
+    let effectiveThreeView = threeView;
+    if (!effectivePromptBody && !effectiveThreeView) {
+      const parsed = parseThreeViewPrompt(buildAutoPrompt());
       effectivePromptBody = parsed.body;
-      effectiveGenerationMode = parsed.mode;
+      effectiveThreeView = parsed.threeView;
     }
-    const effectivePrompt = composePromptForMode(effectiveGenerationMode, effectivePromptBody);
+    const effectivePrompt = composeThreeViewPrompt(effectiveThreeView, effectivePromptBody);
     if (!effectivePrompt) {
       setError('请先填写提示词');
       return;
@@ -423,22 +340,11 @@ export function EntityDetailDrawer({
           throw new Error(final.error || '生成失败');
         }
         if (isActiveGeneration()) setGenerationPhase('saving');
-        const outputAssetId = final.outputAssets[0].id;
-        if (isStyle) {
-          // The generated image is kept as a history candidate. Restore the
-          // current image so viewing/using a version stays an explicit choice.
-          const fresh = await onSave({ assetId: currentAssetIdRef.current });
-          if (isActiveGeneration()) {
-            setCurrentImageState(fresh.assetId ?? currentAssetIdRef.current, fresh.image || '');
-            setGenerationPhase('idle');
-          }
-        } else {
-          const fresh = await onSave({ assetId: outputAssetId });
-          if (isActiveGeneration()) {
-            setCurrentImageState(fresh.assetId ?? outputAssetId, fresh.image || '');
-            setViewing(viewingFromEntity(fresh));
-            setGenerationPhase('idle');
-          }
+        const fresh = await onSave({ assetId: final.outputAssets[0].id });
+        if (isActiveGeneration()) {
+          setImage(fresh.image || '');
+          setAssetId(fresh.assetId ?? final.outputAssets[0].id);
+          setGenerationPhase('idle');
         }
       });
     } catch (e) {
@@ -454,9 +360,8 @@ export function EntityDetailDrawer({
     setError(null);
     try {
       const asset = await uploadAsset(file);
-      let uploadedRow: ResourceImage | null = null;
       if (resourceKind) {
-        uploadedRow = await createResourceImage({
+        await createResourceImage({
           kind: resourceKind,
           entityId: entity.id,
           source: 'upload',
@@ -469,14 +374,8 @@ export function EntityDetailDrawer({
         });
       }
       const fresh = await onSave({ assetId: asset.id });
-      const nextAssetId = fresh.assetId ?? asset.id;
-      const nextImage = fresh.image || uploadedRow?.image || asset.url || '';
-      setCurrentImageState(nextAssetId, nextImage);
-      setViewing(
-        uploadedRow
-          ? viewingFromResource({ ...uploadedRow, assetId: nextAssetId, image: nextImage })
-          : viewingFromEntity({ ...fresh, assetId: nextAssetId, image: nextImage }),
-      );
+      setImage(fresh.image || '');
+      setAssetId(fresh.assetId ?? asset.id);
       if (resourceKind) await refreshHistory(resourceKind, entity.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : '上传失败');
@@ -506,20 +405,14 @@ export function EntityDetailDrawer({
     try {
       await updateResourceImage(row.id, { setAsCurrent: true });
       const fresh = await onSave({ assetId: row.assetId });
-      const nextAssetId = fresh.assetId ?? row.assetId;
-      const nextImage = fresh.image || row.image || '';
-      setCurrentImageState(nextAssetId, nextImage);
-      setViewing(viewingFromResource({ ...row, assetId: nextAssetId, image: nextImage }));
+      setImage(fresh.image || row.image || '');
+      setAssetId(fresh.assetId ?? row.assetId);
       await refreshHistory(resourceKind, entity.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : '设置当前图片失败');
     } finally {
       setHistoryBusy(null);
     }
-  };
-
-  const handleSelectHistory = (row: ResourceImage) => {
-    setViewing(viewingFromResource(row));
   };
 
   const aspectClass =
@@ -541,26 +434,12 @@ export function EntityDetailDrawer({
   const generationLabel = IMAGE_GENERATION_LABEL[
     generating && generationPhase === 'idle' ? 'queueing' : generationPhase
   ];
-  const viewingPending = viewing.status === 'QUEUED' || viewing.status === 'RUNNING';
-  const viewingFailed = viewing.status === 'FAILED' || viewing.status === 'CANCELLED';
-  const viewingLabel =
-    viewing.status === 'QUEUED'
-      ? '排队中…'
-      : viewing.status === 'RUNNING'
-        ? '生成中…'
-        : viewing.status === 'CANCELLED'
-          ? '已取消'
-          : '生成失败';
-  const visibleError = viewingFailed
-    ? viewing.error || viewingLabel
-    : error || (!viewing.image ? remoteError : null);
-  const previewImage = viewing.image;
-  const hasPreviewImage = Boolean(previewImage);
-  const showPreviewBusyOverlay = (viewingPending || generating || uploading) && !hasPreviewImage;
-  const showPreviewBusyBadge = (viewingPending || generating || uploading) && hasPreviewImage;
-  const showPreviewErrorOverlay = Boolean(visibleError) && !viewingFailed && !viewingPending && !generating && !uploading && !hasPreviewImage;
-  const showPreviewErrorBadge = viewingFailed && Boolean(visibleError) && hasPreviewImage;
-  const previewBusyLabel = viewingPending ? viewingLabel : generating ? generationLabel || '生成中…' : '上传中…';
+  const visibleError = error || remoteError;
+  const hasPreviewImage = Boolean(image);
+  const showPreviewBusyOverlay = (generating || uploading) && !hasPreviewImage;
+  const showPreviewBusyBadge = (generating || uploading) && hasPreviewImage;
+  const showPreviewErrorOverlay = Boolean(visibleError) && !generating && !uploading && !hasPreviewImage;
+  const showPreviewErrorBadge = Boolean(visibleError) && !generating && !uploading && hasPreviewImage;
 
   return (
     <>
@@ -579,11 +458,8 @@ export function EntityDetailDrawer({
             history={history}
             loading={historyLoading}
             currentAssetId={assetId}
-            viewingHistoryId={viewing.historyId}
-            viewingAssetId={viewing.assetId}
             identityReferenceAssetId={identityReferenceAssetId ?? null}
             busyId={historyBusy}
-            onSelect={handleSelectHistory}
             onSetCurrent={handleSetCurrent}
           />
         )}
@@ -643,32 +519,14 @@ export function EntityDetailDrawer({
               <div
                 className={`relative mx-auto ${previewWidthClass} ${aspectClass} rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center`}
               >
-                {previewImage ? (
+                {image ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={previewImage}
+                    src={image}
                     alt={name}
                     className="w-full h-full object-contain cursor-pointer"
                     onClick={() => setPreviewOpen(true)}
                   />
-                ) : viewingFailed ? (
-                  <div className="flex h-full w-full flex-col items-center justify-center px-6 text-center text-red-700">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
-                      <X className="h-5 w-5" />
-                    </div>
-                    <div className="mt-3 text-sm font-semibold">生成失败</div>
-                    <div className="mt-1 max-w-[520px] text-xs leading-5 text-red-600">
-                      {visibleError || '生成失败'}
-                    </div>
-                    <button
-                      onClick={handleGenerate}
-                      disabled={generateDisabled}
-                      className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      重试生成
-                    </button>
-                  </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center text-gray-400 w-full h-full text-center px-4">
                     <ImagePlus className="w-10 h-10" />
@@ -684,14 +542,14 @@ export function EntityDetailDrawer({
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white">
                     <Loader2 className="w-7 h-7 animate-spin" />
                     <span className="ml-2 text-sm">
-                      {previewBusyLabel}
+                      {generating ? generationLabel || '生成中…' : '上传中…'}
                     </span>
                   </div>
                 )}
                 {showPreviewBusyBadge && (
                   <div className="pointer-events-none absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    {previewBusyLabel}
+                    {generating ? generationLabel || '生成中…' : '上传中…'}
                   </div>
                 )}
                 {showPreviewErrorOverlay && (
@@ -720,107 +578,70 @@ export function EntityDetailDrawer({
             </div>
 
             <div className="rounded-xl border border-[var(--color-border)] bg-white">
-              <div className="border-b border-[var(--color-border)] p-4">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="min-w-[280px] flex-1">
-                    <div className="text-xs font-medium text-[var(--color-text-secondary)]">
-                      生成参考
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {isStyle && (
-                        <div
-                          className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs ${
-                            hasStyleIdentityReference
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : 'bg-amber-50 text-amber-700'
-                          }`}
-                          title={
-                            hasStyleIdentityReference
-                              ? '造型生成会优先使用角色身份母版'
-                              : '缺少角色头像时不能生成造型'
-                          }
-                        >
-                          {hasStyleIdentityReference ? (
-                            <Check className="h-3.5 w-3.5" />
-                          ) : (
-                            <X className="h-3.5 w-3.5" />
-                          )}
-                          身份母版：{hasStyleIdentityReference ? '已绑定' : '缺少'}
-                        </div>
-                      )}
-                      {referenceImageUrl ? (
-                        <div className="inline-flex items-center gap-2 rounded-lg bg-gray-50 px-2 py-1">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={referenceImageUrl}
-                            alt="用户参考图"
-                            className="h-8 w-8 rounded-md border border-[var(--color-border)] object-cover"
-                          />
-                          <span className="text-xs text-[var(--color-text-secondary)]">
-                            用户参考图：已添加
-                          </span>
-                          <button
-                            onClick={() => {
-                              setReferenceAssetId(null);
-                              setReferenceImageUrl('');
-                            }}
-                            className="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                            title="移除参考图"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => refFileRef.current?.click()}
-                          disabled={generating || uploading}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text-secondary)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
-                          title="上传本地图片作为 AI 生成参考"
-                        >
-                          <Upload className="h-3.5 w-3.5" />
-                          添加参考图
-                        </button>
-                      )}
-                    </div>
-                    {isStyle && (
-                      <div className="mt-2 text-xs leading-5 text-[var(--color-text-secondary)]">
-                        生成时会使用：身份母版 + 用户参考图 + 造型描述。
-                      </div>
+              <div className="px-4 py-3 border-b border-[var(--color-border)] flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => refFileRef.current?.click()}
+                  disabled={generating || uploading}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:bg-gray-50 disabled:opacity-50"
+                  title="上传本地图片作为 AI 生成参考"
+                >
+                  <Upload className="w-4 h-4" />
+                  参考图
+                </button>
+                <button
+                  onClick={handleAutoFill}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:bg-gray-50"
+                  title={
+                    isStyle
+                      ? '生成该角色的三视图（正/侧/背 + 大头）'
+                      : '基于剧本 / 项目自动生成提示词'
+                  }
+                >
+                  <Wand2 className="w-4 h-4" />
+                  {isStyle ? '三视图' : '自动填充'}
+                </button>
+                {isStyle && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs ${
+                      hasStyleIdentityReference
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-amber-50 text-amber-700'
+                    }`}
+                    title={
+                      hasStyleIdentityReference
+                        ? '造型生成会优先使用角色身份母版'
+                        : '缺少角色头像时不能生成造型'
+                    }
+                  >
+                    {hasStyleIdentityReference ? (
+                      <Check className="w-3.5 h-3.5" />
+                    ) : (
+                      <X className="w-3.5 h-3.5" />
                     )}
+                    {hasStyleIdentityReference ? '已绑定身份母版' : '缺少身份母版'}
+                  </span>
+                )}
+                {referenceImageUrl && (
+                  <div className="ml-auto flex items-center gap-2 rounded-lg bg-gray-50 px-2 py-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={referenceImageUrl}
+                      alt="参考图"
+                      className="w-8 h-8 object-cover rounded-md border border-[var(--color-border)]"
+                    />
+                    <span className="text-xs text-[var(--color-text-secondary)]">已添加参考图</span>
+                    <button
+                      onClick={() => {
+                        setReferenceAssetId(null);
+                        setReferenceImageUrl('');
+                      }}
+                      className="w-5 h-5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 inline-flex items-center justify-center"
+                      title="移除参考图"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
                   </div>
-
-                  {isStyle && (
-                    <div className="w-[220px] shrink-0">
-                      <div className="text-xs font-medium text-[var(--color-text-secondary)]">
-                        生成模式
-                      </div>
-                      <div className="mt-2 grid grid-cols-2 rounded-lg bg-gray-100 p-1">
-                        <button
-                          type="button"
-                          onClick={() => setGenerationMode('single')}
-                          className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                            generationMode === 'single'
-                              ? 'bg-white text-[var(--color-text)] shadow-sm'
-                              : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
-                          }`}
-                        >
-                          单张造型
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setGenerationMode('three-view')}
-                          className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                            generationMode === 'three-view'
-                              ? 'bg-white text-[var(--color-text)] shadow-sm'
-                              : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
-                          }`}
-                        >
-                          三视图
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                )}
                 <input
                   ref={fileRef}
                   type="file"
@@ -846,44 +667,39 @@ export function EntityDetailDrawer({
               </div>
 
               <div className="p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <label className="text-xs font-medium text-[var(--color-text-secondary)]">
-                    {isStyle ? '造型描述' : '提示词'}
-                  </label>
-                  {!isStyle && (
-                    <button
-                      onClick={handleAutoFill}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-2.5 py-1 text-xs text-[var(--color-text-secondary)] hover:bg-gray-50"
-                      title="基于剧本 / 项目自动生成提示词"
-                    >
-                      <Wand2 className="h-3.5 w-3.5" />
-                      自动填充
-                    </button>
-                  )}
-                </div>
+                <label className="text-xs font-medium text-[var(--color-text-secondary)]">
+                  提示词
+                </label>
                 <div className="mt-1.5 rounded-lg border border-[var(--color-border)] focus-within:border-[var(--color-primary)] focus-within:ring-1 focus-within:ring-[var(--color-primary)] overflow-hidden">
+                  {threeView && (
+                    <div className="flex items-center gap-1 px-3 pt-2">
+                      <span
+                        className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-medium"
+                        title="生成时将自动渲染为三视图（正视图 + 3/4 侧视图 + 背视图 + 大头特写）"
+                      >
+                        {THREE_VIEW_MARKER}
+                        <button
+                          onClick={() => setThreeView(false)}
+                          className="w-4 h-4 inline-flex items-center justify-center rounded hover:bg-[var(--color-primary)]/15"
+                          aria-label="移除三视图标签"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    </div>
+                  )}
                   <textarea
                     rows={5}
                     value={promptBody}
                     onChange={(e) => setPromptBody(e.target.value)}
                     placeholder={
                       isStyle
-                        ? '描述这个造型的服装、姿态、表情和画面要求。'
+                        ? '描述这个造型。点击「三视图」可让模型输出标准三视图。'
                         : '描述你希望生成的画面。也可以点击「自动填充」由剧本上下文和项目风格自动生成。'
                     }
-                    className="w-full px-3 py-2 outline-none text-sm resize-none leading-relaxed bg-transparent"
+                    className="w-full px-3 py-2 outline-none text-sm resize-none font-mono leading-relaxed bg-transparent"
                   />
                 </div>
-                {!isStyle && (
-                  <details className="mt-3 rounded-lg border border-[var(--color-border)] bg-gray-50 px-3 py-2">
-                    <summary className="cursor-pointer text-xs font-medium text-[var(--color-text-secondary)]">
-                      高级提示词
-                    </summary>
-                    <div className="mt-2 whitespace-pre-wrap rounded-md bg-white p-3 text-xs leading-5 text-[var(--color-text-secondary)]">
-                      {composedPrompt || '暂无提示词'}
-                    </div>
-                  </details>
-                )}
               </div>
 
               <div className="px-4 py-3 border-t border-[var(--color-border)] flex flex-wrap items-end gap-3">
@@ -930,15 +746,7 @@ export function EntityDetailDrawer({
                   ) : (
                     <Sparkles className="w-4 h-4" />
                   )}
-                  {generating
-                    ? generationLabel || '生成中…'
-                    : isStyle
-                      ? assetId
-                        ? '生成新版本'
-                        : '生成造型图'
-                      : image
-                        ? '重新生成'
-                        : '生成图片'}
+                  {generating ? generationLabel || '生成中…' : image ? '重新生成' : '生成图片'}
                 </button>
               </div>
               {generating && generationLabel && (
@@ -955,7 +763,7 @@ export function EntityDetailDrawer({
     </div>
 
     <ImagePreview
-      src={previewImage}
+      src={image}
       alt={name}
       open={previewOpen}
       onClose={() => setPreviewOpen(false)}
@@ -968,21 +776,15 @@ function HistoryRail({
   history,
   loading,
   currentAssetId,
-  viewingHistoryId,
-  viewingAssetId,
   identityReferenceAssetId,
   busyId,
-  onSelect,
   onSetCurrent,
 }: {
   history: ResourceImage[];
   loading: boolean;
   currentAssetId: string | null;
-  viewingHistoryId: string | null;
-  viewingAssetId: string | null;
   identityReferenceAssetId: string | null;
   busyId: string | null;
-  onSelect: (row: ResourceImage) => void;
   onSetCurrent: (row: ResourceImage) => void;
 }) {
   return (
@@ -998,99 +800,62 @@ function HistoryRail({
           </div>
         ) : (
           history.map((row) => {
-            const status = statusForResourceImage(row);
-            const pending = status === 'QUEUED' || status === 'RUNNING';
-            const failed = status === 'FAILED' || status === 'CANCELLED';
-            const current = Boolean(row.assetId && row.assetId === currentAssetId);
-            const viewing =
-              row.id === viewingHistoryId ||
-              Boolean(!viewingHistoryId && row.assetId && row.assetId === viewingAssetId);
-            const canSetCurrent = Boolean(row.assetId && !pending && !failed && !current);
+            const pending = row.status === 'QUEUED' || row.status === 'RUNNING';
+            const failed = row.status === 'FAILED';
+            const selected = Boolean(row.assetId && row.assetId === currentAssetId);
             const usedIdentityReference = Boolean(
               row.identityReferenceAssetId &&
                 row.identityReferenceAssetId === identityReferenceAssetId,
             );
             return (
-              <div key={row.id} className="group relative">
-                <button
-                  type="button"
-                  onClick={() => onSelect(row)}
-                  disabled={busyId === row.id}
-                  className={`relative w-full aspect-square overflow-hidden rounded-lg border transition-colors ${
-                    viewing
-                      ? 'border-[var(--color-primary)] ring-2 ring-blue-100'
-                      : failed
-                        ? 'border-red-200 hover:border-red-300'
-                        : 'border-[var(--color-border)] hover:border-[var(--color-primary)]'
-                  } disabled:cursor-default`}
-                  title={
-                    failed
-                      ? row.error || '生成失败'
-                      : pending
-                        ? '生成中'
-                        : current
-                          ? '当前使用版本'
-                          : usedIdentityReference
-                            ? '使用身份母版生成'
-                            : row.source === 'upload'
-                              ? '上传图片'
-                              : '生成历史'
-                  }
-                >
-                  {row.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={row.image}
-                      alt=""
-                      className={`h-full w-full object-cover ${pending ? 'opacity-65' : ''}`}
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-gray-100">
-                      {pending || busyId === row.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                      ) : failed ? (
-                        <X className="h-4 w-4 text-red-500" />
-                      ) : (
-                        <ImagePlus className="h-4 w-4 text-gray-400" />
-                      )}
-                    </div>
-                  )}
-                  {current && (
-                    <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-primary)] text-white">
-                      <Check className="h-3 w-3" />
-                    </span>
-                  )}
-                  {pending && (
-                    <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/60 text-white">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    </span>
-                  )}
-                  {failed && (
-                    <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white">
-                      <X className="h-3 w-3" />
-                    </span>
-                  )}
-                  {usedIdentityReference && (
-                    <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1 text-[9px] font-semibold leading-4 text-white">
-                      ID
-                    </span>
-                  )}
-                </button>
-                {canSetCurrent && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSetCurrent(row);
-                    }}
-                    className={`absolute inset-x-1 bottom-1 rounded bg-black/70 px-1 py-0.5 text-[9px] font-medium leading-4 text-white transition-opacity hover:bg-black/80 ${
-                      viewing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                    }`}
-                  >
-                    {busyId === row.id ? '设置中' : '设为当前'}
-                  </button>
+              <button
+                key={row.id}
+                onClick={() => {
+                  if (row.assetId) onSetCurrent(row);
+                }}
+                disabled={!row.assetId || pending || busyId === row.id}
+                className={`relative w-full aspect-square rounded-lg overflow-hidden border transition-colors ${
+                  selected
+                    ? 'border-[var(--color-primary)]'
+                    : failed
+                      ? 'border-red-200'
+                      : 'border-[var(--color-border)] hover:border-[var(--color-primary)]'
+                } disabled:cursor-default`}
+                title={
+                  failed
+                    ? row.error || '生成失败'
+                    : usedIdentityReference
+                      ? '使用身份母版生成'
+                      : row.source === 'upload'
+                        ? '上传图片'
+                        : '生成历史'
+                }
+              >
+                {row.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={row.image} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                    {pending || busyId === row.id ? (
+                      <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                    ) : failed ? (
+                      <X className="w-4 h-4 text-red-500" />
+                    ) : (
+                      <ImagePlus className="w-4 h-4 text-gray-400" />
+                    )}
+                  </div>
                 )}
-              </div>
+                {selected && (
+                  <span className="absolute right-1 top-1 w-4 h-4 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center">
+                    <Check className="w-3 h-3" />
+                  </span>
+                )}
+                {usedIdentityReference && (
+                  <span className="absolute left-1 bottom-1 px-1 rounded bg-black/55 text-[9px] font-semibold leading-4 text-white">
+                    ID
+                  </span>
+                )}
+              </button>
             );
           })
         )}
