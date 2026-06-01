@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 import { X, Check } from 'lucide-react';
 import { Character, CompositionTask, Item, Scene } from '@/types';
 
@@ -106,9 +106,8 @@ export function ReferencePickerDialog({
       thumb: task.image?.url ?? null,
     }));
 
-  const toggle = (ids: string[], setIds: (next: string[]) => void, id: string) => {
-    if (ids.includes(id)) setIds(ids.filter((x) => x !== id));
-    else setIds([...ids, id]);
+  const toggle = (_ids: string[], setIds: Dispatch<SetStateAction<string[]>>, id: string) => {
+    setIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
   const openPreview = (opt: PickerOption) => {
     if (opt.thumb) setPreviewOption(opt);

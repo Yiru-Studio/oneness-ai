@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { StoryboardEpisode, Project } from '@/types';
 import { Plus, CheckCircle2, Trash2, Loader2, Sparkles, X, Pencil, FileText, Film } from 'lucide-react';
@@ -18,7 +18,7 @@ import {
 interface Props {
   episodes: StoryboardEpisode[];
   project: Project;
-  onChange: (next: StoryboardEpisode[]) => void;
+  onChange: Dispatch<SetStateAction<StoryboardEpisode[]>>;
 }
 
 /**
@@ -55,7 +55,7 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
     setBusy(`del-${id}`);
     try {
       await deleteEpisode(id);
-      onChange(episodes.filter((e) => e.id !== id));
+      onChange((prev) => prev.filter((e) => e.id !== id));
       if (openId === id) setOpenId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除失败');
