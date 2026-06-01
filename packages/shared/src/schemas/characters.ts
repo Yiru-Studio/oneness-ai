@@ -7,6 +7,7 @@ export const CreateCharacterSchema = z.object({
   bio: z.string().max(5000).default(''),
   voice: z.string().max(120).optional().nullable(),
   avatarAssetId: CuidSchema.optional().nullable(),
+  identityAssetId: CuidSchema.optional().nullable(),
   avatarPrompt: z.string().max(5000).optional().nullable(),
   markedBlank: z.boolean().optional(),
 });

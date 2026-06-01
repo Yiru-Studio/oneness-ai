@@ -341,11 +341,15 @@ function CharacterEditableDetail({
             description: string;
             avatarPrompt: string | null;
             avatarAssetId: string | null;
+            identityAssetId: string | null;
           }> = {};
           if (patch.name !== undefined) data.name = patch.name;
           if (patch.description !== undefined) data.description = patch.description;
           if (patch.prompt !== undefined) data.avatarPrompt = patch.prompt;
-          if (patch.assetId !== undefined) data.avatarAssetId = patch.assetId ?? null;
+          if (patch.assetId !== undefined) {
+            data.avatarAssetId = patch.assetId ?? null;
+            data.identityAssetId = patch.assetId ?? null;
+          }
           const fresh = await updateCharacter(character.id, data);
           onUpdated(fresh);
           return {
@@ -559,6 +563,7 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
           }}
           project={project}
           characterId={character.id}
+          identityReferenceAssetId={character.identityAssetId ?? character.avatarAssetId ?? null}
           buildAutoPrompt={() => buildStyleAutoPrompt(opened)}
           onSave={async (patch) => {
             const fresh = await updateCharacterStyle(opened.id!, patch);

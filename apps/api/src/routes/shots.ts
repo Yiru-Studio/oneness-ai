@@ -16,6 +16,7 @@ import { TaskType, TaskStatus } from '@oneness/shared/enums';
 import { estimateCost } from '@oneness/shared/pricing';
 import { queueForTaskType } from '@oneness/shared/queues';
 import type { VideoReference } from '@oneness/shared/providers';
+import { uniqueAssetIds } from '../lib/character-identity.js';
 
 export const shotRoutes = new Hono();
 
@@ -321,11 +322,18 @@ async function resolveReferences(
       // Fall back to the parent character's avatar when the style itself has no
       // generated image — the reference picker shows `style.image || avatar`, so
       // a selection must always resolve to whatever image the user actually saw.
-      select: { assetId: true, character: { select: { avatarAssetId: true } } },
+      select: {
+        assetId: true,
+        character: { select: { identityAssetId: true, avatarAssetId: true } },
+      },
     });
     for (const s of styles) {
-      const assetId = s.assetId ?? s.character?.avatarAssetId ?? null;
-      if (assetId) refs.push({ assetId, role: 'reference_image' });
+      for (const assetId of uniqueAssetIds([
+        s.character?.identityAssetId ?? s.character?.avatarAssetId ?? null,
+        s.assetId,
+      ])) {
+        refs.push({ assetId, role: 'reference_image' });
+      }
     }
   }
   if (ids.scene.length > 0) {

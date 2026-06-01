@@ -15,6 +15,7 @@ export type CharacterDTO = {
   name: string;
   avatar: string;
   avatarAssetId: string | null;
+  identityAssetId: string | null;
   description: string;
   bio: string;
   voice?: string;
@@ -47,6 +48,7 @@ export async function serializeCharacter(c: CharacterWithStyles): Promise<Charac
     name: c.name,
     avatar,
     avatarAssetId: c.avatarAssetId ?? null,
+    identityAssetId: c.identityAssetId ?? null,
     description: c.description,
     bio: c.bio,
     voice: c.voice ?? '',

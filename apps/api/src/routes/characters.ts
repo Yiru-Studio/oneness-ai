@@ -60,6 +60,8 @@ characterRoutes.post(
       throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
     }
     if (body.avatarAssetId) await assertAssetOwned(body.avatarAssetId, user.id);
+    if (body.identityAssetId) await assertAssetOwned(body.identityAssetId, user.id);
+    const identityAssetId = body.identityAssetId ?? body.avatarAssetId ?? null;
     const created = await prisma.character.create({
       data: {
         projectId,
@@ -68,6 +70,7 @@ characterRoutes.post(
         bio: body.bio ?? '',
         voice: body.voice ?? null,
         avatarAssetId: body.avatarAssetId ?? null,
+        identityAssetId,
         markedBlank: body.markedBlank ?? false,
       },
       include: { styles: { include: { asset: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }, avatar: true },
@@ -108,6 +111,11 @@ characterRoutes.patch(
     if (body.avatarAssetId !== undefined) {
       if (body.avatarAssetId) await assertAssetOwned(body.avatarAssetId, user.id);
       data.avatarAssetId = body.avatarAssetId ?? null;
+      if (body.identityAssetId === undefined) data.identityAssetId = body.avatarAssetId ?? null;
+    }
+    if (body.identityAssetId !== undefined) {
+      if (body.identityAssetId) await assertAssetOwned(body.identityAssetId, user.id);
+      data.identityAssetId = body.identityAssetId ?? null;
     }
     const updated = await prisma.character.update({
       where: { id },

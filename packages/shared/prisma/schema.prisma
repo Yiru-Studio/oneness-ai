@@ -83,6 +83,7 @@ model Character {
   bio         String   @db.Text
   voice       String?
   avatarAssetId String?
+  identityAssetId String?
   avatarPrompt String? @db.Text
   /// When true, the user clicked "创建为空白角色" instead of running 分析角色.
   /// Frontend uses this to skip the analyze/blank-create choice screen.
@@ -93,6 +94,7 @@ model Character {
   project Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   styles  CharacterStyle[]
   avatar  Asset?           @relation("CharacterAvatar", fields: [avatarAssetId], references: [id], onDelete: SetNull)
+  identity Asset?          @relation("CharacterIdentity", fields: [identityAssetId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
 }
@@ -328,6 +330,7 @@ model Asset {
 
   owner           User             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   characterAvatars Character[]     @relation("CharacterAvatar")
+  characterIdentities Character[]  @relation("CharacterIdentity")
   characterStyles CharacterStyle[]
   items           Item[]
   scenes          Scene[]

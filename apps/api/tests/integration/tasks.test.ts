@@ -196,6 +196,149 @@ describe('tasks lifecycle', () => {
     await prisma.shot.delete({ where: { id: shot.id } });
   });
 
+  it('character-style IMAGE task injects the identity reference first', async () => {
+    const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.findFirst({ where: { ownerId: user.id } });
+    if (!project) throw new Error('Seed project missing.');
+
+    const identityAsset = await prisma.asset.create({
+      data: {
+        ownerId: user.id,
+        bucket: 'test-fixtures',
+        key: `identity-${Date.now()}-${Math.random()}.png`,
+        contentType: 'image/png',
+        sizeBytes: 10,
+      },
+    });
+    const extraAsset = await prisma.asset.create({
+      data: {
+        ownerId: user.id,
+        bucket: 'test-fixtures',
+        key: `extra-${Date.now()}-${Math.random()}.png`,
+        contentType: 'image/png',
+        sizeBytes: 10,
+      },
+    });
+    const character = await prisma.character.create({
+      data: {
+        projectId: project.id,
+        name: '身份参考测试角色',
+        description: '',
+        bio: '',
+        identityAssetId: identityAsset.id,
+      },
+    });
+    const style = await prisma.characterStyle.create({
+      data: {
+        characterId: character.id,
+        name: '身份参考测试造型',
+        prompt: '',
+        model: 'stub',
+        ratio: '1:1',
+      },
+    });
+
+    try {
+      const res = await app.request('/api/tasks', {
+        method: 'POST',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          type: 'IMAGE',
+          projectId: project.id,
+          provider: 'stub',
+          input: {
+            prompt: 'same person in a blue coat',
+            ratio: '1:1',
+            model: 'stub',
+            referenceAssetIds: [extraAsset.id],
+            n: 1,
+          },
+          resourceTarget: { kind: 'character-style', entityId: style.id },
+        }),
+      });
+      expect(res.status).toBe(201);
+      const created = (await res.json()) as { id: string };
+
+      const queued = await prisma.task.findUnique({
+        where: { id: created.id },
+        select: { input: true },
+      });
+      const input = queued?.input as {
+        identityReferenceAssetId?: string;
+        referenceAssetIds?: string[];
+      };
+      expect(input.identityReferenceAssetId).toBe(identityAsset.id);
+      expect(input.referenceAssetIds).toEqual([identityAsset.id, extraAsset.id]);
+
+      await pollUntilTerminal(created.id);
+      const completed = await prisma.task.findUnique({
+        where: { id: created.id },
+        select: { output: true },
+      });
+      const output = completed?.output as {
+        mode?: string;
+        identityReferenceAssetId?: string | null;
+        referenceAssetIds?: string[];
+      };
+      expect(output.mode).toBe('edit');
+      expect(output.identityReferenceAssetId).toBe(identityAsset.id);
+      expect(output.referenceAssetIds).toEqual([identityAsset.id, extraAsset.id]);
+    } finally {
+      await prisma.character.deleteMany({ where: { id: character.id } });
+      await prisma.asset.deleteMany({ where: { id: { in: [identityAsset.id, extraAsset.id] } } });
+    }
+  });
+
+  it('character-style IMAGE task refuses to generate without an identity master', async () => {
+    const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.findFirst({ where: { ownerId: user.id } });
+    if (!project) throw new Error('Seed project missing.');
+
+    const character = await prisma.character.create({
+      data: {
+        projectId: project.id,
+        name: '缺少身份参考测试角色',
+        description: '',
+        bio: '',
+      },
+    });
+    const style = await prisma.characterStyle.create({
+      data: {
+        characterId: character.id,
+        name: '缺少身份参考测试造型',
+        prompt: '',
+        model: 'stub',
+        ratio: '1:1',
+      },
+    });
+
+    try {
+      const res = await app.request('/api/tasks', {
+        method: 'POST',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          type: 'IMAGE',
+          projectId: project.id,
+          provider: 'stub',
+          input: {
+            prompt: 'same person in a blue coat',
+            ratio: '1:1',
+            model: 'stub',
+            n: 1,
+          },
+          resourceTarget: { kind: 'character-style', entityId: style.id },
+        }),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: { message: string } };
+      expect(body.error.message).toContain('身份母版');
+    } finally {
+      await prisma.character.deleteMany({ where: { id: character.id } });
+    }
+  });
+
   it('TEXT task completes', async () => {
     // Need a project (TextInput requires projectId)
     const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });

@@ -22,6 +22,8 @@ export type ResourceImageDTO = {
   image: string;
   asset: AssetDTO | null;
   taskStatus: string | null;
+  identityReferenceAssetId: string | null;
+  referenceAssetIds: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -30,6 +32,7 @@ export async function serializeResourceImage(
   row: ResourceImageWithRelations,
 ): Promise<ResourceImageDTO> {
   const asset = row.asset ? await serializeAsset(row.asset) : null;
+  const taskInput = parseTaskInput(row.task?.input);
   return {
     id: row.id,
     kind: row.kind,
@@ -45,7 +48,30 @@ export async function serializeResourceImage(
     image: asset?.url ?? '',
     asset,
     taskStatus: row.task?.status ?? null,
+    identityReferenceAssetId: taskInput.identityReferenceAssetId,
+    referenceAssetIds: taskInput.referenceAssetIds,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function parseTaskInput(input: unknown): {
+  identityReferenceAssetId: string | null;
+  referenceAssetIds: string[];
+} {
+  if (!input || typeof input !== 'object') {
+    return { identityReferenceAssetId: null, referenceAssetIds: [] };
+  }
+  const obj = input as {
+    identityReferenceAssetId?: unknown;
+    referenceAssetIds?: unknown;
+  };
+  const referenceAssetIds = Array.isArray(obj.referenceAssetIds)
+    ? obj.referenceAssetIds.filter((id): id is string => typeof id === 'string')
+    : [];
+  return {
+    identityReferenceAssetId:
+      typeof obj.identityReferenceAssetId === 'string' ? obj.identityReferenceAssetId : null,
+    referenceAssetIds,
   };
 }

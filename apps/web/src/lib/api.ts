@@ -110,7 +110,7 @@ export async function getProjectCharacters(projectId: string): Promise<Character
 
 export async function createCharacter(
   projectId: string,
-  data: { name: string; description?: string; bio?: string; voice?: string | null; avatarAssetId?: string | null; markedBlank?: boolean },
+  data: { name: string; description?: string; bio?: string; voice?: string | null; avatarAssetId?: string | null; identityAssetId?: string | null; markedBlank?: boolean },
 ): Promise<Character> {
   return await apiFetch<CharacterDTO>(`/api/projects/${projectId}/characters`, {
     method: 'POST',
@@ -120,7 +120,7 @@ export async function createCharacter(
 
 export async function updateCharacter(
   characterId: string,
-  data: Partial<{ name: string; description: string; bio: string; voice: string | null; avatarAssetId: string | null; avatarPrompt: string | null; markedBlank: boolean }>,
+  data: Partial<{ name: string; description: string; bio: string; voice: string | null; avatarAssetId: string | null; identityAssetId: string | null; avatarPrompt: string | null; markedBlank: boolean }>,
 ): Promise<Character> {
   return await apiFetch<CharacterDTO>(`/api/characters/${characterId}`, {
     method: 'PATCH',

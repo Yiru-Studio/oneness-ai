@@ -58,9 +58,10 @@ interface Props {
   /** Entity being edited. Always provides an `id`; image may be empty. */
   entity: EntityDetailData;
   project: Project;
-  /** When provided, the character's avatar is sent as a reference image
-   *  during generation to maintain visual consistency. */
+  /** When provided, the character's identity master is sent as the first
+   *  reference image during generation to maintain visual consistency. */
   characterId?: string;
+  identityReferenceAssetId?: string | null;
   /** Build the default auto-fill prompt for this entity. Called when the user
    *  hits "自动填充". Implementations typically pull lines from the script and
    *  combine with project style guidance. */
@@ -140,6 +141,7 @@ export function EntityDetailDrawer({
   entity,
   project,
   characterId,
+  identityReferenceAssetId,
   buildAutoPrompt,
   onSave,
   onClose,
@@ -239,6 +241,13 @@ export function EntityDetailDrawer({
     description !== (entity.description ?? '');
 
   const isStyle = kind === 'style';
+  const hasStyleIdentityReference = !isStyle || Boolean(identityReferenceAssetId);
+  const generateDisabled = generating || uploading || !hasPrompt || !hasStyleIdentityReference;
+  const generateTitle = !hasPrompt
+    ? '请先填写提示词或点击「三视图」'
+    : !hasStyleIdentityReference
+      ? '请先生成或上传角色头像'
+      : undefined;
   const handleAutoFill = () => {
     if (isStyle) {
       setThreeView(true);
@@ -275,6 +284,10 @@ export function EntityDetailDrawer({
     const effectivePrompt = composeThreeViewPrompt(effectiveThreeView, effectivePromptBody);
     if (!effectivePrompt) {
       setError('请先填写提示词');
+      return;
+    }
+    if (!hasStyleIdentityReference) {
+      setError('请先生成或上传角色头像，作为造型生成的身份母版');
       return;
     }
     setError(null);
@@ -421,6 +434,7 @@ export function EntityDetailDrawer({
             history={history}
             loading={historyLoading}
             currentAssetId={assetId}
+            identityReferenceAssetId={identityReferenceAssetId ?? null}
             busyId={historyBusy}
             onSetCurrent={handleSetCurrent}
           />
@@ -525,6 +539,27 @@ export function EntityDetailDrawer({
                   <Wand2 className="w-4 h-4" />
                   {isStyle ? '三视图' : '自动填充'}
                 </button>
+                {isStyle && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs ${
+                      hasStyleIdentityReference
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-amber-50 text-amber-700'
+                    }`}
+                    title={
+                      hasStyleIdentityReference
+                        ? '造型生成会优先使用角色身份母版'
+                        : '缺少角色头像时不能生成造型'
+                    }
+                  >
+                    {hasStyleIdentityReference ? (
+                      <Check className="w-3.5 h-3.5" />
+                    ) : (
+                      <X className="w-3.5 h-3.5" />
+                    )}
+                    {hasStyleIdentityReference ? '已绑定身份母版' : '缺少身份母版'}
+                  </span>
+                )}
                 {referenceImageUrl && (
                   <div className="ml-auto flex items-center gap-2 rounded-lg bg-gray-50 px-2 py-1">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -641,8 +676,8 @@ export function EntityDetailDrawer({
                 </div>
                 <button
                   onClick={handleGenerate}
-                  disabled={generating || uploading || !hasPrompt}
-                  title={!hasPrompt ? '请先填写提示词或点击「三视图」' : undefined}
+                  disabled={generateDisabled}
+                  title={generateTitle}
                   className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {generating ? (
@@ -682,12 +717,14 @@ function HistoryRail({
   history,
   loading,
   currentAssetId,
+  identityReferenceAssetId,
   busyId,
   onSetCurrent,
 }: {
   history: ResourceImage[];
   loading: boolean;
   currentAssetId: string | null;
+  identityReferenceAssetId: string | null;
   busyId: string | null;
   onSetCurrent: (row: ResourceImage) => void;
 }) {
@@ -707,6 +744,10 @@ function HistoryRail({
             const pending = row.status === 'QUEUED' || row.status === 'RUNNING';
             const failed = row.status === 'FAILED';
             const selected = Boolean(row.assetId && row.assetId === currentAssetId);
+            const usedIdentityReference = Boolean(
+              row.identityReferenceAssetId &&
+                row.identityReferenceAssetId === identityReferenceAssetId,
+            );
             return (
               <button
                 key={row.id}
@@ -721,7 +762,15 @@ function HistoryRail({
                       ? 'border-red-200'
                       : 'border-[var(--color-border)] hover:border-[var(--color-primary)]'
                 } disabled:cursor-default`}
-                title={failed ? row.error || '生成失败' : row.source === 'upload' ? '上传图片' : '生成历史'}
+                title={
+                  failed
+                    ? row.error || '生成失败'
+                    : usedIdentityReference
+                      ? '使用身份母版生成'
+                      : row.source === 'upload'
+                        ? '上传图片'
+                        : '生成历史'
+                }
               >
                 {row.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -740,6 +789,11 @@ function HistoryRail({
                 {selected && (
                   <span className="absolute right-1 top-1 w-4 h-4 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center">
                     <Check className="w-3 h-3" />
+                  </span>
+                )}
+                {usedIdentityReference && (
+                  <span className="absolute left-1 bottom-1 px-1 rounded bg-black/55 text-[9px] font-semibold leading-4 text-white">
+                    ID
                   </span>
                 )}
               </button>

@@ -39,6 +39,7 @@ export interface Character {
   name: string;
   avatar: string;
   avatarAssetId?: string | null;
+  identityAssetId?: string | null;
   description: string;
   bio: string;
   voice?: string;
@@ -93,6 +94,8 @@ export interface ResourceImage {
   assetId: string | null;
   taskId: string | null;
   image: string;
+  identityReferenceAssetId?: string | null;
+  referenceAssetIds?: string[];
   taskStatus: ResourceImageStatus | null;
   createdAt: string;
   updatedAt: string;

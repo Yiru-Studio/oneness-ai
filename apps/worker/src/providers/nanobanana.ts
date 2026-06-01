@@ -213,6 +213,8 @@ export const nanobananaImageProvider: ImageProvider = {
         mode: inlineImages.length > 0 ? 'edit' : 'generate',
         model,
         ratio: SUPPORTED_RATIOS.has(input.ratio) ? input.ratio : 'auto',
+        identityReferenceAssetId: input.identityReferenceAssetId ?? null,
+        referenceAssetIds: input.referenceAssetIds ?? [],
         revisedPrompts: calls.flatMap((c) => c.texts),
       },
       outputAssets,

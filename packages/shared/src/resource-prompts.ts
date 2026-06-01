@@ -271,6 +271,7 @@ function buildCharacterPrompt(input: ResourcePromptInput): string {
       characterReferenceRules(rawDescription),
       '类型：pure character reference，不是剧情截图，不是场面合成图。',
       `要求：单一角色为唯一主体，${framing}身份特征、体型、五官、发型、服装和固定穿戴保持稳定。`,
+      isAvatar ? '' : '身份锁定：如提供角色参考图，必须沿用参考图中的面部轮廓、五官、年龄感、发型、肤色和体型；本次只允许改变造型服装、姿态、光线和简洁背景。',
       '背景：纯白、浅灰、浅色渐变或简洁影棚背景；不要街道、房间、球场、码头、办公室、教室等剧情场景；不要环境道具。',
       '禁止：其他人物、角色互动、手持物、独立道具、剧情动作、复杂背景、文字、水印、logo、边框、拼贴说明文字。',
       input.projectStylePrompt ? `风格：${text(input.projectStylePrompt)}。` : '',

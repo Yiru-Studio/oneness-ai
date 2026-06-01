@@ -54,7 +54,14 @@ export const stubImageProvider: ImageProvider = {
     );
 
     return {
-      outputJson: { prompt: input.prompt, model: input.model, n },
+      outputJson: {
+        prompt: input.prompt,
+        model: input.model,
+        n,
+        mode: input.referenceAssetIds?.length ? 'edit' : 'generate',
+        identityReferenceAssetId: input.identityReferenceAssetId ?? null,
+        referenceAssetIds: input.referenceAssetIds ?? [],
+      },
       outputAssets,
     };
   },

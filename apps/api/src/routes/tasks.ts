@@ -9,6 +9,11 @@ import {
   loadOwnedResourceTarget,
   resourceImageEntityFields,
 } from '../lib/resource-images.js';
+import {
+  prependIdentityReference,
+  resolveCharacterIdentityReference,
+  resolveStyleIdentityReference,
+} from '../lib/character-identity.js';
 import { serializeTask } from '../serializers/task.js';
 import { AppError, ErrorCodes } from '@oneness/shared/errors';
 import { estimateCost } from '@oneness/shared/pricing';
@@ -60,28 +65,40 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
     );
   }
 
-  // If a characterId is provided, auto-inject its avatar as a reference image.
+  // Character-style generation must stay identity-bound. The identity master
+  // is always the first reference image; user-provided refs follow it.
   const input = { ...body.input } as Record<string, unknown>;
   const characterIdHint =
     body.type === 'IMAGE' && typeof input.characterId === 'string'
       ? input.characterId
       : null;
-  if (
-    body.type === 'IMAGE' &&
-    characterIdHint
-  ) {
-    const character = await prisma.character.findFirst({
-      where: { id: characterIdHint, project: { ownerId: user.id } },
-      select: { avatarAssetId: true },
-    });
-    if (character?.avatarAssetId) {
-      const existingRefs = Array.isArray(input.referenceAssetIds)
-        ? (input.referenceAssetIds as string[])
-        : [];
-      const refs = new Set([character.avatarAssetId, ...existingRefs]);
-      input.referenceAssetIds = Array.from(refs);
+  if (body.type === 'IMAGE') {
+    const styleIdentity =
+      body.resourceTarget?.kind === 'character-style'
+        ? await resolveStyleIdentityReference(
+            prisma,
+            body.resourceTarget.entityId,
+            user.id,
+          )
+        : null;
+    const hintedIdentity =
+      !styleIdentity && characterIdHint
+        ? await resolveCharacterIdentityReference(prisma, characterIdHint, user.id)
+        : null;
+    const identity = styleIdentity ?? hintedIdentity;
+    if (body.resourceTarget?.kind === 'character-style' && !identity) {
+      throw AppError.badRequest(
+        ErrorCodes.VALIDATION_FAILED,
+        '请先生成或上传角色头像，作为造型生成的身份母版',
+      );
     }
-    // Don't persist characterId into the task input — it's a routing hint only.
+    if (identity) {
+      input.identityReferenceAssetId = identity.assetId;
+      input.referenceAssetIds = prependIdentityReference(
+        input.referenceAssetIds,
+        identity.assetId,
+      );
+    }
     delete input.characterId;
   }
   if (body.type === 'IMAGE' && typeof input.prompt === 'string') {

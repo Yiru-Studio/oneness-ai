@@ -58,6 +58,7 @@ export type ImageInput = {
   ratio: string;
   model: string;
   referenceAssetIds?: string[];
+  identityReferenceAssetId?: string;
   n?: number;
 };
 export type VideoReferenceRole =

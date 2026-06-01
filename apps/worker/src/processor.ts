@@ -483,7 +483,7 @@ function extFromContentType(ct: string): string {
  */
 function injectFaceReferencePrompt<T extends { prompt: string }>(input: T): T {
   const prefix =
-    '以下图片为该角色的参考图，新图中该人物的面部轮廓、五官、发型、肤色等长相特征必须与参考图中的人物完全一致。请按以下描述生成：\n\n';
+    '以下第一张图片为该角色的身份母版，其它图片为辅助参考。新图中该人物的面部轮廓、五官、发型、肤色、年龄感和体型必须与身份母版中的人物一致；只允许根据提示改变服装造型、姿态、光线和简洁背景。请按以下描述生成：\n\n';
   return { ...input, prompt: prefix + input.prompt };
 }
 

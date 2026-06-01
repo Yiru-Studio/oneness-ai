@@ -135,6 +135,8 @@ export const openaiImageProvider: ImageProvider = {
           mode: hasRefs ? 'edit' : 'generate',
           model,
           size,
+          identityReferenceAssetId: input.identityReferenceAssetId ?? null,
+          referenceAssetIds: input.referenceAssetIds ?? [],
           generationId: data.responseId ?? null,
           revisedPrompts: items
             .map((i) => i.revised_prompt)

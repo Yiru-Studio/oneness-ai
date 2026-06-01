@@ -29,6 +29,7 @@ import {
   type GenerateShotSketchesInput,
 } from '@oneness/shared/schemas';
 import { config } from '../config.js';
+import { uniqueAssetIds } from '../lib/character-identity.js';
 
 export const compositionTaskRoutes = new Hono();
 
@@ -1445,7 +1446,10 @@ async function resolveReferenceAssetIds(
   const [styles, scenes, items] = await Promise.all([
     prisma.characterStyle.findMany({
       where: { id: { in: refs.characterStyleIds }, character: { projectId } },
-      select: { assetId: true, character: { select: { avatarAssetId: true } } },
+      select: {
+        assetId: true,
+        character: { select: { identityAssetId: true, avatarAssetId: true } },
+      },
     }),
     prisma.scene.findMany({
       where: { id: { in: refs.sceneIds }, projectId },
@@ -1456,11 +1460,14 @@ async function resolveReferenceAssetIds(
       select: { assetId: true },
     }),
   ]);
-  return Array.from(new Set([
-    ...styles.map((row) => row.assetId ?? row.character?.avatarAssetId ?? null),
+  return uniqueAssetIds([
+    ...styles.flatMap((row) => [
+      row.character?.identityAssetId ?? row.character?.avatarAssetId ?? null,
+      row.assetId,
+    ]),
     ...scenes.map((row) => row.assetId),
     ...items.map((row) => row.assetId),
-  ].filter((id): id is string => Boolean(id)))).slice(0, 8);
+  ]).slice(0, 8);
 }
 
 async function buildShotSketchReferenceAssetIds(
