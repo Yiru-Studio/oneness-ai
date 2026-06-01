@@ -260,10 +260,14 @@ async function linkShotVideo(
   if (out?.lastFrameUrl) {
     log.info({ shotId, lastFrameUrl: out.lastFrameUrl }, 'shot last-frame URL recorded (not persisted)');
   }
-  await prisma.shot.update({
-    where: { id: shotId },
+  const updated = await prisma.shot.updateMany({
+    where: { id: shotId, videoTaskId: taskId },
     data: { videoAssetId: ta.assetId },
   });
+  if (updated.count === 0) {
+    log.warn({ shotId, taskId, assetId: ta.assetId }, 'shot video task is no longer current; skipping link');
+    return;
+  }
   log.info({ shotId, assetId: ta.assetId }, 'shot.videoAssetId updated');
 }
 

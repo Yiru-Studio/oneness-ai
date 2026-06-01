@@ -62,6 +62,9 @@ export default function StoryboardEpisodePage() {
   const [aiAssistEnabled, setAiAssistEnabled] = useState(true);
   const [assistBusy, setAssistBusy] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const clearBusyShot = (id: string) => {
+    setBusyShot((current) => (current === id ? null : current));
+  };
 
   const reloadShots = useCallback(async () => {
     const fresh = await getEpisodeShots(projectId, episodeId);
@@ -220,7 +223,7 @@ export default function StoryboardEpisodePage() {
       setError(e instanceof Error ? e.message : '保存失败');
       await reloadShots();
     } finally {
-      setBusyShot(null);
+      clearBusyShot(id);
     }
   };
 
@@ -233,7 +236,7 @@ export default function StoryboardEpisodePage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除分镜失败');
     } finally {
-      setBusyShot(null);
+      clearBusyShot(id);
     }
   };
 
@@ -245,7 +248,7 @@ export default function StoryboardEpisodePage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成视频失败');
     } finally {
-      setBusyShot(null);
+      clearBusyShot(id);
     }
   };
 
