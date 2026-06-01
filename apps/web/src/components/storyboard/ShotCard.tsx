@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Trash2, Loader2, Play, Image as ImageIcon, Plus, RotateCcw } from 'lucide-react';
+import { Trash2, Loader2, Play, Image as ImageIcon, Plus, RotateCcw, X } from 'lucide-react';
 import { Shot, Character, Scene, Item, CompositionTask } from '@/types';
 import { ImagePreview } from '@/components/ImagePreview';
 import { ReferencePickerDialog } from './ReferencePickerDialog';
@@ -39,10 +39,12 @@ interface Props {
   /** displayId of every other shot in the episode, for the "续写镜头" preId picker. */
   siblingDisplayIds: number[];
   busy: boolean;
-  onUpdate: (id: string, patch: Partial<Shot>) => Promise<void>;
+  onUpdate: (id: string, patch: Partial<Shot>, options?: { rethrow?: boolean }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-  onGenerate: (id: string) => Promise<void>;
+  onGenerate: (id: string, beforeGeneratePatch?: Partial<Shot>) => Promise<void>;
 }
+
+type ResourceThumb = { key: string; label: string; url: string | null };
 
 export function ShotCard({
   shot,
@@ -77,237 +79,109 @@ export function ShotCard({
 
   const handlePromptBlur = () => {
     if (prompt === shot.prompt) return;
-    void onUpdate(shot.id, { prompt });
+    void onUpdate(shot.id, { prompt }, { rethrow: true }).catch(() => {
+      setPromptDraft({ shotId: shot.id, sourcePrompt: shot.prompt, value: shot.prompt });
+    });
   };
 
   // Build the list of resource thumbnails (sketch + composition shots + resources).
   const resourceThumbs = buildResourceThumbs(shot, characters, scenes, items, compositionTasks);
-  const hasVideoReference = resourceThumbs.length > 0;
+  const hasSelectedReference = resourceThumbs.length > 0;
+  const hasVideoReference = resourceThumbs.some((r) => Boolean(r.url));
   const videoDisabledReason = !promptReady
     ? '请先填写视频提示词'
-    : !hasVideoReference
+    : !hasSelectedReference
       ? '请先选择草图或参考资产'
+      : !hasVideoReference
+        ? '请选择带图片的参考资产'
       : null;
+  const sketchThumb = resourceThumbs.find((r) => r.key === `sketch-${shot.id}`) ?? null;
+  const referenceThumbs = resourceThumbs.filter((r) => r.key !== `sketch-${shot.id}`);
+  const editingDisabled = busy || isGenerating;
+  const handleRemoveReference = (thumb: ResourceThumb) => {
+    if (editingDisabled) return;
+    if (thumb.key.startsWith('ct-')) {
+      const id = thumb.key.slice(3);
+      void onUpdate(shot.id, {
+        compositionTaskIds: shot.compositionTaskIds.filter((taskId) => taskId !== id),
+      });
+      return;
+    }
+    if (thumb.key.startsWith('cs-')) {
+      const id = thumb.key.slice(3);
+      void onUpdate(shot.id, {
+        characterStyleIds: shot.characterStyleIds.filter((styleId) => styleId !== id),
+      });
+      return;
+    }
+    if (thumb.key.startsWith('sc-')) {
+      const id = thumb.key.slice(3);
+      void onUpdate(shot.id, { sceneIds: shot.sceneIds.filter((sceneId) => sceneId !== id) });
+      return;
+    }
+    if (thumb.key.startsWith('it-')) {
+      const id = thumb.key.slice(3);
+      void onUpdate(shot.id, { itemIds: shot.itemIds.filter((itemId) => itemId !== id) });
+    }
+  };
+  const handleGenerate = async () => {
+    const beforeGeneratePatch = prompt !== shot.prompt ? { prompt } : undefined;
+    try {
+      await onGenerate(shot.id, beforeGeneratePatch);
+    } catch {
+      if (beforeGeneratePatch) {
+        setPromptDraft({ shotId: shot.id, sourcePrompt: shot.prompt, value: shot.prompt });
+      }
+    }
+  };
 
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-white shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--color-border)] bg-gray-50">
-        <div className="w-7 h-7 rounded-full bg-[var(--color-dark)] text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">
-          {shot.displayId}
-        </div>
+    <div className="rounded-[22px] border border-[var(--color-border)] bg-white p-5 shadow-sm">
+      <ShotControlBar
+        shot={shot}
+        siblingDisplayIds={siblingDisplayIds}
+        busy={editingDisabled}
+        onUpdate={onUpdate}
+        onDelete={onDelete}
+      />
 
-        <Select
-          value={shot.shotType}
-          options={SHOT_TYPE_OPTIONS}
-          onChange={(v) =>
-            onUpdate(shot.id, {
-              shotType: v as 'new' | 'continuation',
-              preId: v === 'new' ? null : shot.preId,
-            })
-          }
-          disabled={busy}
-        />
-
-        {shot.shotType === 'continuation' && (
-          <select
-            value={shot.preId ?? ''}
-            onChange={(e) => {
-              const next = e.target.value ? Number(e.target.value) : null;
-              void onUpdate(shot.id, { preId: next });
-            }}
-            disabled={busy}
-            className="px-2 py-1 rounded-md border border-[var(--color-border)] text-xs bg-white"
-          >
-            <option value="">从…续写</option>
-            {siblingDisplayIds
-              .filter((d) => d !== shot.displayId)
-              .map((d) => (
-                <option key={d} value={d}>
-                  续写 #{d}
-                </option>
-              ))}
-          </select>
-        )}
-
-        <div className="flex items-center gap-1">
-          <select
-            value={shot.duration}
-            onChange={(e) => onUpdate(shot.id, { duration: Number(e.target.value) })}
-            disabled={busy}
-            className="px-2 py-1 rounded-md border border-[var(--color-border)] text-xs bg-white"
-          >
-            {DURATION_OPTIONS.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-          <span className="text-xs text-gray-500">秒</span>
-        </div>
-
-        <Select
-          value={normalizeVideoModelValue(shot.model)}
-          options={VIDEO_MODEL_OPTIONS}
-          onChange={(v) => onUpdate(shot.id, { model: v })}
-          disabled={busy}
-        />
-
-        <Select
-          value={shot.ratio}
-          options={RATIO_OPTIONS.map((r) => ({ value: r, label: r }))}
-          onChange={(v) => onUpdate(shot.id, { ratio: v })}
-          disabled={busy}
-        />
-
-        <Select
-          value={shot.resolution}
-          options={RESOLUTION_OPTIONS.map((r) => ({ value: r, label: r }))}
-          onChange={(v) => onUpdate(shot.id, { resolution: v })}
-          disabled={busy}
-        />
-
-        <label className="flex items-center gap-1 text-xs text-gray-600">
-          <input
-            type="checkbox"
-            checked={shot.generateAudio}
-            onChange={(e) => onUpdate(shot.id, { generateAudio: e.target.checked })}
-            disabled={busy}
-            className="accent-[var(--color-primary)]"
-          />
-          音画同出
-        </label>
-
-        <button
-          onClick={() => onDelete(shot.id)}
-          disabled={busy}
-          title="删除分镜"
-          className="ml-auto w-7 h-7 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 flex items-center justify-center"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {/* Body: content + resources (left) | video preview (right) */}
-      <div className="grid grid-cols-[1fr_320px] gap-4 p-4">
-        <div className="min-w-0">
+      <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="min-w-0 space-y-6">
           <textarea
             value={prompt}
-            onChange={(e) => setPromptDraft({
-              shotId: shot.id,
-              sourcePrompt: shot.prompt,
-              value: e.target.value,
-            })}
+            onChange={(e) =>
+              setPromptDraft({
+                shotId: shot.id,
+                sourcePrompt: shot.prompt,
+                value: e.target.value,
+              })
+            }
             onBlur={handlePromptBlur}
-            disabled={busy}
+            disabled={editingDisabled}
             rows={6}
             placeholder="景别 + 运镜方式 + 视角 + 画面内容及运动方式（@角色 / @物品 / @场景 可引用）+ 效果提示词（光影/色调/构图/细节）"
-            className="w-full rounded-lg border border-[var(--color-border)] focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] outline-none px-3 py-2 text-sm font-mono leading-relaxed resize-y"
+            className="min-h-[164px] w-full resize-none rounded-[20px] border border-transparent bg-gray-50 px-5 py-4 text-[15px] leading-7 text-gray-800 outline-none transition-colors placeholder:text-gray-400 focus:border-[var(--color-primary)] focus:bg-white focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
           />
 
-          <div className="mt-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-[var(--color-text-secondary)]">参考资产</span>
-              <div className="flex items-center gap-2">
-                {isSketchGenerating && (
-                  <span className="inline-flex items-center gap-1 text-xs text-[var(--color-primary)]">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    分镜首帧生成中
-                  </span>
-                )}
-                {sketchFailed && (
-                  <span className="text-xs text-red-500">分镜首帧生成失败</span>
-                )}
-                <button
-                  onClick={() => setPickerOpen(true)}
-                  disabled={busy}
-                  className="text-xs text-[var(--color-primary)] hover:underline inline-flex items-center gap-1"
-                >
-                  <Plus className="w-3 h-3" />
-                  选择参考
-                </button>
-              </div>
-            </div>
-            {resourceThumbs.length === 0 && isSketchGenerating ? (
-              <div className="text-xs text-[var(--color-primary)] px-3 py-4 border border-dashed border-blue-200 bg-blue-50 rounded-lg text-center inline-flex items-center justify-center gap-2 w-full">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                分镜首帧生成中…
-              </div>
-            ) : resourceThumbs.length === 0 ? (
-              <div className="text-xs text-gray-400 px-3 py-4 border border-dashed border-[var(--color-border)] rounded-lg text-center">
-                {sketchFailed ? '分镜首帧生成失败，可重新触发智能分镜创作' : '未选择任何参考资产'}
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {resourceThumbs.map((r) => (
-                  <button
-                    type="button"
-                    key={r.key}
-                    onClick={() => {
-                      if (r.url) setPreviewThumb({ src: r.url, alt: r.label });
-                    }}
-                    disabled={!r.url}
-                    className="w-16 h-16 rounded-lg overflow-hidden border border-[var(--color-border)] bg-gray-100 relative disabled:cursor-default enabled:cursor-zoom-in enabled:hover:border-[var(--color-primary)] enabled:focus-visible:outline enabled:focus-visible:outline-2 enabled:focus-visible:outline-offset-2 enabled:focus-visible:outline-[var(--color-primary)]"
-                    title={r.label}
-                    aria-label={r.url ? `查看${r.label}` : r.label}
-                  >
-                    {r.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={r.url} alt={r.label} className="w-full h-full object-cover" />
-                    ) : (
-                      <ImageIcon className="w-4 h-4 text-gray-400 absolute inset-0 m-auto" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <ReferenceAssetCards
+            sketchThumb={sketchThumb}
+            referenceThumbs={referenceThumbs}
+            isSketchGenerating={isSketchGenerating}
+            sketchFailed={sketchFailed}
+            busy={editingDisabled}
+            onAddReference={() => setPickerOpen(true)}
+            onPreview={(thumb) => setPreviewThumb({ src: thumb.url!, alt: thumb.label })}
+            onRemoveReference={handleRemoveReference}
+          />
         </div>
 
-        <div className="flex flex-col gap-2">
-          <div className="aspect-video rounded-lg bg-black/95 overflow-hidden relative">
-            {shot.video?.url ? (
-              <video src={shot.video.url} controls className="w-full h-full" />
-            ) : isGenerating ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-xs gap-2">
-                <Loader2 className="w-6 h-6 animate-spin" />
-                {shot.videoTaskStatus === 'QUEUED' ? '排队中…' : '生成中…'}
-              </div>
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-xs">
-                视频未生成
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => onGenerate(shot.id)}
-            disabled={busy || isGenerating || Boolean(videoDisabledReason)}
-            className="px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50 inline-flex items-center justify-center gap-2"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                生成中
-              </>
-            ) : shot.video?.url ? (
-              <>
-                <RotateCcw className="w-3.5 h-3.5" />
-                重新生成视频
-              </>
-            ) : (
-              <>
-                <Play className="w-3.5 h-3.5" />
-                生成视频
-              </>
-            )}
-          </button>
-          {!isGenerating && videoDisabledReason && (
-            <div className="text-xs text-gray-500 text-center">{videoDisabledReason}</div>
-          )}
-          {shot.videoTaskStatus === 'FAILED' && (
-            <div className="text-xs text-red-600 text-center">上次生成失败，可重试。</div>
-          )}
-        </div>
+        <VideoGeneratePanel
+          shot={shot}
+          busy={busy}
+          isGenerating={isGenerating}
+          videoDisabledReason={videoDisabledReason}
+          onGenerate={handleGenerate}
+        />
       </div>
 
       <ReferencePickerDialog
@@ -323,7 +197,7 @@ export function ShotCard({
           sceneIds: shot.sceneIds,
           itemIds: shot.itemIds,
         }}
-        onConfirm={(next) => onUpdate(shot.id, next)}
+        onConfirm={(next) => onUpdate(shot.id, next, { rethrow: true })}
       />
       <ImagePreview
         src={previewThumb?.src ?? ''}
@@ -331,6 +205,297 @@ export function ShotCard({
         open={Boolean(previewThumb)}
         onClose={() => setPreviewThumb(null)}
       />
+    </div>
+  );
+}
+
+function ShotControlBar({
+  shot,
+  siblingDisplayIds,
+  busy,
+  onUpdate,
+  onDelete,
+}: {
+  shot: Shot;
+  siblingDisplayIds: number[];
+  busy: boolean;
+  onUpdate: (id: string, patch: Partial<Shot>, options?: { rethrow?: boolean }) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-dark)] text-base font-semibold text-white">
+        {shot.displayId}
+      </div>
+
+      <Select
+        value={shot.shotType}
+        options={SHOT_TYPE_OPTIONS}
+        onChange={(v) =>
+          onUpdate(shot.id, {
+            shotType: v as 'new' | 'continuation',
+            preId: v === 'new' ? null : shot.preId,
+          })
+        }
+        disabled={busy}
+      />
+
+      {shot.shotType === 'continuation' && (
+        <select
+          value={shot.preId ?? ''}
+          onChange={(e) => {
+            const next = e.target.value ? Number(e.target.value) : null;
+            void onUpdate(shot.id, { preId: next });
+          }}
+          disabled={busy}
+          className="h-10 rounded-full border border-[var(--color-border)] bg-gray-50 px-4 text-sm font-medium text-gray-800 outline-none transition-colors hover:border-gray-300 focus:border-[var(--color-primary)] focus:bg-white disabled:opacity-60"
+        >
+          <option value="">从…续写</option>
+          {siblingDisplayIds
+            .filter((d) => d !== shot.displayId)
+            .map((d) => (
+              <option key={d} value={d}>
+                续写 #{d}
+              </option>
+            ))}
+        </select>
+      )}
+
+      <div className="flex h-10 items-center rounded-full bg-gray-50">
+        <select
+          value={shot.duration}
+          onChange={(e) => onUpdate(shot.id, { duration: Number(e.target.value) })}
+          disabled={busy}
+          className="h-10 rounded-full border border-transparent bg-transparent pl-4 pr-8 text-sm font-medium text-gray-800 outline-none transition-colors focus:border-[var(--color-primary)] focus:bg-white disabled:opacity-60"
+        >
+          {DURATION_OPTIONS.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
+        <span className="pr-4 text-sm text-gray-500">秒</span>
+      </div>
+
+      <Select
+        value={normalizeVideoModelValue(shot.model)}
+        options={VIDEO_MODEL_OPTIONS}
+        onChange={(v) => onUpdate(shot.id, { model: v })}
+        disabled={busy}
+      />
+
+      <Select
+        value={shot.ratio}
+        options={RATIO_OPTIONS.map((r) => ({ value: r, label: r }))}
+        onChange={(v) => onUpdate(shot.id, { ratio: v })}
+        disabled={busy}
+      />
+
+      <Select
+        value={shot.resolution}
+        options={RESOLUTION_OPTIONS.map((r) => ({ value: r, label: r }))}
+        onChange={(v) => onUpdate(shot.id, { resolution: v })}
+        disabled={busy}
+      />
+
+      <label className="flex h-10 items-center gap-2 rounded-full bg-gray-50 px-4 text-sm font-medium text-gray-600">
+        <input
+          type="checkbox"
+          checked={shot.generateAudio}
+          onChange={(e) => onUpdate(shot.id, { generateAudio: e.target.checked })}
+          disabled={busy}
+          className="accent-[var(--color-primary)]"
+        />
+        音画同出
+      </label>
+
+      <button
+        type="button"
+        onClick={() => onDelete(shot.id)}
+        disabled={busy}
+        title="删除分镜"
+        className="ml-auto flex h-10 w-10 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function ReferenceAssetCards({
+  sketchThumb,
+  referenceThumbs,
+  isSketchGenerating,
+  sketchFailed,
+  busy,
+  onAddReference,
+  onPreview,
+  onRemoveReference,
+}: {
+  sketchThumb: ResourceThumb | null;
+  referenceThumbs: ResourceThumb[];
+  isSketchGenerating: boolean;
+  sketchFailed: boolean;
+  busy: boolean;
+  onAddReference: () => void;
+  onPreview: (thumb: ResourceThumb) => void;
+  onRemoveReference: (thumb: ResourceThumb) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-3">
+      <button
+        type="button"
+        onClick={() => {
+          if (sketchThumb?.url) onPreview(sketchThumb);
+        }}
+        disabled={!sketchThumb?.url}
+        className="group relative h-[136px] w-[136px] overflow-hidden rounded-[18px] border border-[var(--color-border)] bg-gray-50 text-gray-500 transition-colors enabled:cursor-zoom-in enabled:hover:border-[var(--color-primary)] disabled:cursor-default"
+        aria-label={sketchThumb?.url ? '查看场景图' : '场景图未生成'}
+      >
+        {sketchThumb?.url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={sketchThumb.url} alt="场景图" className="h-full w-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center px-3 text-sm font-medium">
+            {isSketchGenerating ? (
+              <span className="inline-flex items-center gap-2 text-[var(--color-primary)]">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                生成中
+              </span>
+            ) : sketchFailed ? (
+              <span className="text-red-500">未生成</span>
+            ) : (
+              '未生成'
+            )}
+          </div>
+        )}
+        <span className="absolute inset-x-0 bottom-0 bg-black/70 px-3 py-2 text-center text-sm font-semibold text-white">
+          场景图
+        </span>
+      </button>
+
+      {referenceThumbs.map((thumb) => (
+        <div
+          key={thumb.key}
+          className="group relative h-[136px] w-[136px] overflow-hidden rounded-[18px] border border-[var(--color-border)] bg-gray-50 text-gray-400 transition-colors hover:border-[var(--color-primary)]"
+          title={thumb.label}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              if (thumb.url) onPreview(thumb);
+            }}
+            disabled={!thumb.url}
+            className="absolute inset-0 enabled:cursor-zoom-in disabled:cursor-default"
+            aria-label={thumb.url ? `查看${thumb.label}` : thumb.label}
+          >
+            {thumb.url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={thumb.url} alt={thumb.label} className="h-full w-full object-cover" />
+            ) : (
+              <ImageIcon className="absolute inset-0 m-auto h-6 w-6" />
+            )}
+            <span className="absolute inset-x-0 bottom-0 truncate bg-black/70 px-3 py-2 text-center text-sm font-semibold text-white">
+              {thumb.label}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onRemoveReference(thumb)}
+            disabled={busy}
+            className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white opacity-100 shadow-sm transition-opacity hover:bg-red-500 focus:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] disabled:opacity-40 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
+            aria-label={`移除${thumb.label}`}
+            title={`移除${thumb.label}`}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ))}
+
+      <button
+        type="button"
+        onClick={onAddReference}
+        disabled={busy}
+        className="flex h-[136px] w-[136px] items-center justify-center rounded-[18px] border border-dashed border-gray-300 bg-gray-50 text-gray-800 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
+        aria-label="选择参考资产"
+      >
+        <Plus className="h-8 w-8" />
+      </button>
+    </div>
+  );
+}
+
+function VideoGeneratePanel({
+  shot,
+  busy,
+  isGenerating,
+  videoDisabledReason,
+  onGenerate,
+}: {
+  shot: Shot;
+  busy: boolean;
+  isGenerating: boolean;
+  videoDisabledReason: string | null;
+  onGenerate: () => Promise<void>;
+}) {
+  const disabled = busy || isGenerating || Boolean(videoDisabledReason);
+  const isFailed = shot.videoTaskStatus === 'FAILED';
+  const label = shot.video?.url ? '重新生成' : '点击生成';
+
+  return (
+    <div className="flex min-h-[320px] flex-col">
+      {shot.video?.url ? (
+        <div className="aspect-video overflow-hidden rounded-[20px] bg-black">
+          <video src={shot.video.url} controls className="h-full w-full" />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => void onGenerate()}
+          disabled={disabled}
+          className="flex min-h-[300px] flex-1 flex-col items-center justify-center gap-4 rounded-[24px] border-2 border-dashed border-gray-300 bg-gray-50 px-6 text-center text-gray-600 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:cursor-not-allowed disabled:hover:border-gray-300 disabled:hover:text-gray-600"
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 className="h-11 w-11 animate-spin" />
+              <span className="text-base font-semibold">
+                {shot.videoTaskStatus === 'QUEUED' ? '排队中…' : '生成中…'}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-current">
+                <Play className="ml-1 h-8 w-8 fill-current" />
+              </span>
+              <span className="text-lg font-semibold">{label}</span>
+            </>
+          )}
+        </button>
+      )}
+
+      {shot.video?.url && (
+        <button
+          type="button"
+          onClick={() => void onGenerate()}
+          disabled={disabled}
+          className="mt-3 inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[var(--color-primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+        >
+          <RotateCcw className="h-4 w-4" />
+          重新生成视频
+        </button>
+      )}
+
+      {!isGenerating && videoDisabledReason && (
+        <div className="mt-3 text-center text-xs text-gray-500">{videoDisabledReason}</div>
+      )}
+      {isGenerating && (
+        <div className="mt-3 text-center text-xs text-gray-500">
+          生成中，当前参数和参考已锁定
+        </div>
+      )}
+      {isFailed && (
+        <div className="mt-3 text-center text-xs text-red-600">上次生成失败，可重试。</div>
+      )}
     </div>
   );
 }
@@ -355,7 +520,7 @@ function Select<T extends string | number>({
         )
       }
       disabled={disabled}
-      className="px-2 py-1 rounded-md border border-[var(--color-border)] text-xs bg-white"
+      className="h-10 rounded-full border border-[var(--color-border)] bg-gray-50 px-4 text-sm font-medium text-gray-800 outline-none transition-colors hover:border-gray-300 focus:border-[var(--color-primary)] focus:bg-white disabled:opacity-60"
     >
       {options.map((o) => {
         const opt = typeof o === 'object' ? o : { value: o, label: String(o) };
@@ -375,8 +540,8 @@ function buildResourceThumbs(
   scenes: Scene[],
   items: Item[],
   compositionTasks: CompositionTask[],
-): Array<{ key: string; label: string; url: string | null }> {
-  const out: Array<{ key: string; label: string; url: string | null }> = [];
+): ResourceThumb[] {
+  const out: ResourceThumb[] = [];
   if (shot.sketch) {
     out.push({ key: `sketch-${shot.id}`, label: '分镜首帧', url: shot.sketch.url });
   }

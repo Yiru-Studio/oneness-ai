@@ -62,7 +62,18 @@ export default function StoryboardEpisodePage() {
   const [aiAssistEnabled, setAiAssistEnabled] = useState(true);
   const [assistBusy, setAssistBusy] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const clearBusyShot = (id: string) => {
+  const pendingShotUpdatesRef = useRef<Map<string, Promise<void>>>(new Map());
+  const busyShotTokenRef = useRef(0);
+
+  const markBusyShot = (id: string) => {
+    const token = busyShotTokenRef.current + 1;
+    busyShotTokenRef.current = token;
+    setBusyShot(id);
+    return token;
+  };
+
+  const clearBusyShot = (id: string, token: number) => {
+    if (busyShotTokenRef.current !== token) return;
     setBusyShot((current) => (current === id ? null : current));
   };
 
@@ -71,6 +82,30 @@ export default function StoryboardEpisodePage() {
     setShots(fresh);
     return fresh;
   }, [projectId, episodeId]);
+
+  const persistShotPatch = useCallback(async (id: string, patch: Partial<Shot>) => {
+    setShots((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+    await updateShot(id, patch);
+    await reloadShots();
+  }, [reloadShots]);
+
+  const queueShotUpdate = useCallback(
+    (id: string, patch: Partial<Shot>) => {
+      const previous = pendingShotUpdatesRef.current.get(id);
+      const promise = (previous ? previous.catch(() => {}) : Promise.resolve()).then(() =>
+        persistShotPatch(id, patch),
+      );
+      pendingShotUpdatesRef.current.set(id, promise);
+      const clear = () => {
+        if (pendingShotUpdatesRef.current.get(id) === promise) {
+          pendingShotUpdatesRef.current.delete(id);
+        }
+      };
+      promise.then(clear, clear);
+      return promise;
+    },
+    [persistShotPatch],
+  );
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -213,42 +248,70 @@ export default function StoryboardEpisodePage() {
     }
   };
 
-  const handleUpdate = async (id: string, patch: Partial<Shot>) => {
-    setBusyShot(id);
+  const handleUpdate = async (
+    id: string,
+    patch: Partial<Shot>,
+    options?: { rethrow?: boolean },
+  ) => {
+    const busyToken = markBusyShot(id);
+    const updatePromise = queueShotUpdate(id, patch);
     try {
-      setShots((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
-      await updateShot(id, patch);
-      await reloadShots();
+      await updatePromise;
     } catch (e) {
       setError(e instanceof Error ? e.message : '保存失败');
       await reloadShots();
+      if (options?.rethrow) throw e;
     } finally {
-      clearBusyShot(id);
+      clearBusyShot(id, busyToken);
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('确认删除该分镜？此操作不可撤销。')) return;
-    setBusyShot(id);
+    const busyToken = markBusyShot(id);
     try {
       await deleteShot(id);
       await reloadShots();
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除分镜失败');
     } finally {
-      clearBusyShot(id);
+      clearBusyShot(id, busyToken);
     }
   };
 
-  const handleGenerate = async (id: string) => {
-    setBusyShot(id);
+  const handleGenerate = async (id: string, beforeGeneratePatch?: Partial<Shot>) => {
+    const busyToken = markBusyShot(id);
     try {
-      const next = await generateShotVideo(id);
-      setShots((prev) => prev.map((s) => (s.id === id ? next : s)));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '生成视频失败');
+      const pendingUpdate = pendingShotUpdatesRef.current.get(id);
+      if (pendingUpdate) {
+        try {
+          await pendingUpdate;
+        } catch (e) {
+          setError(e instanceof Error ? e.message : '保存失败，已取消生成');
+          await reloadShots();
+          throw e;
+        }
+      }
+
+      if (beforeGeneratePatch && Object.keys(beforeGeneratePatch).length > 0) {
+        try {
+          await queueShotUpdate(id, beforeGeneratePatch);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : '保存失败，已取消生成');
+          await reloadShots();
+          throw e;
+        }
+      }
+
+      try {
+        const next = await generateShotVideo(id);
+        setShots((prev) => prev.map((s) => (s.id === id ? next : s)));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '生成视频失败');
+        await reloadShots();
+      }
     } finally {
-      clearBusyShot(id);
+      clearBusyShot(id, busyToken);
     }
   };
 
@@ -340,7 +403,7 @@ export default function StoryboardEpisodePage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-5">
               {sceneShots.map((shot, idx) => (
                 <div key={shot.id}>
                   <ShotCard

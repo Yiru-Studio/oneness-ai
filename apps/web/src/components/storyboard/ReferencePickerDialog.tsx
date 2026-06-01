@@ -1,7 +1,7 @@
 'use client';
 
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
-import { X, Check } from 'lucide-react';
+import { X, Check, Loader2 } from 'lucide-react';
 import { Character, CompositionTask, Item, Scene } from '@/types';
 
 type PickerTab = 'composition' | 'characters' | 'scenes' | 'items';
@@ -31,7 +31,7 @@ interface Props {
     characterStyleIds: string[];
     sceneIds: string[];
     itemIds: string[];
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 /**
@@ -58,7 +58,10 @@ export function ReferencePickerDialog({
   const [sceneIds, setSceneIds] = useState<string[]>(selected.sceneIds);
   const [itemIds, setItemIds] = useState<string[]>(selected.itemIds);
   const [previewOption, setPreviewOption] = useState<PickerOption | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- This dialog owns draft selections and resets them from props each time it opens. */
   useEffect(() => {
     if (!isOpen) return;
     setCompositionTaskIds(selected.compositionTaskIds);
@@ -66,6 +69,8 @@ export function ReferencePickerDialog({
     setSceneIds(selected.sceneIds);
     setItemIds(selected.itemIds);
     setPreviewOption(null);
+    setConfirmError(null);
+    setIsConfirming(false);
     setTab('composition');
   }, [
     isOpen,
@@ -74,6 +79,7 @@ export function ReferencePickerDialog({
     selected.sceneIds,
     selected.itemIds,
   ]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!isOpen) return null;
 
@@ -112,6 +118,23 @@ export function ReferencePickerDialog({
   const openPreview = (opt: PickerOption) => {
     if (opt.thumb) setPreviewOption(opt);
   };
+  const handleConfirm = async () => {
+    setIsConfirming(true);
+    setConfirmError(null);
+    try {
+      await onConfirm({
+        compositionTaskIds,
+        characterStyleIds: styleIds,
+        sceneIds,
+        itemIds,
+      });
+      onClose();
+    } catch (e) {
+      setConfirmError(e instanceof Error ? e.message : '保存参考资产失败');
+    } finally {
+      setIsConfirming(false);
+    }
+  };
 
   const currentOptions =
     tab === 'composition'
@@ -149,7 +172,9 @@ export function ReferencePickerDialog({
     <>
       <div
         className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40"
-        onClick={onClose}
+        onClick={() => {
+          if (!isConfirming) onClose();
+        }}
       >
         <div
           className="bg-white rounded-xl p-5 w-[760px] max-w-[94vw] max-h-[80vh] flex flex-col shadow-2xl"
@@ -157,7 +182,11 @@ export function ReferencePickerDialog({
         >
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-base font-semibold">选择参考资产</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <button
+              onClick={onClose}
+              disabled={isConfirming}
+              className="text-gray-400 hover:text-gray-600 disabled:opacity-40"
+            >
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -167,11 +196,12 @@ export function ReferencePickerDialog({
               <button
                 key={key}
                 onClick={() => setTab(key)}
+                disabled={isConfirming}
                 className={`px-3 py-1.5 rounded-full ${
                   tab === key
                     ? 'bg-[var(--color-dark)] text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 {label}
                 <span className="ml-1.5 text-xs opacity-70">({count})</span>
@@ -201,7 +231,7 @@ export function ReferencePickerDialog({
                         type="button"
                         onPointerDown={() => openPreview(opt)}
                         onClick={() => openPreview(opt)}
-                        disabled={!opt.thumb}
+                        disabled={!opt.thumb || isConfirming}
                         className="aspect-square w-full bg-gray-100 flex items-center justify-center relative disabled:cursor-default enabled:cursor-zoom-in group"
                         aria-label={opt.thumb ? `查看${opt.label}` : opt.label}
                       >
@@ -229,6 +259,7 @@ export function ReferencePickerDialog({
                         <button
                           type="button"
                           onClick={() => toggle(currentSelected, setCurrentSelected, opt.id)}
+                          disabled={isConfirming}
                           className={`mt-1.5 flex h-7 w-full items-center justify-center gap-1 rounded-md text-xs font-medium transition ${
                             isSelected
                               ? 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]'
@@ -252,25 +283,23 @@ export function ReferencePickerDialog({
           </div>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-[var(--color-border)] mt-3">
+            {confirmError && (
+              <div className="mr-auto self-center text-xs text-red-600">{confirmError}</div>
+            )}
             <button
               onClick={onClose}
-              className="px-4 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:bg-gray-50"
+              disabled={isConfirming}
+              className="px-4 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:bg-gray-50 disabled:opacity-50"
             >
               取消
             </button>
             <button
-              onClick={() => {
-                onConfirm({
-                  compositionTaskIds,
-                  characterStyleIds: styleIds,
-                  sceneIds,
-                  itemIds,
-                });
-                onClose();
-              }}
-              className="px-4 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-sm hover:bg-[var(--color-primary-hover)]"
+              onClick={() => void handleConfirm()}
+              disabled={isConfirming}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
             >
-              确认
+              {isConfirming && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {isConfirming ? '保存中…' : '确认'}
             </button>
           </div>
         </div>
@@ -280,12 +309,15 @@ export function ReferencePickerDialog({
           className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/80"
           onClick={(e) => {
             e.stopPropagation();
-            setPreviewOption(null);
+            if (!isConfirming) setPreviewOption(null);
           }}
         >
           <button
-            onClick={() => setPreviewOption(null)}
-            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
+            onClick={() => {
+              if (!isConfirming) setPreviewOption(null);
+            }}
+            disabled={isConfirming}
+            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors disabled:opacity-40"
             aria-label="关闭预览"
           >
             <X className="w-5 h-5" />
@@ -312,11 +344,12 @@ export function ReferencePickerDialog({
               <button
                 type="button"
                 onClick={() => toggle(currentSelected, setCurrentSelected, previewOption.id)}
+                disabled={isConfirming}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition ${
                   currentSelected.includes(previewOption.id)
                     ? 'bg-white text-[var(--color-primary)] hover:bg-gray-100'
                     : 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]'
-                }`}
+                } disabled:opacity-50`}
               >
                 {currentSelected.includes(previewOption.id) ? '已添加' : '添加到参考'}
               </button>
