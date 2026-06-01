@@ -16,7 +16,8 @@ export type OwnedResourceTarget = {
 export function resourceImageEntityFields(
   kind: ResourceImageKind,
   entityId: string,
-): Pick<Prisma.ResourceImageUncheckedCreateInput, 'characterStyleId' | 'sceneId' | 'itemId'> {
+): Pick<Prisma.ResourceImageUncheckedCreateInput, 'characterId' | 'characterStyleId' | 'sceneId' | 'itemId'> {
+  if (kind === 'character-avatar') return { characterId: entityId };
   if (kind === 'character-style') return { characterStyleId: entityId };
   if (kind === 'scene') return { sceneId: entityId };
   return { itemId: entityId };
@@ -25,7 +26,8 @@ export function resourceImageEntityFields(
 export function resourceImageEntityWhere(
   kind: ResourceImageKind,
   entityId: string,
-): Pick<Prisma.ResourceImageWhereInput, 'characterStyleId' | 'sceneId' | 'itemId'> {
+): Pick<Prisma.ResourceImageWhereInput, 'characterId' | 'characterStyleId' | 'sceneId' | 'itemId'> {
+  if (kind === 'character-avatar') return { characterId: entityId };
   if (kind === 'character-style') return { characterStyleId: entityId };
   if (kind === 'scene') return { sceneId: entityId };
   return { itemId: entityId };
@@ -33,10 +35,12 @@ export function resourceImageEntityWhere(
 
 export function entityIdFromResourceImage(row: {
   kind: string;
+  characterId: string | null;
   characterStyleId: string | null;
   sceneId: string | null;
   itemId: string | null;
 }): string | null {
+  if (row.kind === 'character-avatar') return row.characterId;
   if (row.kind === 'character-style') return row.characterStyleId;
   if (row.kind === 'scene') return row.sceneId;
   if (row.kind === 'item') return row.itemId;
@@ -44,7 +48,12 @@ export function entityIdFromResourceImage(row: {
 }
 
 function parseResourceImageKind(kind: string): ResourceImageKind | null {
-  if (kind === 'character-style' || kind === 'scene' || kind === 'item') return kind;
+  if (
+    kind === 'character-avatar' ||
+    kind === 'character-style' ||
+    kind === 'scene' ||
+    kind === 'item'
+  ) return kind;
   return null;
 }
 
@@ -53,6 +62,7 @@ export async function isLatestResourceImageForEntity(
   row: {
     id: string;
     kind: string;
+    characterId: string | null;
     characterStyleId: string | null;
     sceneId: string | null;
     itemId: string | null;
@@ -78,6 +88,26 @@ export async function loadOwnedResourceTarget(
   entityId: string,
   userId: string,
 ): Promise<OwnedResourceTarget> {
+  if (kind === 'character-avatar') {
+    const character = await db.character.findFirst({
+      where: { id: entityId, project: { ownerId: userId } },
+      select: {
+        id: true,
+        avatarAssetId: true,
+        projectId: true,
+        project: { select: { ownerId: true } },
+      },
+    });
+    if (!character) throw AppError.notFound(ErrorCodes.NOT_FOUND, 'resource not found');
+    return {
+      kind,
+      entityId: character.id,
+      projectId: character.projectId,
+      ownerId: character.project.ownerId,
+      currentAssetId: character.avatarAssetId,
+    };
+  }
+
   if (kind === 'character-style') {
     const style = await db.characterStyle.findFirst({
       where: { id: entityId, character: { project: { ownerId: userId } } },
@@ -163,7 +193,12 @@ export async function setCurrentResourceAsset(
   entityId: string,
   assetId: string | null,
 ) {
-  if (kind === 'character-style') {
+  if (kind === 'character-avatar') {
+    await db.character.update({
+      where: { id: entityId },
+      data: { avatarAssetId: assetId, identityAssetId: assetId },
+    });
+  } else if (kind === 'character-style') {
     await db.characterStyle.update({ where: { id: entityId }, data: { assetId } });
   } else if (kind === 'scene') {
     await db.scene.update({ where: { id: entityId }, data: { assetId } });
@@ -184,6 +219,7 @@ export async function linkResourceImageTaskResult(
     select: {
       id: true,
       kind: true,
+      characterId: true,
       characterStyleId: true,
       sceneId: true,
       itemId: true,

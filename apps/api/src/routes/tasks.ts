@@ -99,7 +99,6 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
         identity.assetId,
       );
     }
-    delete input.characterId;
   }
   if (body.type === 'IMAGE' && typeof input.prompt === 'string') {
     input.prompt = await governImagePrompt({
@@ -187,7 +186,7 @@ function splitThreeViewMarker(prompt: string): { marker: boolean; body: string }
 async function governImagePrompt(args: {
   prompt: string;
   userId: string;
-  resourceTarget: { kind: 'character-style' | 'scene' | 'item'; entityId: string } | null;
+  resourceTarget: { kind: 'character-avatar' | 'character-style' | 'scene' | 'item'; entityId: string } | null;
   characterIdHint: string | null;
   ratio: string | null;
   projectId: string | null;
@@ -213,7 +212,7 @@ async function projectStylePrompt(projectId: string | null): Promise<string> {
 async function buildGovernedImagePrompt(args: {
   prompt: string;
   userId: string;
-  resourceTarget: { kind: 'character-style' | 'scene' | 'item'; entityId: string } | null;
+  resourceTarget: { kind: 'character-avatar' | 'character-style' | 'scene' | 'item'; entityId: string } | null;
   characterIdHint: string | null;
   ratio: string | null;
   projectId: string | null;
@@ -280,9 +279,14 @@ async function buildGovernedImagePrompt(args: {
     });
   }
 
-  if (args.characterIdHint) {
+  const avatarCharacterId =
+    args.resourceTarget?.kind === 'character-avatar'
+      ? args.resourceTarget.entityId
+      : args.characterIdHint;
+
+  if (avatarCharacterId) {
     const character = await prisma.character.findFirst({
-      where: { id: args.characterIdHint, project: { ownerId: args.userId } },
+      where: { id: avatarCharacterId, project: { ownerId: args.userId } },
       select: { name: true, description: true, bio: true, avatarPrompt: true },
     });
     if (!character) return null;

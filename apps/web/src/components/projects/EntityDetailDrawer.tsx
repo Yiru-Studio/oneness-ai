@@ -138,10 +138,15 @@ function phaseForTaskStatus(status: TaskDTO['status']): ImageGenerationPhase {
 }
 
 function resourceKindForEntity(kind: EntityKind): ResourceImageKind | null {
+  if (kind === 'character-avatar') return 'character-avatar';
   if (kind === 'style') return 'character-style';
   if (kind === 'scene') return 'scene';
   if (kind === 'item') return 'item';
   return null;
+}
+
+function isResourceImagePending(row: ResourceImage | null | undefined): boolean {
+  return row?.status === 'QUEUED' || row?.status === 'RUNNING';
 }
 
 function historyKey(kind: ResourceImageKind, entityId: string): string {
@@ -226,6 +231,14 @@ export function EntityDetailDrawer({
   }, [resourceKind, entity.id]);
 
   useEffect(() => {
+    if (!open || !resourceKind || !history.some(isResourceImagePending)) return;
+    const timer = window.setInterval(() => {
+      void refreshHistory(resourceKind, entity.id);
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [open, resourceKind, entity.id, history]);
+
+  useEffect(() => {
     if (!open || !allowBackgroundInteraction || previewOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -275,8 +288,11 @@ export function EntityDetailDrawer({
     description !== (entity.description ?? '');
 
   const isStyle = kind === 'style';
+  const latestHistory = history[0] ?? null;
+  const persistedPending = isResourceImagePending(latestHistory);
   const hasStyleIdentityReference = !isStyle || Boolean(identityReferenceAssetId);
-  const generateDisabled = generating || uploading || !hasPrompt || !hasStyleIdentityReference;
+  const generateBusy = generating || persistedPending;
+  const generateDisabled = generateBusy || uploading || !hasPrompt || !hasStyleIdentityReference;
   const generateTitle = !hasPrompt
     ? '请先填写提示词或点击「三视图」'
     : !hasStyleIdentityReference
@@ -460,15 +476,21 @@ export function EntityDetailDrawer({
       : ratio === '1:1'
         ? 'w-[min(100%,520px)]'
         : 'w-full';
+  const persistedGenerationPhase = latestHistory?.status === 'QUEUED'
+    ? 'queued'
+    : latestHistory?.status === 'RUNNING'
+      ? 'running'
+      : generationPhase;
   const generationLabel = IMAGE_GENERATION_LABEL[
-    generating && generationPhase === 'idle' ? 'queueing' : generationPhase
+    generateBusy && persistedGenerationPhase === 'idle' ? 'queueing' : persistedGenerationPhase
   ];
-  const visibleError = error || remoteError;
+  const persistedError = latestHistory?.status === 'FAILED' ? latestHistory.error : null;
+  const visibleError = error || remoteError || persistedError;
   const hasPreviewImage = Boolean(image);
-  const showPreviewBusyOverlay = (generating || uploading) && !hasPreviewImage;
-  const showPreviewBusyBadge = (generating || uploading) && hasPreviewImage;
-  const showPreviewErrorOverlay = Boolean(visibleError) && !generating && !uploading && !hasPreviewImage;
-  const showPreviewErrorBadge = Boolean(visibleError) && !generating && !uploading && hasPreviewImage;
+  const showPreviewBusyOverlay = (generateBusy || uploading) && !hasPreviewImage;
+  const showPreviewBusyBadge = (generateBusy || uploading) && hasPreviewImage;
+  const showPreviewErrorOverlay = Boolean(visibleError) && !generateBusy && !uploading && !hasPreviewImage;
+  const showPreviewErrorBadge = Boolean(visibleError) && !generateBusy && !uploading && hasPreviewImage;
 
   return (
     <>
@@ -572,14 +594,14 @@ export function EntityDetailDrawer({
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white">
                     <Loader2 className="w-7 h-7 animate-spin" />
                     <span className="ml-2 text-sm">
-                      {generating ? generationLabel || '生成中…' : '上传中…'}
+                      {generateBusy ? generationLabel || '生成中…' : '上传中…'}
                     </span>
                   </div>
                 )}
                 {showPreviewBusyBadge && (
                   <div className="pointer-events-none absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    {generating ? generationLabel || '生成中…' : '上传中…'}
+                    {generateBusy ? generationLabel || '生成中…' : '上传中…'}
                   </div>
                 )}
                 {showPreviewErrorOverlay && (
@@ -611,7 +633,7 @@ export function EntityDetailDrawer({
               <div className="px-4 py-3 border-b border-[var(--color-border)] flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => refFileRef.current?.click()}
-                  disabled={generating || uploading}
+                  disabled={generateBusy || uploading}
                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:bg-gray-50 disabled:opacity-50"
                   title="上传本地图片作为 AI 生成参考"
                 >
@@ -771,15 +793,15 @@ export function EntityDetailDrawer({
                   title={generateTitle}
                   className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-primary)] text-white text-sm hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {generating ? (
+                  {generateBusy ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Sparkles className="w-4 h-4" />
                   )}
-                  {generating ? generationLabel || '生成中…' : image ? '重新生成' : '生成图片'}
+                  {generateBusy ? generationLabel || '生成中…' : image ? '重新生成' : '生成图片'}
                 </button>
               </div>
-              {generating && generationLabel && (
+              {generateBusy && generationLabel && (
                 <div className="px-4 pb-3 text-xs text-blue-600 flex items-center gap-1.5">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   {generationLabel}

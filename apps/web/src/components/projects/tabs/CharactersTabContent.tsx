@@ -2,7 +2,7 @@
 
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 import { Character, Project } from '@/types';
-import { User, ImagePlus, Plus, Trash2, Sparkles, Loader2, Pencil } from 'lucide-react';
+import { User, ImagePlus, Plus, Trash2, Sparkles, Loader2, Pencil, AlertCircle } from 'lucide-react';
 import {
   createCharacter,
   updateCharacter,
@@ -25,6 +25,30 @@ interface Props {
   onChange: Dispatch<SetStateAction<Character[]>>;
 }
 
+function avatarTaskState(
+  character: Character,
+  inSessionGenerating: boolean,
+  inSessionError: string | null,
+): { pending: boolean; failed: boolean; error: string | null; title: string | undefined } {
+  const row = character.avatarResourceImage;
+  const queued = row?.status === 'QUEUED';
+  const running = row?.status === 'RUNNING';
+  const pending = inSessionGenerating || queued || running;
+  const persistedError = row?.status === 'FAILED' ? row.error || '头像生成失败' : null;
+  const error = inSessionError || persistedError;
+  const failed = !pending && Boolean(error);
+  const statusLabel = queued
+    ? row?.error
+      ? '头像重试排队中'
+      : '头像排队中'
+    : running || inSessionGenerating
+      ? '头像生成中'
+      : failed
+        ? `头像生成失败：${error}`
+        : undefined;
+  return { pending, failed, error, title: statusLabel };
+}
+
 /**
  * Reference screenshots:
  *  - docs/research/likeai-screenshots/p03-tab-characters.png  (analyzed character)
@@ -39,7 +63,7 @@ export function CharactersTabContent({ characters, project, onChange }: Props) {
   const [showAdd, setShowAdd] = useState(false);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const { isGenerating } = useGeneration();
+  const { isGenerating, getError } = useGeneration();
 
   const reload = async () => {
     const fresh = await getProjectCharacters(project.id);
@@ -74,15 +98,36 @@ export function CharactersTabContent({ characters, project, onChange }: Props) {
     }
   };
 
+  useEffect(() => {
+    const hasPendingAvatar = characters.some((char) =>
+      isGenerating('character-avatar', char.id) ||
+      char.avatarResourceImage?.status === 'QUEUED' ||
+      char.avatarResourceImage?.status === 'RUNNING',
+    );
+    if (!hasPendingAvatar) return;
+
+    const timer = window.setInterval(() => {
+      void getProjectCharacters(project.id).then(onChange).catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [characters, isGenerating, onChange, project.id]);
+
   return (
     <div className="flex h-full">
       {/* Left list */}
       <div className="w-[280px] flex-shrink-0 border-r border-[var(--color-border)] overflow-y-auto">
         <div className="p-3 space-y-2">
-          {characters.map((char) => (
+          {characters.map((char) => {
+            const avatarTask = avatarTaskState(
+              char,
+              isGenerating('character-avatar', char.id),
+              getError('character-avatar', char.id),
+            );
+            return (
             <div key={char.id} className="group relative">
               <button
                 onClick={() => setPickedId(char.id)}
+                title={avatarTask.title}
                 className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors ${
                   effectiveId === char.id
                     ? 'bg-blue-50 border border-[var(--color-primary)]'
@@ -96,9 +141,14 @@ export function CharactersTabContent({ characters, project, onChange }: Props) {
                   ) : (
                     <User className="w-5 h-5 text-gray-400" />
                   )}
-                  {isGenerating('character-avatar', char.id) && (
+                  {avatarTask.pending && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                       <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                    </div>
+                  )}
+                  {avatarTask.failed && (
+                    <div className="absolute -right-0.5 -bottom-0.5 w-4 h-4 rounded-full bg-red-600 text-white flex items-center justify-center ring-2 ring-white">
+                      <AlertCircle className="w-3 h-3" />
                     </div>
                   )}
                 </div>
@@ -122,7 +172,8 @@ export function CharactersTabContent({ characters, project, onChange }: Props) {
                 )}
               </button>
             </div>
-          ))}
+            );
+          })}
 
           {/* "添加角色" card at bottom (likeai pattern) */}
           <button
@@ -180,10 +231,12 @@ function CharacterDetail({ character, project, onUpdated, onStyleChanged }: Deta
   const isFresh = !character.markedBlank && character.styles.length === 0;
 
   const [analyzing, setAnalyzing] = useState(false);
-  const { runGeneration } = useGeneration();
+  const { runGeneration, getError, clearError } = useGeneration();
+  const analyzeError = getError('character-avatar', character.id);
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
+    clearError('character-avatar', character.id);
     try {
       // Reuse the avatar-generation loading channel so the left-panel avatar
       // slot shows the same spinner during script/character analysis.
@@ -236,6 +289,11 @@ function CharacterDetail({ character, project, onUpdated, onStyleChanged }: Deta
               创建为空白角色
             </button>
           </div>
+          {analyzeError && (
+            <div className="max-w-md rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {analyzeError}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -327,11 +385,12 @@ function CharacterEditableDetail({
           id: character.id,
           name: character.name,
           description: character.description,
-          prompt: character.avatarPrompt ?? '',
-          model: null,
-          ratio: project.ratio,
-          image: character.avatar,
-        }}
+            prompt: character.avatarPrompt ?? '',
+            model: null,
+            ratio: project.ratio,
+            image: character.avatar,
+            assetId: character.avatarAssetId ?? null,
+          }}
         project={project}
         characterId={character.id}
         buildAutoPrompt={buildAvatarAutoPrompt}
@@ -360,6 +419,7 @@ function CharacterEditableDetail({
             model: null,
             ratio: project.ratio,
             image: fresh.avatar,
+            assetId: fresh.avatarAssetId ?? null,
           };
         }}
         onClose={() => setAvatarDrawerOpen(false)}

@@ -339,6 +339,100 @@ describe('tasks lifecycle', () => {
     }
   });
 
+  it('character-avatar IMAGE task persists status and fills avatar identity on success', async () => {
+    const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.findFirst({ where: { ownerId: user.id } });
+    if (!project) throw new Error('Seed project missing.');
+    const character = await prisma.character.create({
+      data: {
+        projectId: project.id,
+        name: '头像持久任务测试角色',
+        description: '',
+        bio: '',
+      },
+    });
+
+    try {
+      const res = await app.request('/api/tasks', {
+        method: 'POST',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          type: 'IMAGE',
+          projectId: project.id,
+          provider: 'stub',
+          input: {
+            prompt: '头像持久任务测试角色的半身头像',
+            ratio: '1:1',
+            model: 'stub',
+            n: 1,
+            characterId: character.id,
+          },
+          resourceTarget: { kind: 'character-avatar', entityId: character.id },
+        }),
+      });
+      expect(res.status).toBe(201);
+      const created = (await res.json()) as { id: string };
+      const queued = await prisma.resourceImage.findFirst({
+        where: { taskId: created.id, kind: 'character-avatar', characterId: character.id },
+        select: { status: true },
+      });
+      expect(queued?.status).toBe(TaskStatus.QUEUED);
+
+      const final = await pollUntilTerminal(created.id);
+      expect(final).toBe(TaskStatus.SUCCEEDED);
+
+      const fresh = await prisma.character.findUnique({
+        where: { id: character.id },
+        select: { avatarAssetId: true, identityAssetId: true },
+      });
+      expect(fresh?.avatarAssetId).toBeTruthy();
+      expect(fresh?.identityAssetId).toBe(fresh?.avatarAssetId);
+
+      const row = await prisma.resourceImage.findFirst({
+        where: { taskId: created.id },
+        select: { status: true, assetId: true, characterId: true },
+      });
+      expect(row?.status).toBe(TaskStatus.SUCCEEDED);
+      expect(row?.assetId).toBe(fresh?.avatarAssetId);
+      expect(row?.characterId).toBe(character.id);
+    } finally {
+      await prisma.character.deleteMany({ where: { id: character.id } });
+    }
+  });
+
+  it('transient IMAGE failure is put back into QUEUED for BullMQ retry', async () => {
+    const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });
+    if (!user) throw new Error('Seed user missing.');
+    const task = await prisma.task.create({
+      data: {
+        ownerId: user.id,
+        type: TaskType.IMAGE,
+        provider: 'stub',
+        status: TaskStatus.QUEUED,
+        costCredits: 0,
+        input: { prompt: 'transient', ratio: '1:1', model: 'stub', n: 1 },
+      },
+    });
+
+    process.env.STUB_FAIL_RATE = '1';
+    try {
+      await expect(
+        processTask(task.id, { attemptsMade: 0, attempts: 3 }),
+      ).rejects.toThrow('stub-image');
+      const fresh = await prisma.task.findUnique({
+        where: { id: task.id },
+        select: { status: true, error: true, completedAt: true },
+      });
+      expect(fresh?.status).toBe(TaskStatus.QUEUED);
+      expect(fresh?.error).toContain('stub-image');
+      expect(fresh?.completedAt).toBeNull();
+    } finally {
+      process.env.STUB_FAIL_RATE = '0';
+      await prisma.task.deleteMany({ where: { id: task.id } });
+    }
+  });
+
   it('TEXT task completes', async () => {
     // Need a project (TextInput requires projectId)
     const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });

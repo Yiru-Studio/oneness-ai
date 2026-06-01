@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '../middleware/validator';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { tryReadUser, requireUser } from '../middleware/auth.js';
 import { serializeCharacter } from '../serializers/character.js';
@@ -12,6 +13,20 @@ import {
 import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 
 export const characterRoutes = new Hono();
+
+const characterInclude = {
+  styles: {
+    include: { asset: true },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  },
+  avatar: true,
+  resourceImages: {
+    where: { kind: 'character-avatar' },
+    include: { asset: true, task: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: 1,
+  },
+} satisfies Prisma.CharacterInclude;
 
 characterRoutes.use('/projects/:id/characters', tryReadUser, requireUser);
 characterRoutes.use('/characters/:id', tryReadUser, requireUser);
@@ -33,7 +48,7 @@ characterRoutes.get(
     }
     const characters = await prisma.character.findMany({
       where: { projectId },
-      include: { styles: { include: { asset: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }, avatar: true },
+      include: characterInclude,
       // createdAt alone is unstable: extraction creates many rows in one
       // transaction with identical timestamps. id is the deterministic tiebreaker.
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -73,7 +88,7 @@ characterRoutes.post(
         identityAssetId,
         markedBlank: body.markedBlank ?? false,
       },
-      include: { styles: { include: { asset: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }, avatar: true },
+      include: characterInclude,
     });
     return c.json(await serializeCharacter(created), 201);
   },
@@ -120,7 +135,7 @@ characterRoutes.patch(
     const updated = await prisma.character.update({
       where: { id },
       data,
-      include: { styles: { include: { asset: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }, avatar: true },
+      include: characterInclude,
     });
     return c.json(await serializeCharacter(updated));
   },
@@ -142,7 +157,7 @@ characterRoutes.delete(
 async function loadOwnedCharacter(id: string, userId: string) {
   const character = await prisma.character.findFirst({
     where: { id, project: { ownerId: userId } },
-    include: { styles: { include: { asset: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }, avatar: true },
+    include: characterInclude,
   });
   if (!character) {
     throw AppError.notFound(ErrorCodes.CHARACTER_NOT_FOUND, 'character not found');
@@ -228,7 +243,7 @@ characterRoutes.post('/characters/:id/analyze', zValidator('param', IdParamSchem
   // Re-fetch with the freshly-created styles so the response reflects them.
   const fresh = await prisma.character.findUniqueOrThrow({
     where: { id: character.id },
-    include: { styles: { include: { asset: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }, avatar: true },
+    include: characterInclude,
   });
 
   return c.json(await serializeCharacter(fresh), 200);

@@ -1,6 +1,7 @@
 import { Worker } from 'bullmq';
 import { logger } from '@oneness/shared/logger';
 import {
+  DefaultTaskJobAttempts,
   QueueNames,
   type QueueName,
   type TaskJobData,
@@ -16,7 +17,10 @@ function startWorker(name: QueueName): Worker<TaskJobData> {
   const w = new Worker<TaskJobData>(
     name,
     async (job) => {
-      await processTask(job.data.taskId);
+      await processTask(job.data.taskId, {
+        attemptsMade: job.attemptsMade,
+        attempts: job.opts.attempts ?? DefaultTaskJobAttempts,
+      });
     },
     {
       connection,

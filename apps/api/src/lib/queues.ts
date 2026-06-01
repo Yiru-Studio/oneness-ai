@@ -1,13 +1,18 @@
 import { Queue } from 'bullmq';
 import { config } from '../config.js';
-import { QueueNames, type QueueName, type TaskJobData } from '@oneness/shared/queues';
+import {
+  DefaultTaskJobAttempts,
+  QueueNames,
+  type QueueName,
+  type TaskJobData,
+} from '@oneness/shared/queues';
 
 const connection = { url: config.REDIS_URL };
 
 const queueOptions = {
   connection,
   defaultJobOptions: {
-    attempts: 3,
+    attempts: DefaultTaskJobAttempts,
     backoff: { type: 'exponential' as const, delay: 5000 },
     removeOnComplete: { count: 200 },
     removeOnFail: { count: 200 },
@@ -43,7 +48,13 @@ export async function enqueueTaskJob(
 
 export async function removeTaskJob(queueName: QueueName, taskId: string) {
   const job = await queues[queueName].getJob(taskId);
-  if (job) await job.remove();
+  if (!job) return;
+  try {
+    await job.remove();
+  } catch {
+    // Best effort: a worker may lock the job between DB cancellation and
+    // BullMQ removal. The worker polls Task.status and will abort/refund.
+  }
 }
 
 export async function closeQueues() {

@@ -95,6 +95,7 @@ model Character {
   styles  CharacterStyle[]
   avatar  Asset?           @relation("CharacterAvatar", fields: [avatarAssetId], references: [id], onDelete: SetNull)
   identity Asset?          @relation("CharacterIdentity", fields: [identityAssetId], references: [id], onDelete: SetNull)
+  resourceImages ResourceImage[]
 
   @@index([projectId])
 }
@@ -168,6 +169,7 @@ model ResourceImage {
   error            String?    @db.Text
   assetId          String?
   taskId           String?
+  characterId      String?
   characterStyleId String?
   sceneId          String?
   itemId           String?
@@ -178,11 +180,13 @@ model ResourceImage {
   project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   asset          Asset?          @relation(fields: [assetId], references: [id], onDelete: SetNull)
   task           Task?           @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  character      Character?      @relation(fields: [characterId], references: [id], onDelete: Cascade)
   characterStyle CharacterStyle? @relation(fields: [characterStyleId], references: [id], onDelete: Cascade)
   scene          Scene?          @relation(fields: [sceneId], references: [id], onDelete: Cascade)
   item           Item?           @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@index([ownerId, projectId, createdAt])
+  @@index([characterId, createdAt])
   @@index([characterStyleId, createdAt])
   @@index([sceneId, createdAt])
   @@index([itemId, createdAt])

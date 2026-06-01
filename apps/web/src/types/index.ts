@@ -54,6 +54,7 @@ export interface Character {
     ratio?: string | null;
     assetId?: string | null;
   }>;
+  avatarResourceImage?: ResourceImage | null;
 }
 
 export interface Item {
@@ -78,7 +79,7 @@ export interface Scene {
   image: string;
 }
 
-export type ResourceImageKind = 'character-style' | 'scene' | 'item';
+export type ResourceImageKind = 'character-avatar' | 'character-style' | 'scene' | 'item';
 export type ResourceImageStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
 
 export interface ResourceImage {

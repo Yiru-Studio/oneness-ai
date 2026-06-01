@@ -3,6 +3,7 @@ import { CuidSchema } from './common.js';
 import { TaskStatus } from '../enums.js';
 
 export const ResourceImageKindSchema = z.enum([
+  'character-avatar',
   'character-style',
   'scene',
   'item',

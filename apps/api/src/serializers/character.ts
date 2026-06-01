@@ -1,5 +1,6 @@
-import type { Character, CharacterStyle, Asset } from '@oneness/shared/prisma';
+import type { Character, CharacterStyle, Asset, ResourceImage, Task } from '@oneness/shared/prisma';
 import { presignGet } from '../lib/assets.js';
+import { serializeResourceImage, type ResourceImageDTO } from './resource-image.js';
 
 export type CharacterStyleDTO = {
   id: string;
@@ -21,13 +22,19 @@ export type CharacterDTO = {
   voice?: string;
   markedBlank: boolean;
   avatarPrompt: string | null;
+  avatarResourceImage: ResourceImageDTO | null;
   styles: CharacterStyleDTO[];
 };
 
 type StyleWithAsset = CharacterStyle & { asset: Asset | null };
+type ResourceImageWithRelations = ResourceImage & {
+  asset: Asset | null;
+  task: Task | null;
+};
 type CharacterWithStyles = Character & {
   styles: StyleWithAsset[];
   avatar?: Asset | null;
+  resourceImages?: ResourceImageWithRelations[];
 };
 
 export async function serializeCharacter(c: CharacterWithStyles): Promise<CharacterDTO> {
@@ -43,6 +50,9 @@ export async function serializeCharacter(c: CharacterWithStyles): Promise<Charac
       assetId: s.assetId ?? null,
     })),
   );
+  const avatarResourceImage = c.resourceImages?.[0]
+    ? await serializeResourceImage(c.resourceImages[0])
+    : null;
   return {
     id: c.id,
     name: c.name,
@@ -54,6 +64,7 @@ export async function serializeCharacter(c: CharacterWithStyles): Promise<Charac
     voice: c.voice ?? '',
     markedBlank: c.markedBlank ?? false,
     avatarPrompt: c.avatarPrompt ?? null,
+    avatarResourceImage,
     styles,
   };
 }

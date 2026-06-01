@@ -8,6 +8,8 @@ export const QueueNames = {
 
 export type QueueName = (typeof QueueNames)[keyof typeof QueueNames];
 
+export const DefaultTaskJobAttempts = 3;
+
 export function queueForTaskType(type: TaskType): QueueName {
   switch (type) {
     case TaskType.IMAGE:        return QueueNames.IMAGE;
@@ -17,7 +19,7 @@ export function queueForTaskType(type: TaskType): QueueName {
 }
 
 export const WorkerConcurrency = {
-  [QueueNames.IMAGE]: 4,
+  [QueueNames.IMAGE]: 1,
   [QueueNames.VIDEO]: 1,
   [QueueNames.TEXT]:  4,
 } as const;

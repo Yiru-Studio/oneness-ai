@@ -14,7 +14,12 @@ import { distillForThreeView } from './lib/three-view-distill.js';
 
 const CANCEL_POLL_MS = 1000;
 
-export async function processTask(taskId: string) {
+type ProcessTaskOptions = {
+  attemptsMade?: number;
+  attempts?: number;
+};
+
+export async function processTask(taskId: string, opts: ProcessTaskOptions = {}) {
   const taskLog = logger.child({ taskId });
 
   // 1. Re-read task. If not in QUEUED, exit cleanly.
@@ -104,6 +109,9 @@ export async function processTask(taskId: string) {
       }
     }
 
+    const providerPayload =
+      kind === 'image' ? stripInternalImageInput(providerInput) : providerInput;
+
     if (kind === 'text') {
       // TextProvider has an `analyze` method instead of `generate`.
       result = await (
@@ -116,7 +124,7 @@ export async function processTask(taskId: string) {
         provider as {
           generate: (i: unknown, c: ProviderContext) => Promise<ProviderResult>;
         }
-      ).generate(providerInput as never, ctx);
+      ).generate(providerPayload as never, ctx);
     }
   } catch (err) {
     providerError = err as Error;
@@ -156,6 +164,36 @@ export async function processTask(taskId: string) {
   }
 
   if (providerError) {
+    if (shouldRetryProviderError(providerError, opts)) {
+      await prisma.$transaction([
+        prisma.task.update({
+          where: { id: taskId },
+          data: {
+            status: TaskStatus.QUEUED,
+            error: providerError.message,
+            startedAt: null,
+          },
+        }),
+        prisma.resourceImage.updateMany({
+          where: { taskId },
+          data: {
+            status: TaskStatus.QUEUED,
+            error: providerError.message,
+          },
+        }),
+      ]);
+      metrics.incr('task.retry', { type: task.type, provider: task.provider });
+      taskLog.warn(
+        {
+          err: providerError.message,
+          attemptsMade: opts.attemptsMade ?? 0,
+          attempts: opts.attempts ?? 1,
+        },
+        'task failed transiently, queued for retry',
+      );
+      throw providerError;
+    }
+
     await prisma.$transaction([
       prisma.user.update({
         where: { id: task.ownerId },
@@ -179,7 +217,7 @@ export async function processTask(taskId: string) {
     ]);
     metrics.incr('task.fail', { type: task.type, provider: task.provider });
     taskLog.warn({ err: providerError.message }, 'task failed');
-    throw providerError; // re-throw so BullMQ retries (until attempts exhausted)
+    throw providerError; // surface terminal failure to BullMQ logs.
   }
 
   // 5. Success path — persist outputs.
@@ -196,6 +234,39 @@ export async function processTask(taskId: string) {
   }
   metrics.incr('task.success', { type: task.type, provider: task.provider });
   taskLog.info({ outputAssets: r.outputAssets?.length ?? 0 }, 'task succeeded');
+}
+
+function stripInternalImageInput(input: unknown): unknown {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return input;
+  const { characterId: _characterId, ...rest } = input as Record<string, unknown>;
+  return rest;
+}
+
+function shouldRetryProviderError(
+  err: Error,
+  opts: ProcessTaskOptions,
+): boolean {
+  const attempts = opts.attempts ?? 1;
+  const attemptsMade = opts.attemptsMade ?? 0;
+  if (attemptsMade + 1 >= attempts) return false;
+
+  const msg = err.message.toLowerCase();
+  if (msg.includes('aborted') || msg.includes('cancel')) return false;
+  if (msg.includes('invalid') || msg.includes('validation') || msg.includes('not found')) return false;
+  if (msg.includes('insufficient_credit') || msg.includes('insufficient credit')) return false;
+
+  return (
+    msg.includes('upstream_error') ||
+    msg.includes('stub-image') ||
+    msg.includes('rate_limit') ||
+    msg.includes('timeout') ||
+    msg.includes('fetch failed') ||
+    msg.includes('network') ||
+    msg.includes('econnreset') ||
+    msg.includes('etimedout') ||
+    msg.includes('http_429') ||
+    /http_5\d\d/.test(msg)
+  );
 }
 
 function readShotId(input: unknown): string | null {
@@ -379,6 +450,7 @@ async function linkResourceImageOutputs(
     select: {
       id: true,
       kind: true,
+      characterId: true,
       characterStyleId: true,
       sceneId: true,
       itemId: true,
@@ -395,7 +467,15 @@ async function linkResourceImageOutputs(
     if (!firstOutputAssetId) continue;
     const shouldSetCurrent = await isLatestResourceImageForEntity(tx, row);
     if (!shouldSetCurrent) continue;
-    if (row.kind === 'character-style' && row.characterStyleId) {
+    if (row.kind === 'character-avatar' && row.characterId) {
+      await tx.character.update({
+        where: { id: row.characterId },
+        data: {
+          avatarAssetId: firstOutputAssetId,
+          identityAssetId: firstOutputAssetId,
+        },
+      });
+    } else if (row.kind === 'character-style' && row.characterStyleId) {
       await tx.characterStyle.update({
         where: { id: row.characterStyleId },
         data: { assetId: firstOutputAssetId },
@@ -416,10 +496,14 @@ async function linkResourceImageOutputs(
 
 function resourceImageEntityWhereForRow(row: {
   kind: string;
+  characterId: string | null;
   characterStyleId: string | null;
   sceneId: string | null;
   itemId: string | null;
 }): Prisma.ResourceImageWhereInput | null {
+  if (row.kind === 'character-avatar' && row.characterId) {
+    return { kind: 'character-avatar', characterId: row.characterId };
+  }
   if (row.kind === 'character-style' && row.characterStyleId) {
     return { kind: 'character-style', characterStyleId: row.characterStyleId };
   }
@@ -437,6 +521,7 @@ async function isLatestResourceImageForEntity(
   row: {
     id: string;
     kind: string;
+    characterId: string | null;
     characterStyleId: string | null;
     sceneId: string | null;
     itemId: string | null;
