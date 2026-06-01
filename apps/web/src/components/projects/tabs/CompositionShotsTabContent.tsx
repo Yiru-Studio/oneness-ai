@@ -1019,8 +1019,11 @@ function ReferenceColumn({
   references: RowReferenceItem[];
   onOpen: () => void;
 }) {
-  const visible = references.slice(0, 8);
+  const slotCount = 6;
+  const showMoreTile = references.length >= slotCount;
+  const visible = references.slice(0, slotCount - 1);
   const hiddenCount = references.length - visible.length;
+  const showAddTile = !showMoreTile;
   return (
     <div className="min-w-0 space-y-3">
       <div className="flex items-center justify-between gap-2">
@@ -1069,17 +1072,20 @@ function ReferenceColumn({
             +{hiddenCount}
           </button>
         )}
+        {showAddTile && (
+          <button
+            type="button"
+            onClick={onOpen}
+            aria-label="添加参考图"
+            className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-[var(--color-primary)]/60 bg-blue-50/60 text-[var(--color-primary)] transition-colors hover:border-[var(--color-primary)] hover:bg-blue-50 ${
+              references.length === 0 ? 'col-span-3 min-h-[196px]' : 'aspect-square'
+            }`}
+          >
+            <Plus className="h-5 w-5" />
+            <span className="text-xs font-medium">加参考</span>
+          </button>
+        )}
       </div>
-      {references.length === 0 && (
-        <button
-          type="button"
-          onClick={onOpen}
-          className="flex min-h-[196px] w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--color-border)] bg-white text-sm text-gray-400 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-        >
-          <Plus className="h-5 w-5" />
-          添加参考图
-        </button>
-      )}
       {references.length > 0 && (
         <button
           type="button"
