@@ -898,7 +898,9 @@ async function createShotSketchTask(
     shot,
     compositionImageAssetId,
   );
-  const prompt = buildShotSketchPrompt(project, scene, shot, Boolean(compositionImageAssetId));
+  const prompt = body.prompt?.trim()
+    ? body.prompt.trim()
+    : buildShotSketchPrompt(project, scene, shot, Boolean(compositionImageAssetId));
   const cost = estimateCost(TaskType.IMAGE);
   const model = body.model ?? project.imageModel;
   const ratio = body.ratio ?? project.ratio;

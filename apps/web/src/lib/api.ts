@@ -561,7 +561,7 @@ export type GenerateShotSketchResult = {
 
 export async function generateShotSketch(
   projectId: string,
-  body: { shotId: string; force?: boolean; model?: string; ratio?: string },
+  body: { shotId: string; force?: boolean; prompt?: string; model?: string; ratio?: string },
 ): Promise<GenerateShotSketchResult> {
   return await apiFetch<GenerateShotSketchResult>(
     `/api/projects/${projectId}/composition-tasks/generate-shot-sketch`,

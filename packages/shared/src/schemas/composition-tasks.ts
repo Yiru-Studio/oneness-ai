@@ -79,6 +79,7 @@ export const GenerateShotSketchesSchema = z.object({
 export const GenerateShotSketchSchema = z.object({
   shotId: CuidSchema,
   force: z.boolean().default(false),
+  prompt: z.string().max(8000).transform(stripNul).optional(),
   model: z.string().min(1).max(120).optional(),
   ratio: z.string().min(1).max(20).optional(),
 });

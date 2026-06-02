@@ -186,7 +186,6 @@ export function ShotSketchDrawer({
       ...history,
     ];
   }, [context?.sketchHistory, shot.sketch, shot.updatedAt]);
-  const promptDirty = promptDraft !== shot.prompt;
   const hasPrompt = promptDraft.trim().length > 0;
 
   useEffect(() => {
@@ -245,20 +244,14 @@ export function ShotSketchDrawer({
     }
   };
 
-  const savePromptIfNeeded = async () => {
-    if (!promptDirty) return;
-    await updateShot(shot.id, { prompt: promptDraft });
-    await onRefreshShots();
-  };
-
   const handleGenerate = async () => {
     setLocalBusy(true);
     setGenerateSubmitting(true);
     try {
-      await savePromptIfNeeded();
       const result = await generateShotSketch(project.id, {
         shotId: shot.id,
         force: Boolean(shot.sketch),
+        prompt: promptDraft.trim(),
         model,
         ratio,
       });
