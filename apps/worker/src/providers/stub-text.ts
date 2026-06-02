@@ -4,6 +4,7 @@ import type {
   ProviderContext,
   ProviderResult,
 } from '@oneness/shared/providers';
+import { sanitizeShotVideoPrompt } from '@oneness/shared/shot-prompts';
 
 function currentFailRate(): number {
   const v = Number(process.env.STUB_FAIL_RATE ?? '0.05');
@@ -176,7 +177,7 @@ export const stubTextProvider: TextProvider = {
               shotType: isContinue ? 'continuation' : 'new',
               preId: isContinue ? prev : null,
               duration: s.duration,
-              prompt: s.prompt,
+              prompt: sanitizeShotVideoPrompt(s.prompt),
               model: 'stub',
               createType: 'assist',
               roleNames: s.roles as never,

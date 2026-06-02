@@ -15,6 +15,7 @@
     "./queues": "./src/queues.ts",
     "./pricing": "./src/pricing.ts",
     "./providers": "./src/providers/types.ts",
+    "./shot-prompts": "./src/shot-prompts.ts",
     "./composition-planning": "./src/composition-planning.ts",
     "./resource-prompts": "./src/resource-prompts.ts"
   },

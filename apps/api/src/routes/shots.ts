@@ -16,6 +16,7 @@ import {
 import { TaskType, TaskStatus } from '@oneness/shared/enums';
 import { estimateCost } from '@oneness/shared/pricing';
 import { queueForTaskType } from '@oneness/shared/queues';
+import { sanitizeShotVideoPrompt } from '@oneness/shared/shot-prompts';
 import type { VideoReference } from '@oneness/shared/providers';
 import { uniqueAssetIds } from '../lib/character-identity.js';
 import { reconcileShotSketchTasksForEpisode } from '../lib/shot-sketches.js';
@@ -144,7 +145,7 @@ shotRoutes.post(
           shotType: body.shotType,
           preId: body.preId ?? null,
           duration: body.duration,
-          prompt: body.prompt,
+          prompt: sanitizeShotVideoPrompt(body.prompt),
           model: body.model,
           ratio: body.ratio,
           resolution: body.resolution,
@@ -208,7 +209,7 @@ shotRoutes.patch(
     if (body.shotType !== undefined) data.shotType = body.shotType;
     if (body.preId !== undefined) data.preId = body.preId;
     if (body.duration !== undefined) data.duration = body.duration;
-    if (body.prompt !== undefined) data.prompt = body.prompt;
+    if (body.prompt !== undefined) data.prompt = sanitizeShotVideoPrompt(body.prompt);
     if (body.model !== undefined) data.model = body.model;
     if (body.ratio !== undefined) data.ratio = body.ratio;
     if (body.resolution !== undefined) data.resolution = body.resolution;
@@ -334,7 +335,7 @@ shotRoutes.post(
           status: TaskStatus.QUEUED,
           input: {
             shotId: shot.id,
-            prompt: shot.prompt,
+            prompt: sanitizeShotVideoPrompt(shot.prompt),
             model: modelIdForProvider(provider, shot.model),
             duration: shot.duration,
             ratio: shot.ratio,

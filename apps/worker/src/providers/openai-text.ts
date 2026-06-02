@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { sanitizeShotVideoPrompt } from '@oneness/shared/shot-prompts';
 import type {
   TextProvider,
   TextInput,
@@ -1213,7 +1214,7 @@ async function analyzeShotBreakdown(args: {
             shotType: isContinue ? 'continuation' : 'new',
             preId: isContinue ? prevDisplayId : null,
             duration: s.duration,
-            prompt: s.prompt,
+            prompt: sanitizeShotVideoPrompt(s.prompt),
             model: 'seedance',
             ratio,
             resolution: '720p',
