@@ -144,6 +144,16 @@ const IMAGE_RUNNING_TASK_STATUSES = new Set(['IMAGE_QUEUED', 'IMAGE_RUNNING']);
 const RUNNING_TASK_STATUSES = new Set(['IMAGE_QUEUED', 'IMAGE_RUNNING', 'GRID_QUEUED', 'GRID_RUNNING']);
 const RUNNING_RUN_STATUSES = new Set(['QUEUED', 'RUNNING']);
 
+function matchesCompositionFilter(task: CompositionTask, filter: FilterValue): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'draft') return task.status === 'DRAFT';
+  if (filter === 'running') return RUNNING_TASK_STATUSES.has(task.status);
+  if (filter === 'image') return task.status === 'IMAGE_READY';
+  if (filter === 'grid') return task.status === 'GRID_READY';
+  if (filter === 'applied') return task.status === 'APPLIED' || task.status === 'SYNCED';
+  return task.status === 'IMAGE_FAILED' || task.status === 'GRID_FAILED';
+}
+
 function defaultImageSettings(project: Project): ImageSettings {
   return {
     model: project.imageModel,
@@ -238,20 +248,24 @@ export function CompositionShotsTabContent({
   const characterOptions = useMemo(
     () =>
       characters.flatMap((character) =>
-        character.styles.map((style) => ({
-          id: style.id ?? '',
-          label: `${character.name} · ${style.name}`,
-          image: style.image,
-          assetId: style.assetId ?? null,
-          characterId: character.id,
-          characterName: character.name,
-          characterDescription: character.description,
-          characterBio: character.bio,
-          styleName: style.name,
-          prompt: style.prompt ?? '',
-          model: style.model ?? null,
-          ratio: style.ratio ?? null,
-        })),
+        character.styles.map((style) => {
+          const image = style.image || style.styleResourceImage?.image || '';
+          const assetId = style.assetId ?? style.styleResourceImage?.assetId ?? null;
+          return {
+            id: style.id ?? '',
+            label: `${character.name} · ${style.name}`,
+            image,
+            assetId,
+            characterId: character.id,
+            characterName: character.name,
+            characterDescription: character.description,
+            characterBio: character.bio,
+            styleName: style.name,
+            prompt: style.prompt ?? '',
+            model: style.model ?? null,
+            ratio: style.ratio ?? null,
+          };
+        }),
       ).filter((option) => option.id),
     [characters],
   );
@@ -259,8 +273,8 @@ export function CompositionShotsTabContent({
     () => scenes.map((scene) => ({
       id: scene.id,
       label: scene.name,
-      image: scene.image,
-      assetId: scene.assetId ?? null,
+      image: scene.image || scene.sceneResourceImage?.image || '',
+      assetId: scene.assetId ?? scene.sceneResourceImage?.assetId ?? null,
       name: scene.name,
       description: scene.description ?? '',
       prompt: scene.prompt ?? '',
@@ -273,8 +287,8 @@ export function CompositionShotsTabContent({
     () => items.map((item) => ({
       id: item.id,
       label: item.name,
-      image: item.image,
-      assetId: item.assetId ?? null,
+      image: item.image || item.itemResourceImage?.image || '',
+      assetId: item.assetId ?? item.itemResourceImage?.assetId ?? null,
       name: item.name,
       description: item.description ?? '',
       prompt: item.prompt ?? '',
@@ -300,6 +314,17 @@ export function CompositionShotsTabContent({
       ? taskRuns.gridRuns.find((run) => run.id === task.currentGridRunId) ?? taskRuns.gridRuns[0] ?? null
       : null;
   }, [runsByTask]);
+  const filteredTasks = useMemo(
+    () => tasks.filter((task) => matchesCompositionFilter(task, filter)),
+    [filter, tasks],
+  );
+  const panelTask = filteredTasks.find((task) => task.id === selectedTaskId) ?? filteredTasks[0] ?? null;
+  const panelTaskImageRun = panelTask ? getCurrentImageRunForTask(panelTask) : null;
+  const panelTaskSettings = panelTask
+    ? imageSettingsByTask[panelTask.id] ?? defaultImageSettings(project)
+    : defaultImageSettings(project);
+  const panelTaskPromptDraft = panelTask ? promptDrafts[panelTask.id] ?? panelTask.prompt : '';
+  const panelTaskIndex = panelTask ? tasks.findIndex((task) => task.id === panelTask.id) + 1 : 0;
   const detailTask = detailTaskId ? taskById.get(detailTaskId) ?? null : null;
   const detailRuns = detailTask ? runsByTask[detailTask.id] ?? null : null;
   const detailImageRun = detailTask ? getCurrentImageRunForTask(detailTask) : null;
@@ -334,6 +359,16 @@ export function CompositionShotsTabContent({
     setViewMode(mode);
     window.localStorage.setItem(`oneness:composition-view-mode:${project.id}`, mode);
   }, [project.id]);
+
+  const handleFilterChange = useCallback((nextFilter: FilterValue) => {
+    setFilter(nextFilter);
+    const nextTasks = tasks.filter((task) => matchesCompositionFilter(task, nextFilter));
+    if (nextTasks.length === 0) return;
+    if (selectedId && nextTasks.some((task) => task.id === selectedId)) return;
+    setSelectedId(nextTasks[0].id);
+    setDetailView('current');
+    setResultView('image');
+  }, [selectedId, tasks]);
 
   const reloadTasks = useCallback(async () => {
     const fresh = await getCompositionTasks(project.id);
@@ -401,16 +436,6 @@ export function CompositionShotsTabContent({
     }, 2500);
     return () => clearInterval(timer);
   }, [tasks, runsByTask, reloadTasks, reloadRuns, selectedId]);
-
-  const filteredTasks = tasks.filter((task) => {
-    if (filter === 'all') return true;
-    if (filter === 'draft') return task.status === 'DRAFT';
-    if (filter === 'running') return RUNNING_TASK_STATUSES.has(task.status);
-    if (filter === 'image') return task.status === 'IMAGE_READY';
-    if (filter === 'grid') return task.status === 'GRID_READY';
-    if (filter === 'applied') return task.status === 'APPLIED' || task.status === 'SYNCED';
-    return task.status === 'IMAGE_FAILED' || task.status === 'GRID_FAILED';
-  });
 
   const updateTaskInList = (next: CompositionTask) => {
     setTasks((prev) => prev.map((task) => (task.id === next.id ? next : task)));
@@ -742,71 +767,61 @@ export function CompositionShotsTabContent({
           />
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto bg-gray-50/70">
-          <div className="mx-auto flex max-w-[1680px] flex-col gap-4 px-6 py-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap gap-2">
-                {FILTERS.map((item) => (
-                  <button
-                    key={item.value}
-                    onClick={() => setFilter(item.value)}
-                    className={`px-3 py-1 rounded-full text-xs border transition-colors ${
-                      filter === item.value
-                        ? 'bg-[var(--color-dark)] text-white border-[var(--color-dark)]'
-                        : 'border-[var(--color-border)] bg-white text-gray-600 hover:border-[var(--color-primary)]'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-              <div className="text-xs text-[var(--color-text-secondary)]">
-                当前 {filteredTasks.length} / {tasks.length} 个合成任务
-              </div>
-            </div>
+        <div className="flex-1 min-h-0 overflow-hidden bg-gray-50/70">
+          <div className="mx-auto flex h-full max-w-[1680px] flex-col px-6 py-5">
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+              <CompositionTaskQueue
+                tasks={filteredTasks}
+                totalCount={tasks.length}
+                activeTaskId={panelTask?.id ?? null}
+                filter={filter}
+                onFilterChange={handleFilterChange}
+                onSelect={(taskId) => {
+                  setSelectedId(taskId);
+                  setDetailView('current');
+                  setResultView('image');
+                }}
+                getImageRun={getCurrentImageRunForTask}
+                getGridRun={getCurrentGridRunForTask}
+              />
 
-            <div className="space-y-4">
-              {filteredTasks.map((task, index) => {
-                const taskImageRun = getCurrentImageRunForTask(task);
-                const taskSettings = imageSettingsByTask[task.id] ?? defaultImageSettings(project);
-                const taskPromptDraft = promptDrafts[task.id] ?? task.prompt;
-                return (
+              <div className="min-h-0 overflow-y-auto xl:h-full">
+                {panelTask ? (
                   <CompositionTaskRow
-                    key={task.id}
-                    task={task}
-                    index={index + 1}
-                    active={detailTask?.id === task.id}
-                    promptDraft={taskPromptDraft}
-                    imageSettings={taskSettings}
-                    imageRun={taskImageRun}
+                    key={panelTask.id}
+                    task={panelTask}
+                    index={panelTaskIndex}
+                    active
+                    promptDraft={panelTaskPromptDraft}
+                    imageSettings={panelTaskSettings}
+                    imageRun={panelTaskImageRun}
                     busy={busy}
                     characterOptions={characterOptions}
                     sceneOptions={sceneOptions}
                     itemOptions={itemOptions}
-                    onPromptChange={(next) => setPromptDrafts((prev) => ({ ...prev, [task.id]: next }))}
+                    onPromptChange={(next) => setPromptDrafts((prev) => ({ ...prev, [panelTask.id]: next }))}
                     onPromptBlur={(next) => {
-                      if (next !== task.prompt) {
-                        void patchTask(task.id, { prompt: next });
+                      if (next !== panelTask.prompt) {
+                        void patchTask(panelTask.id, { prompt: next });
                       }
                     }}
                     onImageSettingsChange={(next) => setImageSettingsByTask((prev) => ({
                       ...prev,
-                      [task.id]: next,
+                      [panelTask.id]: next,
                     }))}
                     onOpenReferences={() => {
-                      setSelectedId(task.id);
+                      setSelectedId(panelTask.id);
                       setReferenceDialog('selected');
                     }}
-                    onGenerateImage={() => handleGenerateImage(task.id)}
-                    onOpenDetail={(view) => openDetailDrawer(task, view)}
+                    onGenerateImage={() => handleGenerateImage(panelTask.id)}
+                    onOpenDetail={(view) => openDetailDrawer(panelTask, view)}
                   />
-                );
-              })}
-              {filteredTasks.length === 0 && (
-                <div className="rounded-xl border border-dashed border-gray-200 bg-white py-14 text-center text-sm text-gray-400">
-                  当前筛选下没有任务
-                </div>
-              )}
+                ) : (
+                  <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-dashed border-gray-200 bg-white text-sm text-gray-400">
+                    当前筛选下没有任务
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -916,6 +931,130 @@ function compactReferenceLabel(label: string): string {
   return label.split(' · ')[0]?.trim() || label;
 }
 
+function CompositionTaskQueue({
+  tasks,
+  totalCount,
+  activeTaskId,
+  filter,
+  onFilterChange,
+  onSelect,
+  getImageRun,
+  getGridRun,
+}: {
+  tasks: CompositionTask[];
+  totalCount: number;
+  activeTaskId: string | null;
+  filter: FilterValue;
+  onFilterChange: (filter: FilterValue) => void;
+  onSelect: (taskId: string) => void;
+  getImageRun: (task: CompositionTask) => CompositionImageRun | null;
+  getGridRun: (task: CompositionTask) => CompositionGridRun | null;
+}) {
+  return (
+    <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--color-border)] bg-white shadow-sm max-xl:max-h-[420px]">
+      <div className="border-b border-[var(--color-border)] px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-[var(--color-text)]">任务队列</h3>
+            <div className="mt-0.5 text-xs text-[var(--color-text-secondary)]">
+              当前 {tasks.length} / {totalCount} 个合成任务
+            </div>
+          </div>
+          <Clapperboard className="h-4 w-4 shrink-0 text-gray-400" />
+        </div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {FILTERS.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => onFilterChange(item.value)}
+              className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                filter === item.value
+                  ? 'border-[var(--color-dark)] bg-[var(--color-dark)] text-white'
+                  : 'border-[var(--color-border)] bg-white text-gray-600 hover:border-[var(--color-primary)]'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        {tasks.length > 0 ? (
+          <div className="space-y-2">
+            {tasks.map((task, index) => {
+              const imageRun = getImageRun(task);
+              const gridRun = getGridRun(task);
+              const imageUrl = imageRun?.image?.url ?? task.image?.url ?? null;
+              const candidateCount = gridRun?.candidates.length ?? task.candidateCount;
+              const active = task.id === activeTaskId;
+              const running = RUNNING_TASK_STATUSES.has(task.status);
+              return (
+                <button
+                  key={task.id}
+                  type="button"
+                  onClick={() => onSelect(task.id)}
+                  className={`group flex w-full gap-3 rounded-lg border p-2 text-left transition-colors ${
+                    active
+                      ? 'border-[var(--color-primary)] bg-blue-50/70 ring-2 ring-[var(--color-primary)]/15'
+                      : 'border-transparent hover:border-[var(--color-border)] hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="relative h-16 w-20 shrink-0 overflow-hidden rounded-md bg-gray-100">
+                    {imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+                    ) : running ? (
+                      <div className="flex h-full w-full items-center justify-center text-[var(--color-primary)]">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      </div>
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-gray-400">
+                        <ImageIcon className="h-5 w-5" />
+                      </div>
+                    )}
+                    <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[10px] text-white">
+                      {index + 1}
+                    </span>
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-[var(--color-text)]">{task.title}</div>
+                        <p className="mt-1 line-clamp-2 text-xs leading-4 text-[var(--color-text-secondary)]">
+                          {task.scriptExcerpt}
+                        </p>
+                      </div>
+                      {(task.status === 'IMAGE_FAILED' || task.status === 'GRID_FAILED') && (
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <StatusBadge task={task} />
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                        场景图 {task.imageRunCount}
+                      </span>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                        候选 {candidateCount}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex min-h-[220px] items-center justify-center rounded-lg border border-dashed border-gray-200 text-sm text-gray-400">
+            当前筛选下没有任务
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
 function CompositionTaskRow({
   task,
   index,
@@ -954,42 +1093,45 @@ function CompositionTaskRow({
   const references = selectedReferenceItems(task, characterOptions, sceneOptions, itemOptions);
   return (
     <section
-      className={`rounded-lg border bg-white shadow-sm transition-colors ${
+      className={`flex min-h-full flex-col rounded-lg border bg-white shadow-sm transition-colors ${
         active ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/15' : 'border-[var(--color-border)]'
       }`}
     >
-      <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-[48px_minmax(360px,1.15fr)_280px_minmax(360px,0.9fr)]">
-        <div className="flex items-start">
+      <div className="flex items-start gap-3 border-b border-[var(--color-border)] px-4 py-3">
+        <div className="shrink-0 pt-0.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-50 text-sm font-semibold text-[var(--color-text)]">
             {index}
           </div>
         </div>
 
-        <div className="min-w-0 space-y-3">
-          <div className="min-w-0">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h3 className="truncate text-base font-semibold text-[var(--color-text)]">{task.title}</h3>
-              <StatusBadge task={task} />
-              {(task.status === 'IMAGE_FAILED' || task.status === 'GRID_FAILED') && (
-                <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
-              )}
-            </div>
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--color-text-secondary)]">
-              {task.scriptExcerpt}
-            </p>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h3 className="truncate text-base font-semibold text-[var(--color-text)]">{task.title}</h3>
+            <StatusBadge task={task} />
+            {(task.status === 'IMAGE_FAILED' || task.status === 'GRID_FAILED') && (
+              <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+            )}
           </div>
-          <label className="block">
+          <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[var(--color-text-secondary)]">
+            {task.scriptExcerpt}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden p-4 xl:grid-cols-[minmax(280px,0.9fr)_minmax(300px,0.95fr)_minmax(360px,1.2fr)] 2xl:grid-cols-[minmax(360px,0.9fr)_minmax(380px,0.95fr)_minmax(500px,1.2fr)]">
+        <div className="flex min-h-0 flex-col">
+          <label className="flex min-h-0 flex-1 flex-col">
             <span className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">提示词</span>
             <textarea
               value={promptDraft}
               onChange={(event) => onPromptChange(event.target.value)}
               onBlur={(event) => onPromptBlur(event.currentTarget.value)}
-              rows={7}
-              className="min-h-[196px] w-full resize-none rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm leading-6 outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
+              rows={14}
+              className="min-h-[320px] w-full flex-1 resize-none rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm leading-6 outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
             />
           </label>
           {task.error && (task.status === 'IMAGE_FAILED' || task.status === 'GRID_FAILED') && (
-            <div className="line-clamp-2 text-xs leading-5 text-red-600">{task.error}</div>
+            <div className="mt-3 line-clamp-2 text-xs leading-5 text-red-600">{task.error}</div>
           )}
         </div>
 
@@ -1025,14 +1167,14 @@ function ReferenceColumn({
   const hiddenCount = references.length - visible.length;
   const showAddTile = !showMoreTile;
   return (
-    <div className="min-w-0 space-y-3">
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-3">
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-text)]">
           <Layers3 className="h-4 w-4" />
           参考图
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto pr-1 2xl:grid-cols-3">
         {visible.map((item) => (
           <button
             key={`${item.kind}-${item.id}`}
@@ -1070,7 +1212,7 @@ function ReferenceColumn({
             onClick={onOpen}
             aria-label="添加参考图"
             className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-[var(--color-primary)]/60 bg-blue-50/60 text-[var(--color-primary)] transition-colors hover:border-[var(--color-primary)] hover:bg-blue-50 ${
-              references.length === 0 ? 'col-span-3 min-h-[196px]' : 'aspect-square'
+              references.length === 0 ? 'col-span-2 min-h-[320px] 2xl:col-span-3' : 'aspect-square'
             }`}
           >
             <Plus className="h-5 w-5" />
@@ -1130,7 +1272,7 @@ function SceneImageColumn({
     : 'border-2 border-dashed border-gray-300 bg-gray-50 px-4 text-center text-gray-600 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]';
 
   return (
-    <div className="min-w-0 space-y-3">
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-text)]">
           <ImageIcon className="h-4 w-4" />
@@ -1149,8 +1291,7 @@ function SceneImageColumn({
       <button
         type="button"
         onClick={() => onOpenDetail('image')}
-        className={`flex min-h-[196px] w-full items-center justify-center overflow-hidden rounded-lg text-sm ${scenePreviewClassName}`}
-        style={{ aspectRatio: ratioToCss(imageSettings.ratio) }}
+        className={`flex min-h-[360px] w-full flex-1 items-center justify-center overflow-hidden rounded-lg text-sm ${scenePreviewClassName}`}
       >
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -2435,14 +2576,16 @@ function referenceEditorConfig({
       onSave: async (patch) => {
         const fresh = await updateCharacterStyle(characterOption.id, patch);
         await refreshReferences();
+        const image = fresh.image || fresh.styleResourceImage?.image || '';
+        const assetId = fresh.assetId ?? fresh.styleResourceImage?.assetId ?? null;
         return {
-          id: fresh.id,
+          id: fresh.id ?? characterOption.id,
           name: fresh.name,
           prompt: fresh.prompt,
           model: fresh.model,
           ratio: fresh.ratio,
-          image: fresh.image,
-          assetId: fresh.assetId,
+          image,
+          assetId,
         };
       },
     };
@@ -2475,6 +2618,8 @@ function referenceEditorConfig({
       onSave: async (patch) => {
         const fresh = await updateScene(sceneOption.id, patch);
         await refreshReferences();
+        const image = fresh.image || fresh.sceneResourceImage?.image || '';
+        const assetId = fresh.assetId ?? fresh.sceneResourceImage?.assetId ?? null;
         return {
           id: fresh.id,
           name: fresh.name,
@@ -2482,8 +2627,8 @@ function referenceEditorConfig({
           prompt: fresh.prompt ?? '',
           model: fresh.model ?? null,
           ratio: fresh.ratio ?? null,
-          image: fresh.image,
-          assetId: fresh.assetId ?? null,
+          image,
+          assetId,
         };
       },
     };
@@ -2519,6 +2664,8 @@ function referenceEditorConfig({
     onSave: async (patch) => {
       const fresh = await updateItem(itemOption.id, patch);
       await refreshReferences();
+      const image = fresh.image || fresh.itemResourceImage?.image || '';
+      const assetId = fresh.assetId ?? fresh.itemResourceImage?.assetId ?? null;
       return {
         id: fresh.id,
         name: fresh.name,
@@ -2526,8 +2673,8 @@ function referenceEditorConfig({
         prompt: fresh.prompt ?? '',
         model: fresh.model ?? null,
         ratio: fresh.ratio ?? null,
-        image: fresh.image,
-        assetId: fresh.assetId ?? null,
+        image,
+        assetId,
       };
     },
   };
