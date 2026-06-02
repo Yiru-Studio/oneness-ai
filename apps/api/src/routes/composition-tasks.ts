@@ -49,6 +49,7 @@ import {
   sanitizeReferenceBinding,
   type EpisodeScene,
   type SceneImageReferenceIds,
+  type SceneImagePromptReferences,
 } from '../lib/composition-ai-planning.js';
 
 export const compositionTaskRoutes = new Hono();
@@ -161,7 +162,7 @@ compositionTaskRoutes.post(
           });
           const sceneSummary = cleanSceneImageSummary(scene.content);
           const sceneForPrompt = { ...scene, content: sceneSummary };
-          const prompt = buildCompositionPrompt(project, sceneForPrompt, refs);
+          const prompt = buildCompositionPrompt(project, sceneForPrompt, refs, library);
           if (!existing) {
             await tx.compositionTask.create({
               data: {
@@ -1571,7 +1572,7 @@ async function ensureCompositionTaskForScene(
         sceneIndex: scene.index,
         title,
         scriptExcerpt: sceneSummary,
-        prompt: buildCompositionPrompt(project, sceneForPrompt, refs),
+        prompt: buildCompositionPrompt(project, sceneForPrompt, refs, library),
         characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
         sceneIds: refs.sceneIds as Prisma.InputJsonValue,
         itemIds: refs.itemIds as Prisma.InputJsonValue,
@@ -1596,7 +1597,7 @@ async function ensureCompositionTaskForScene(
       scriptExcerpt: sceneSummary,
       ...(canRefreshDraft
         ? {
-            prompt: buildCompositionPrompt(project, sceneForPrompt, refs),
+            prompt: buildCompositionPrompt(project, sceneForPrompt, refs, library),
             characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
             sceneIds: refs.sceneIds as Prisma.InputJsonValue,
             itemIds: refs.itemIds as Prisma.InputJsonValue,
@@ -1611,8 +1612,29 @@ function buildCompositionPrompt(
   project: { stylePrompt: string; ratio: string },
   scene: EpisodeScene,
   refs: { characterStyleIds: string[]; sceneIds: string[]; itemIds: string[] },
+  library: ReferenceLibrary,
 ): string {
-  return buildSceneImageCompositionPrompt(project, scene, refs);
+  return buildSceneImageCompositionPrompt(project, scene, describeSceneImageReferences(refs, library));
+}
+
+function describeSceneImageReferences(
+  refs: { characterStyleIds: string[]; sceneIds: string[]; itemIds: string[] },
+  library: ReferenceLibrary,
+): SceneImagePromptReferences {
+  const styleLabels = new Map<string, string>();
+  for (const character of library.characters) {
+    for (const style of character.styles) {
+      styleLabels.set(style.id, `${character.name} · ${style.name}`);
+    }
+  }
+  const sceneLabels = new Map(library.scenes.map((scene) => [scene.id, scene.name]));
+  const itemLabels = new Map(library.items.map((item) => [item.id, item.name]));
+  return {
+    ...refs,
+    characterStyleLabels: uniqueStrings(refs.characterStyleIds.map((id) => styleLabels.get(id))),
+    sceneLabels: uniqueStrings(refs.sceneIds.map((id) => sceneLabels.get(id))),
+    itemLabels: uniqueStrings(refs.itemIds.map((id) => itemLabels.get(id))),
+  };
 }
 
 function buildShotSketchPrompt(

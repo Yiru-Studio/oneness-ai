@@ -87,12 +87,44 @@ describe('composition AI planning helpers', () => {
         characters: ['我', '司机'],
         environment: '网约车内、路口红绿灯',
       },
-      { characterStyleIds: ['style-1'], sceneIds: [], itemIds: ['item-1'] },
+      {
+        characterStyleIds: ['style-1'],
+        sceneIds: ['scene-1'],
+        itemIds: ['item-1'],
+        characterStyleLabels: ['司机 · 夜雨驾驶造型', '我 · 后座乘客造型'],
+        sceneLabels: ['小区雨夜路口'],
+        itemLabels: ['网约车'],
+      },
     );
 
-    expect(prompt).toContain('剧情内容：\n雨夜路口被漫长红灯笼罩，车窗外雨声沙沙，车厢内昏暗安静而逐渐缓和。');
+    expect(prompt).toContain('画面描述：雨夜路口被漫长红灯笼罩，车窗外雨声沙沙，车厢内昏暗安静而逐渐缓和。');
+    expect(prompt).toContain('构图要求：单张电影剧照');
+    expect(prompt).toContain('不要拼贴、分屏、字幕、编号、水印、logo 或说明文字');
+    expect(prompt).toContain('参考要求：保持已选角色造型（司机 · 夜雨驾驶造型、我 · 后座乘客造型）的身份、服装、面部和气质一致。');
+    expect(prompt).toContain('参考场景素材（小区雨夜路口）用于空间结构、时间氛围和光线关系。');
+    expect(prompt).toContain('道具参考（网约车）只在画面需要时自然出现，不要堆砌。');
+    expect(prompt).toContain('风格要求：cinematic lighting。画幅比例 16:9。');
+    expect(prompt).not.toContain('参考数量');
     expect(prompt).not.toContain('《遇见》');
     expect(prompt).not.toContain('1场 小区');
+  });
+
+  it('builds a clear fallback reference rule when no assets are selected', () => {
+    const prompt = buildSceneImageCompositionPrompt(
+      { ratio: '1:1', stylePrompt: '' },
+      {
+        index: 0,
+        title: '小区门口 - 夜',
+        content: '初夏傍晚，夜雨淅淅沥沥地下个不停，乘客刚坐上网约车后座。',
+        characters: [],
+        environment: '小区门口、雨夜',
+      },
+      { characterStyleIds: [], sceneIds: [], itemIds: [] },
+    );
+
+    expect(prompt).toContain('参考要求：无可用参考素材时，以剧情短描述和项目风格为准，不要额外堆砌未出现的人物或道具。');
+    expect(prompt).toContain('风格要求：电影感、真实光影、可作为镜头首帧。画幅比例 1:1。');
+    expect(prompt).not.toContain('参考数量');
   });
 
   it('falls back when AI planning output is unusable', () => {

@@ -45,6 +45,24 @@ if (!project) {
   process.exit(1);
 }
 
+const [characters, scenes, items] = await Promise.all([
+  prisma.character.findMany({
+    where: { projectId: args.projectId },
+    include: { styles: { orderBy: { createdAt: 'asc' } } },
+    orderBy: { createdAt: 'asc' },
+  }),
+  prisma.scene.findMany({ where: { projectId: args.projectId }, orderBy: { createdAt: 'asc' } }),
+  prisma.item.findMany({ where: { projectId: args.projectId }, orderBy: { createdAt: 'asc' } }),
+]);
+const styleLabels = new Map<string, string>();
+for (const character of characters) {
+  for (const style of character.styles) {
+    styleLabels.set(style.id, `${character.name} · ${style.name}`);
+  }
+}
+const sceneLabels = new Map(scenes.map((scene) => [scene.id, scene.name]));
+const itemLabels = new Map(items.map((item) => [item.id, item.name]));
+
 for (const task of tasks) {
   const episodeScene = findEpisodeScene(task.episode.scenesJson, task.sceneIndex);
   const summarySource = episodeScene?.content || task.scriptExcerpt;
@@ -61,7 +79,12 @@ for (const task of tasks) {
     sceneIds: jsonStringArray(task.sceneIds),
     itemIds: jsonStringArray(task.itemIds),
   };
-  const prompt = buildSceneImageCompositionPrompt(project, scene, refs);
+  const prompt = buildSceneImageCompositionPrompt(project, scene, {
+    ...refs,
+    characterStyleLabels: uniqueStrings(refs.characterStyleIds.map((id) => styleLabels.get(id))),
+    sceneLabels: uniqueStrings(refs.sceneIds.map((id) => sceneLabels.get(id))),
+    itemLabels: uniqueStrings(refs.itemIds.map((id) => itemLabels.get(id))),
+  });
   const changed = task.scriptExcerpt !== summary || task.prompt !== prompt;
 
   console.log([
@@ -119,6 +142,10 @@ function findEpisodeScene(scenesJson: Prisma.JsonValue, sceneIndex: number): Epi
 
 function jsonStringArray(value: Prisma.JsonValue): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
 }
 
 function stripEpisodePrefix(title: string): string {

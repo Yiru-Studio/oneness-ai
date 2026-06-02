@@ -39,6 +39,12 @@ export type SceneImageReferenceIds = {
   itemIds: string[];
 };
 
+export type SceneImagePromptReferences = SceneImageReferenceIds & {
+  characterStyleLabels?: string[];
+  sceneLabels?: string[];
+  itemLabels?: string[];
+};
+
 export type ReferenceLibraryForPlanning = {
   characters: Array<{
     id: string;
@@ -233,18 +239,71 @@ export function cleanSceneImageSummary(input: string | null | undefined, fallbac
 export function buildSceneImageCompositionPrompt(
   project: { stylePrompt: string; ratio: string },
   scene: EpisodeScene,
-  refs: { characterStyleIds: string[]; sceneIds: string[]; itemIds: string[] },
+  refs: SceneImagePromptReferences,
 ): string {
   const summary = cleanSceneImageSummary(scene.content);
+  const sceneTitle = cleanSceneTitle(scene.title);
+  const characters = uniqueStrings(scene.characters.map((item) => item.trim()));
+  const visualDescription = [
+    summary,
+    scene.environment ? `画面环境应体现${scene.environment}。` : '',
+  ].filter(Boolean).join(' ');
   return [
-    `场景图：${scene.title}`,
-    scene.environment ? `环境：${scene.environment}` : '',
-    scene.characters.length ? `出场人物：${scene.characters.join('、')}` : '',
-    `剧情内容：\n${summary}`,
-    `参考数量：角色 ${refs.characterStyleIds.length}，场景素材 ${refs.sceneIds.length}，道具 ${refs.itemIds.length}`,
-    `画面要求：生成一张可作为镜头首帧的场景图，人物、道具与环境需要自然同框，构图清晰，光线统一，比例 ${project.ratio}。`,
-    project.stylePrompt ? `风格要求：${project.stylePrompt}` : '',
+    `场景图：${buildSceneImageGoal(sceneTitle, characters)}`,
+    `画面描述：${visualDescription}`,
+    `构图要求：${buildSceneImageCompositionRules(characters)}`,
+    `参考要求：${buildSceneImageReferenceRules(refs)}`,
+    `风格要求：${buildSceneImageStyleRules(project)}`,
   ].filter(Boolean).join('\n\n');
+}
+
+function cleanSceneTitle(title: string): string {
+  const cleaned = title
+    .replace(/^(?:INT\.\/EXT|EXT\.\/INT|INT|EXT)\.\s*/iu, '')
+    .replace(/\s*[-－—]\s*(?:清晨|上午|中午|下午|傍晚|黄昏|夜晚|晚上|深夜|凌晨)\s*$/u, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned || title.trim() || '当前关键场景';
+}
+
+function buildSceneImageGoal(sceneTitle: string, characters: string[]): string {
+  const subject = characters.length > 0 ? `${characters.join('、')}自然同框` : '关键人物与环境自然同框';
+  return `${sceneTitle}，${subject}。`;
+}
+
+function buildSceneImageCompositionRules(characters: string[]): string {
+  const characterRule = characters.length > 0
+    ? `让${characters.join('、')}的站位、视线或动作关系清晰可读。`
+    : '让画面主体、环境和关键道具关系清晰可读。';
+  return [
+    '单张电影剧照，不要拼贴、分屏、字幕、编号、水印、logo 或说明文字。',
+    characterRule,
+    '人物、道具与环境需要自然同框，构图清晰，光线统一，空间层次明确。',
+  ].join('');
+}
+
+function buildSceneImageReferenceRules(refs: SceneImagePromptReferences): string {
+  const characterLabels = uniqueStrings(refs.characterStyleLabels ?? []);
+  const sceneLabels = uniqueStrings(refs.sceneLabels ?? []);
+  const itemLabels = uniqueStrings(refs.itemLabels ?? []);
+  const rules = [
+    characterLabels.length > 0
+      ? `保持已选角色造型（${characterLabels.join('、')}）的身份、服装、面部和气质一致。`
+      : '',
+    sceneLabels.length > 0
+      ? `参考场景素材（${sceneLabels.join('、')}）用于空间结构、时间氛围和光线关系。`
+      : '',
+    itemLabels.length > 0
+      ? `道具参考（${itemLabels.join('、')}）只在画面需要时自然出现，不要堆砌。`
+      : '',
+  ].filter(Boolean);
+  if (rules.length > 0) return rules.join('');
+  return '无可用参考素材时，以剧情短描述和项目风格为准，不要额外堆砌未出现的人物或道具。';
+}
+
+function buildSceneImageStyleRules(project: { stylePrompt: string; ratio: string }): string {
+  const style = project.stylePrompt.trim();
+  return `${style ? `${style}。` : '电影感、真实光影、可作为镜头首帧。'}画幅比例 ${project.ratio}。`;
 }
 
 export function buildReferenceBindingMessages(args: {
