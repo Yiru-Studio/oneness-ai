@@ -11,7 +11,22 @@ type PickerOption = {
   label: string;
   sub?: string;
   thumb: string | null;
+  badge?: string;
 };
+
+type CharacterStyleGroup = {
+  id: string;
+  label: string;
+  options: PickerOption[];
+};
+
+function characterStylePickerLabel(styleName: string, characterName: string, index: number) {
+  const normalizedStyleName = styleName.trim();
+  if (!normalizedStyleName || normalizedStyleName === characterName.trim()) {
+    return index === 0 ? '默认造型' : `造型 ${index + 1}`;
+  }
+  return normalizedStyleName;
+}
 
 interface Props {
   isOpen: boolean;
@@ -83,16 +98,22 @@ export function ReferencePickerDialog({
 
   if (!isOpen) return null;
 
-  const characterOptions: PickerOption[] = characters.flatMap((c) =>
-    c.styles
-      .filter((s) => Boolean(s.id))
-      .map((s) => ({
-        id: s.id as string,
-        label: c.name,
-        sub: s.name,
-        thumb: s.image || c.avatar || null,
-      })),
-  );
+  const characterGroups: CharacterStyleGroup[] = characters
+    .map((c) => ({
+      id: c.id,
+      label: c.name,
+      options: c.styles
+        .filter((s) => Boolean(s.id))
+        .map((s, index) => ({
+          id: s.id as string,
+          label: characterStylePickerLabel(s.name, c.name, index),
+          sub: c.name,
+          thumb: s.image || c.avatar || null,
+          badge: s.image ? '造型图' : c.avatar ? '角色头像' : undefined,
+        })),
+    }))
+    .filter((group) => group.options.length > 0);
+  const characterOptions = characterGroups.flatMap((group) => group.options);
   const sceneOptions: PickerOption[] = scenes.map((s) => ({
     id: s.id,
     label: s.name,
@@ -168,6 +189,74 @@ export function ReferencePickerDialog({
     { key: 'items', label: '物品', count: itemIds.length },
   ];
 
+  const renderOptionCard = (opt: PickerOption) => {
+    const isSelected = currentSelected.includes(opt.id);
+    return (
+      <div
+        key={opt.id}
+        className={`relative overflow-hidden rounded-lg border-2 bg-white text-left transition ${
+          isSelected
+            ? 'border-[var(--color-primary)] shadow'
+            : 'border-[var(--color-border)] hover:border-gray-400'
+        }`}
+      >
+        <button
+          type="button"
+          onPointerDown={() => openPreview(opt)}
+          onClick={() => openPreview(opt)}
+          disabled={!opt.thumb || isConfirming}
+          className="group relative flex aspect-square w-full items-center justify-center bg-gray-100 disabled:cursor-default enabled:cursor-zoom-in"
+          aria-label={opt.thumb ? `查看${opt.label}` : opt.label}
+        >
+          {opt.thumb ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={opt.thumb}
+                alt={opt.label}
+                className="h-full w-full object-cover"
+              />
+              <span className="absolute inset-x-0 bottom-0 bg-black/45 px-2 py-1 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
+                点击放大
+              </span>
+            </>
+          ) : (
+            <span className="text-xs text-gray-400">无封面</span>
+          )}
+          {opt.badge && (
+            <span className="absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
+              {opt.badge}
+            </span>
+          )}
+        </button>
+        <div className="px-2 py-1.5">
+          <div className="truncate text-xs font-medium">{opt.label}</div>
+          {opt.sub && (
+            <div className="truncate text-[10px] text-gray-500">{opt.sub}</div>
+          )}
+          <button
+            type="button"
+            onClick={() => toggle(currentSelected, setCurrentSelected, opt.id)}
+            disabled={isConfirming}
+            className={`mt-1.5 flex h-7 w-full items-center justify-center gap-1 rounded-md text-xs font-medium transition ${
+              isSelected
+                ? 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {isSelected && <Check className="h-3 w-3" />}
+            {isSelected ? '已添加' : '添加'}
+          </button>
+        </div>
+        {isSelected && (
+          <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-primary)] text-white">
+            <Check className="h-3 w-3" />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
       <div
@@ -214,70 +303,25 @@ export function ReferencePickerDialog({
               <div className="text-sm text-gray-400 text-center py-12">
                 暂无可选资产，请先在对应模块创建。
               </div>
+            ) : tab === 'characters' ? (
+              <div className="space-y-5">
+                {characterGroups.map((group) => (
+                  <section key={group.id}>
+                    <div className="mb-2 flex items-center gap-2">
+                      <div className="text-sm font-semibold text-[var(--color-text)]">{group.label}</div>
+                      <div className="text-xs text-[var(--color-text-secondary)]">
+                        {group.options.length} 个造型
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+                      {group.options.map(renderOptionCard)}
+                    </div>
+                  </section>
+                ))}
+              </div>
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
-                {currentOptions.map((opt) => {
-                  const isSelected = currentSelected.includes(opt.id);
-                  return (
-                    <div
-                      key={opt.id}
-                      className={`relative rounded-lg overflow-hidden border-2 text-left transition bg-white ${
-                        isSelected
-                          ? 'border-[var(--color-primary)] shadow'
-                          : 'border-[var(--color-border)] hover:border-gray-400'
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onPointerDown={() => openPreview(opt)}
-                        onClick={() => openPreview(opt)}
-                        disabled={!opt.thumb || isConfirming}
-                        className="aspect-square w-full bg-gray-100 flex items-center justify-center relative disabled:cursor-default enabled:cursor-zoom-in group"
-                        aria-label={opt.thumb ? `查看${opt.label}` : opt.label}
-                      >
-                        {opt.thumb ? (
-                          <>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={opt.thumb}
-                              alt={opt.label}
-                              className="w-full h-full object-cover"
-                            />
-                            <span className="absolute inset-x-0 bottom-0 px-2 py-1 text-[10px] text-white bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity">
-                              点击放大
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-xs text-gray-400">无封面</span>
-                        )}
-                      </button>
-                      <div className="px-2 py-1.5">
-                        <div className="text-xs font-medium truncate">{opt.label}</div>
-                        {opt.sub && (
-                          <div className="text-[10px] text-gray-500 truncate">{opt.sub}</div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => toggle(currentSelected, setCurrentSelected, opt.id)}
-                          disabled={isConfirming}
-                          className={`mt-1.5 flex h-7 w-full items-center justify-center gap-1 rounded-md text-xs font-medium transition ${
-                            isSelected
-                              ? 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          {isSelected && <Check className="w-3 h-3" />}
-                          {isSelected ? '已添加' : '添加'}
-                        </button>
-                      </div>
-                      {isSelected && (
-                        <div className="absolute top-1 right-1 bg-[var(--color-primary)] text-white rounded-full w-5 h-5 flex items-center justify-center">
-                          <Check className="w-3 h-3" />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {currentOptions.map(renderOptionCard)}
               </div>
             )}
           </div>
