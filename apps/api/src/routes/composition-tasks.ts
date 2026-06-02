@@ -23,19 +23,24 @@ import {
   GenerateShotSketchSchema,
   GenerateShotSketchesSchema,
   IdParamSchema,
+  ShotSketchContextSchema,
   UpdateCompositionTaskSchema,
   type ApplyCompositionCandidatesInput,
   type GenerateCompositionGridInput,
   type GenerateCompositionImageInput,
   type GenerateShotSketchInput,
   type GenerateShotSketchesInput,
+  type ShotSketchContextInput,
 } from '@oneness/shared/schemas';
 import { config } from '../config.js';
 import { uniqueAssetIds } from '../lib/character-identity.js';
+import { serializeAsset, type AssetDTO } from '../lib/assets.js';
 import {
+  buildSceneImageCompositionPrompt,
   buildReferenceBindingMessages,
   buildSceneImagePlanningMessages,
   canRefreshSceneImageTaskDraft,
+  cleanSceneImageSummary,
   normalizeSceneImagePlans,
   parseSceneImagePlanResponse,
   parseSceneImageReferenceBindingResponse,
@@ -81,6 +86,11 @@ const COMPOSITION_INCLUDE = {
 const ANGLE_LABELS = ['远景', '中景', '近景', '侧面', '正面', '背影', '俯拍', '仰拍', '特写'];
 
 type ReferenceLibrary = Awaited<ReturnType<typeof loadReferenceLibrary>>;
+
+type ShotSketchReferenceAssetDTO = AssetDTO & {
+  label: string;
+  source: 'composition' | 'character' | 'scene' | 'item';
+};
 
 compositionTaskRoutes.get('/projects/:id/composition-tasks', async (c) => {
   const user = c.var.user!;
@@ -147,6 +157,9 @@ compositionTaskRoutes.post(
               imageTaskId: true,
             },
           });
+          const sceneSummary = cleanSceneImageSummary(scene.content);
+          const sceneForPrompt = { ...scene, content: sceneSummary };
+          const prompt = buildCompositionPrompt(project, sceneForPrompt, refs);
           if (!existing) {
             await tx.compositionTask.create({
               data: {
@@ -154,8 +167,8 @@ compositionTaskRoutes.post(
                 episodeId: episode.id,
                 sceneIndex: scene.index,
                 title,
-                scriptExcerpt: scene.content,
-                prompt: scene.prompt?.trim() ? scene.prompt.trim() : buildCompositionPrompt(project, scene, refs),
+                scriptExcerpt: sceneSummary,
+                prompt,
                 characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
                 sceneIds: refs.sceneIds as Prisma.InputJsonValue,
                 itemIds: refs.itemIds as Prisma.InputJsonValue,
@@ -172,10 +185,10 @@ compositionTaskRoutes.post(
               episodeId: episode.id,
               sceneIndex: scene.index,
               title,
-              scriptExcerpt: scene.content,
+              scriptExcerpt: sceneSummary,
               ...(canRefreshDraft
                 ? {
-                    prompt: scene.prompt?.trim() ? scene.prompt.trim() : buildCompositionPrompt(project, scene, refs),
+                    prompt,
                     characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
                     sceneIds: refs.sceneIds as Prisma.InputJsonValue,
                     itemIds: refs.itemIds as Prisma.InputJsonValue,
@@ -217,6 +230,18 @@ compositionTaskRoutes.post(
     const body = c.req.valid('json');
     const result = await createShotSketchTask(projectId, user.id, body);
     return c.json(result, 201);
+  },
+);
+
+compositionTaskRoutes.post(
+  '/projects/:id/composition-tasks/shot-sketch-context',
+  zValidator('json', ShotSketchContextSchema),
+  async (c) => {
+    const user = c.var.user!;
+    const projectId = c.req.param('id');
+    const body = c.req.valid('json');
+    const result = await buildShotSketchContext(projectId, user.id, body);
+    return c.json(result);
   },
 );
 
@@ -919,7 +944,9 @@ async function createShotSketchTask(
   );
   const prompt = buildShotSketchPrompt(project, scene, shot, Boolean(compositionImageAssetId));
   const cost = estimateCost(TaskType.IMAGE);
-  const provider = providerForImageModel(project.imageModel);
+  const model = body.model ?? project.imageModel;
+  const ratio = body.ratio ?? project.ratio;
+  const provider = providerForImageModel(model);
 
   const task = await prisma.$transaction(async (tx) => {
     const account = await tx.user.findUnique({
@@ -945,8 +972,8 @@ async function createShotSketchTask(
         costCredits: cost,
         input: {
           prompt,
-          ratio: project.ratio,
-          model: project.imageModel,
+          ratio,
+          model,
           referenceAssetIds,
           n: 1,
           shotSketch: true,
@@ -971,6 +998,62 @@ async function createShotSketchTask(
     taskId: task.id,
     targetShotId: shot.id,
     referenceAssetIds,
+  };
+}
+
+async function buildShotSketchContext(
+  projectId: string,
+  userId: string,
+  body: ShotSketchContextInput,
+) {
+  const project = await assertOwnedProject(projectId, userId);
+  const shot = await prisma.shot.findFirst({
+    where: {
+      id: body.shotId,
+      episode: { projectId, project: { ownerId: userId } },
+    },
+    include: {
+      sketchTask: true,
+      episode: {
+        select: { id: true, number: true, title: true, content: true, scenesJson: true },
+      },
+    },
+  });
+  if (!shot) throw AppError.notFound(ErrorCodes.SHOT_NOT_FOUND, 'shot not found');
+
+  const library = await loadReferenceLibrary(projectId);
+  const scene = scenesForEpisode(shot.episode, library.scenes).find((item) => item.index === shot.sceneIndex);
+  if (!scene) throw AppError.badRequest(ErrorCodes.VALIDATION_FAILED, 'sceneIndex out of range');
+
+  const compositionTaskId = await ensureCompositionTaskForScene(project, shot.episode, scene, library);
+  const compositionTask = await loadCompositionTask(compositionTaskId);
+  const compositionImageAssetId = currentCompositionImageAssetId(compositionTask);
+  const referenceAssetIds = await buildShotSketchReferenceAssetIds(
+    projectId,
+    compositionTask,
+    shot,
+    compositionImageAssetId,
+  );
+  const referenceAssets = await serializeShotSketchReferenceAssets(
+    projectId,
+    referenceAssetIds,
+    compositionTask,
+    shot,
+    compositionImageAssetId,
+  );
+
+  return {
+    compositionTaskId,
+    prompt: buildShotSketchPrompt(project, scene, shot, Boolean(compositionImageAssetId)),
+    model: project.imageModel,
+    ratio: project.ratio,
+    referenceAssetIds,
+    referenceAssets,
+    scene: {
+      index: scene.index,
+      title: scene.title,
+      environment: scene.environment,
+    },
   };
 }
 
@@ -1682,6 +1765,96 @@ async function buildShotSketchReferenceAssetIds(
     ...(compositionImageAssetId ? [compositionImageAssetId] : []),
     ...assetIds,
   ]).slice(0, 8);
+}
+
+async function serializeShotSketchReferenceAssets(
+  projectId: string,
+  referenceAssetIds: string[],
+  compositionTask: { characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
+  shot: { characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
+  compositionImageAssetId: string | null,
+): Promise<ShotSketchReferenceAssetDTO[]> {
+  if (referenceAssetIds.length === 0) return [];
+  const [assets, styles, sceneRows, itemRows] = await Promise.all([
+    prisma.asset.findMany({ where: { id: { in: referenceAssetIds } } }),
+    prisma.characterStyle.findMany({
+      where: {
+        id: {
+          in: uniqueStrings([
+            ...jsonStringArray(shot.characterStyleIds),
+            ...jsonStringArray(compositionTask.characterStyleIds),
+          ]),
+        },
+        character: { projectId },
+      },
+      select: {
+        name: true,
+        assetId: true,
+        character: {
+          select: {
+            name: true,
+            identityAssetId: true,
+            avatarAssetId: true,
+          },
+        },
+      },
+    }),
+    prisma.scene.findMany({
+      where: {
+        id: {
+          in: uniqueStrings([
+            ...jsonStringArray(shot.sceneIds),
+            ...jsonStringArray(compositionTask.sceneIds),
+          ]),
+        },
+        projectId,
+      },
+      select: { name: true, assetId: true },
+    }),
+    prisma.item.findMany({
+      where: {
+        id: {
+          in: uniqueStrings([
+            ...jsonStringArray(shot.itemIds),
+            ...jsonStringArray(compositionTask.itemIds),
+          ]),
+        },
+        projectId,
+      },
+      select: { name: true, assetId: true },
+    }),
+  ]);
+  const assetById = new Map(assets.map((asset) => [asset.id, asset]));
+  const metaByAssetId = new Map<string, { label: string; source: ShotSketchReferenceAssetDTO['source'] }>();
+  if (compositionImageAssetId) {
+    metaByAssetId.set(compositionImageAssetId, { label: '当前场景图', source: 'composition' });
+  }
+  for (const style of styles) {
+    const label = `${style.character.name}${style.name ? ` - ${style.name}` : ''}`;
+    for (const assetId of uniqueAssetIds([
+      style.character.identityAssetId ?? style.character.avatarAssetId ?? null,
+      style.assetId,
+    ])) {
+      metaByAssetId.set(assetId, { label, source: 'character' });
+    }
+  }
+  for (const scene of sceneRows) {
+    if (scene.assetId) metaByAssetId.set(scene.assetId, { label: scene.name, source: 'scene' });
+  }
+  for (const item of itemRows) {
+    if (item.assetId) metaByAssetId.set(item.assetId, { label: item.name, source: 'item' });
+  }
+
+  const serialized = await Promise.all(
+    referenceAssetIds.map(async (assetId) => {
+      const asset = assetById.get(assetId);
+      if (!asset) return null;
+      const dto = await serializeAsset(asset);
+      const meta = metaByAssetId.get(assetId) ?? { label: '参考图', source: 'composition' as const };
+      return { ...dto, ...meta };
+    }),
+  );
+  return serialized.filter((item): item is ShotSketchReferenceAssetDTO => Boolean(item));
 }
 
 function currentCompositionImageAssetId(row: {

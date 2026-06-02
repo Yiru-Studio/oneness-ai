@@ -561,10 +561,39 @@ export type GenerateShotSketchResult = {
 
 export async function generateShotSketch(
   projectId: string,
-  body: { shotId: string; force?: boolean },
+  body: { shotId: string; force?: boolean; model?: string; ratio?: string },
 ): Promise<GenerateShotSketchResult> {
   return await apiFetch<GenerateShotSketchResult>(
     `/api/projects/${projectId}/composition-tasks/generate-shot-sketch`,
+    { method: 'POST', body },
+  );
+}
+
+export type ShotSketchReferenceAsset = AssetDTO & {
+  label: string;
+  source: 'composition' | 'character' | 'scene' | 'item';
+};
+
+export type ShotSketchContext = {
+  compositionTaskId: string;
+  prompt: string;
+  model: string;
+  ratio: string;
+  referenceAssetIds: string[];
+  referenceAssets: ShotSketchReferenceAsset[];
+  scene: {
+    index: number;
+    title: string;
+    environment: string;
+  };
+};
+
+export async function getShotSketchContext(
+  projectId: string,
+  body: { shotId: string },
+): Promise<ShotSketchContext> {
+  return await apiFetch<ShotSketchContext>(
+    `/api/projects/${projectId}/composition-tasks/shot-sketch-context`,
     { method: 'POST', body },
   );
 }
