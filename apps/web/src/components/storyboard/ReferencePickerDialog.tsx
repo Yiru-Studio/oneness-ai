@@ -1,11 +1,13 @@
 'use client';
 
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
-import { X, Check, Loader2 } from 'lucide-react';
-import { Character, CompositionTask, Item, Project, Scene } from '@/types';
+import { X, Check, Loader2, Image as ImageIcon, ImagePlus } from 'lucide-react';
+import { Character, CompositionTask, Item, Project, ResourceImageStatus, Scene } from '@/types';
 import { EntityDetailDrawer, type EntityDetailData } from '@/components/projects/EntityDetailDrawer';
 import { updateCharacterStyle } from '@/lib/api';
 import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
+import { useGeneration } from '@/contexts/GenerationContext';
+import { getGenerationErrorDisplay } from '@/lib/generation-error';
 
 type PickerTab = 'composition' | 'characters' | 'scenes' | 'items';
 
@@ -14,10 +16,11 @@ type PickerOption = {
   label: string;
   sub?: string;
   thumb: string | null;
-  fallbackThumb?: string | null;
   badge?: string;
   emptyTitle?: string;
   emptyText?: string;
+  resourceStatus?: ResourceImageStatus | null;
+  resourceError?: string | null;
   styleEditor?: CharacterStyleEditor;
 };
 
@@ -40,6 +43,16 @@ function characterStylePickerLabel(styleName: string, characterName: string, ind
     return index === 0 ? '默认造型' : `造型 ${index + 1}`;
   }
   return normalizedStyleName;
+}
+
+function isResourceImagePending(status: ResourceImageStatus | null | undefined): boolean {
+  return status === 'QUEUED' || status === 'RUNNING';
+}
+
+function resourceStatusLabel(status: ResourceImageStatus | null | undefined): string {
+  if (status === 'QUEUED') return '排队中';
+  if (status === 'RUNNING') return '生成中';
+  return '生成中';
 }
 
 interface Props {
@@ -94,6 +107,7 @@ export function ReferencePickerDialog({
   const [editingStyle, setEditingStyle] = useState<CharacterStyleEditor | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const { isGenerating, getError } = useGeneration();
 
   /* eslint-disable react-hooks/set-state-in-effect -- This dialog owns draft selections and resets them from props each time it opens. */
   useEffect(() => {
@@ -129,10 +143,11 @@ export function ReferencePickerDialog({
           label: characterStylePickerLabel(s.name, c.name, index),
           sub: c.name,
           thumb: s.image || null,
-          fallbackThumb: s.image ? null : c.avatar || null,
           badge: s.image ? '造型图' : '待生成',
           emptyTitle: '暂无造型图',
-          emptyText: c.avatar ? '点击生成造型图' : '请先生成角色头像',
+          emptyText: '请先生成图片后再添加',
+          resourceStatus: s.styleResourceImage?.status ?? null,
+          resourceError: s.styleResourceImage?.error ?? null,
           styleEditor: {
             character: c,
             style: { ...s, id: s.id as string },
@@ -225,92 +240,134 @@ export function ReferencePickerDialog({
 
   const renderOptionCard = (opt: PickerOption) => {
     const isSelected = currentSelected.includes(opt.id);
+    const hasImage = Boolean(opt.thumb);
+    const realtimeGenerating = Boolean(opt.styleEditor && isGenerating('style', opt.id));
+    const persistedPending = isResourceImagePending(opt.resourceStatus);
+    const generating = realtimeGenerating || persistedPending;
+    const generationLabel = realtimeGenerating ? '生成中...' : resourceStatusLabel(opt.resourceStatus);
+    const generationError =
+      opt.styleEditor
+        ? getGenerationErrorDisplay(getError('style', opt.id) || opt.resourceError)?.message ?? null
+        : null;
     return (
       <div
         key={opt.id}
-        className={`relative overflow-hidden rounded-lg border-2 bg-white text-left transition ${
+        className={`overflow-hidden rounded-xl border bg-white text-left transition-colors ${
           isSelected
-            ? 'border-[var(--color-primary)] shadow'
-            : 'border-[var(--color-border)] hover:border-gray-400'
+            ? 'border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/15'
+            : 'border-[var(--color-border)] hover:border-[var(--color-primary)]'
         }`}
       >
         <button
           type="button"
-          onClick={() => openOptionDetail(opt)}
-          disabled={(!opt.thumb && !opt.styleEditor) || isConfirming}
-          className="group relative flex aspect-square w-full items-center justify-center bg-gray-100 disabled:cursor-default enabled:cursor-zoom-in"
-          aria-label={opt.thumb ? `查看${opt.label}` : `编辑${opt.label}`}
+          onClick={() => (hasImage ? openPreview(opt) : undefined)}
+          disabled={!hasImage || isConfirming}
+          className={`block w-full text-left ${hasImage ? 'cursor-zoom-in' : 'cursor-default'}`}
+          aria-label={hasImage ? `查看${opt.label}` : opt.label}
         >
-          {opt.thumb ? (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={opt.thumb}
-                alt={opt.label}
-                className="h-full w-full object-cover"
-              />
-              <span className="absolute inset-x-0 bottom-0 bg-black/45 px-2 py-1 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
-                点击放大
+          <div className="relative flex aspect-video items-center justify-center bg-gray-100">
+            {hasImage ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={opt.thumb ?? ''}
+                  alt={opt.label}
+                  className="h-full w-full object-contain"
+                />
+                <span className="absolute inset-x-0 bottom-0 bg-black/45 px-2 py-1 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
+                  点击放大
+                </span>
+              </>
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-center">
+                <ImageIcon className="h-6 w-6 text-gray-400" />
+                <div>
+                  <div className="text-xs font-medium text-gray-500">
+                    {opt.emptyTitle || '暂无图片'}
+                  </div>
+                  {opt.emptyText && (
+                    <div className="mt-1 text-[10px] leading-4 text-gray-400">
+                      {opt.emptyText}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {generating && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40 text-white">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-xs">{generationLabel}</span>
+              </div>
+            )}
+            {opt.badge && (
+              <span
+                className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[10px] ${
+                  hasImage ? 'bg-black/60 text-white' : 'bg-white/85 text-gray-500 shadow-sm'
+                }`}
+              >
+                {opt.badge}
               </span>
-            </>
-          ) : (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[linear-gradient(135deg,#f8fafc,#eef2f7)] px-3 text-center">
-              {opt.fallbackThumb && (
-                <div className="h-10 w-10 overflow-hidden rounded-full border border-white bg-white shadow-sm">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={opt.fallbackThumb}
-                    alt={`${opt.sub || opt.label}头像`}
-                    className="h-full w-full object-cover opacity-70 grayscale"
-                  />
+            )}
+          </div>
+        </button>
+        <div className="p-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (hasImage && !isSelected) toggle(currentSelected, setCurrentSelected, opt.id);
+              }}
+              disabled={!hasImage || isConfirming}
+              className={`min-w-0 flex-1 text-left ${
+                hasImage && !isSelected ? 'hover:text-[var(--color-primary)]' : 'cursor-default'
+              } disabled:opacity-100`}
+              aria-label={isSelected ? `${opt.label} 已选` : `选择参考：${opt.label}`}
+            >
+              <div className="truncate text-xs text-[var(--color-text)]">{opt.label}</div>
+              {opt.sub && (
+                <div className="text-[10px] text-[var(--color-text-secondary)]">{opt.sub}</div>
+              )}
+            </button>
+            {hasImage && (
+              <button
+                type="button"
+                onClick={() => toggle(currentSelected, setCurrentSelected, opt.id)}
+                disabled={isConfirming}
+                aria-label={isSelected ? `移除引用：${opt.label}` : `选择引用：${opt.label}`}
+                title={isSelected ? '移除引用' : '选择引用'}
+                className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                  isSelected
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
+                    : 'border-gray-300'
+                }`}
+              >
+                {isSelected && <Check className="h-3 w-3" />}
+              </button>
+            )}
+          </div>
+          {!hasImage && opt.styleEditor && (
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => openOptionDetail(opt)}
+                disabled={generating || isConfirming}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-white px-2 py-1.5 text-xs font-medium text-[var(--color-primary)] hover:border-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {generating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ImagePlus className="h-3.5 w-3.5" />
+                )}
+                {generating ? generationLabel : '生成图片'}
+              </button>
+              {generationError && !generating && (
+                <div className="mt-1 line-clamp-2 text-[10px] leading-3 text-red-500">
+                  {generationError}
                 </div>
               )}
-              <div>
-                <div className="text-xs font-medium text-gray-600">
-                  {opt.emptyTitle || '无封面'}
-                </div>
-                {opt.emptyText && (
-                  <div className="mt-1 text-[10px] leading-4 text-gray-400">
-                    {opt.emptyText}
-                  </div>
-                )}
-              </div>
             </div>
           )}
-          {opt.badge && (
-            <span
-              className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[10px] ${
-                opt.thumb ? 'bg-black/60 text-white' : 'bg-white/85 text-gray-500 shadow-sm'
-              }`}
-            >
-              {opt.badge}
-            </span>
-          )}
-        </button>
-        <div className="px-2 py-1.5">
-          <div className="truncate text-xs font-medium">{opt.label}</div>
-          {opt.sub && (
-            <div className="truncate text-[10px] text-gray-500">{opt.sub}</div>
-          )}
-          <button
-            type="button"
-            onClick={() => toggle(currentSelected, setCurrentSelected, opt.id)}
-            disabled={isConfirming}
-            className={`mt-1.5 flex h-7 w-full items-center justify-center gap-1 rounded-md text-xs font-medium transition ${
-              isSelected
-                ? 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {isSelected && <Check className="h-3 w-3" />}
-            {isSelected ? '已添加' : '添加'}
-          </button>
         </div>
-        {isSelected && (
-          <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-primary)] text-white">
-            <Check className="h-3 w-3" />
-          </div>
-        )}
       </div>
     );
   };
