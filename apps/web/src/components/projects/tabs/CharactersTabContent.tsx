@@ -49,6 +49,39 @@ function avatarTaskState(
   return { pending, failed, error, title: statusLabel };
 }
 
+type CharacterStyle = Character['styles'][number];
+
+function styleDisplayImage(style: CharacterStyle): string {
+  return style.image || style.styleResourceImage?.image || '';
+}
+
+function styleDisplayAssetId(style: CharacterStyle): string | null {
+  return style.assetId ?? style.styleResourceImage?.assetId ?? null;
+}
+
+function styleTaskState(
+  style: CharacterStyle,
+  inSessionGenerating: boolean,
+  inSessionError: string | null,
+): { pending: boolean; failed: boolean; error: string | null; label: string | null; title: string | undefined } {
+  const row = style.styleResourceImage;
+  const queued = row?.status === 'QUEUED';
+  const running = row?.status === 'RUNNING';
+  const pending = inSessionGenerating || queued || running;
+  const persistedError = row?.status === 'FAILED' ? row.error || '造型图生成失败' : null;
+  const error = inSessionError || persistedError;
+  const failed = !pending && Boolean(error);
+  const label = queued
+    ? '排队中'
+    : running || inSessionGenerating
+      ? '生成中'
+      : failed
+        ? '生成失败'
+        : null;
+  const title = label ? `${style.name}：${failed && error ? `${label}，${error}` : label}` : undefined;
+  return { pending, failed, error, label, title };
+}
+
 /**
  * Reference screenshots:
  *  - docs/research/likeai-screenshots/p03-tab-characters.png  (analyzed character)
@@ -452,7 +485,12 @@ function InlineText({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => setDraft(value), [value]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDraft(value);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [value]);
 
   const commit = async () => {
     if (draft === value) return;
@@ -510,7 +548,7 @@ interface StylesProps {
 function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
   const [error, setError] = useState<string | null>(null);
   const [openStyleId, setOpenStyleId] = useState<string | null>(null);
-  const { isGenerating } = useGeneration();
+  const { isGenerating, getError } = useGeneration();
 
   const handleAddBlankStyle = async () => {
     setError(null);
@@ -523,7 +561,7 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
         ratio: project.ratio,
       });
       await onChanged();
-      setOpenStyleId(created.id);
+      setOpenStyleId(created.id ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : '创建造型失败');
     }
@@ -541,6 +579,20 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
 
   const opened = openStyleId ? character.styles.find((s) => s.id === openStyleId) ?? null : null;
 
+  useEffect(() => {
+    const hasPendingStyles = character.styles.some((style) =>
+      Boolean(style.id && isGenerating('style', style.id)) ||
+      style.styleResourceImage?.status === 'QUEUED' ||
+      style.styleResourceImage?.status === 'RUNNING',
+    );
+    if (!hasPendingStyles) return;
+
+    const timer = window.setInterval(() => {
+      void onChanged();
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [character.styles, isGenerating, onChanged]);
+
   const buildStyleAutoPrompt = (style: NonNullable<typeof opened>): string => {
     return buildResourceImagePrompt({
       kind: 'character-style',
@@ -557,44 +609,60 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-6 gap-3">
-        {character.styles.map((style, idx) => (
-          <div
-            key={style.id ?? idx}
-            className="group relative rounded-xl overflow-hidden bg-gray-100 cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => style.id && setOpenStyleId(style.id)}
-          >
-            <div className="relative aspect-video flex items-center justify-center">
-              {style.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={style.image} alt={style.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="flex flex-col items-center text-gray-400">
-                  <ImagePlus className="w-8 h-8" />
-                  <span className="text-[11px] mt-1">点击编辑</span>
-                </div>
-              )}
-              {style.id && isGenerating('style', style.id) && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                  <Loader2 className="w-5 h-5 text-white animate-spin" />
-                </div>
+        {character.styles.map((style, idx) => {
+          const displayImage = styleDisplayImage(style);
+          const taskState = style.id
+            ? styleTaskState(style, isGenerating('style', style.id), getError('style', style.id))
+            : { pending: false, failed: false, error: null, label: null, title: undefined };
+          return (
+            <div
+              key={style.id ?? idx}
+              title={taskState.title}
+              className="group relative rounded-xl overflow-hidden bg-gray-100 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => style.id && setOpenStyleId(style.id)}
+            >
+              <div className="relative aspect-video flex items-center justify-center">
+                {displayImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={displayImage} alt={style.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="flex flex-col items-center text-gray-400">
+                    <ImagePlus className="w-8 h-8" />
+                    <span className="text-[11px] mt-1">{taskState.label || '点击编辑'}</span>
+                  </div>
+                )}
+                {taskState.pending && (
+                  <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-1 text-white">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-[11px] font-medium">{taskState.label}</span>
+                  </div>
+                )}
+                {taskState.failed && (
+                  <div
+                    className="absolute right-1.5 top-1.5 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center shadow-sm"
+                    title={taskState.error ?? undefined}
+                  >
+                    <AlertCircle className="w-3 h-3" />
+                  </div>
+                )}
+              </div>
+              <div className="px-2 py-1 bg-gray-700 text-white text-[11px] text-center truncate">
+                {style.name}
+              </div>
+              {style.id && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (style.id) void handleDeleteStyle(style.id);
+                  }}
+                  className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-white/85 text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
               )}
             </div>
-            <div className="px-2 py-1 bg-gray-700 text-white text-[11px] text-center truncate">
-              {style.name}
-            </div>
-            {style.id && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (style.id) void handleDeleteStyle(style.id);
-                }}
-                className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-white/85 text-gray-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-        ))}
+          );
+        })}
 
         {/* "+ 添加造型" tile — opens a blank style detail page */}
         <button
@@ -618,8 +686,8 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
             prompt: opened.prompt ?? '',
             model: opened.model ?? null,
             ratio: opened.ratio ?? null,
-            image: opened.image,
-            assetId: opened.assetId ?? null,
+            image: styleDisplayImage(opened),
+            assetId: styleDisplayAssetId(opened),
           }}
           project={project}
           characterId={character.id}
@@ -629,13 +697,13 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
             const fresh = await updateCharacterStyle(opened.id!, patch);
             await onChanged();
             return {
-              id: fresh.id,
+              id: fresh.id ?? opened.id!,
               name: fresh.name,
               prompt: fresh.prompt,
               model: fresh.model,
               ratio: fresh.ratio,
-              image: fresh.image,
-              assetId: fresh.assetId,
+              image: styleDisplayImage(fresh),
+              assetId: styleDisplayAssetId(fresh),
             };
           }}
           onDelete={async () => {

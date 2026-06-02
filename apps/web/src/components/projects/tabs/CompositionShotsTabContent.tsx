@@ -95,6 +95,7 @@ type CharacterReferenceOption = ReferenceBaseOption & {
   characterName: string;
   characterDescription: string;
   characterBio: string;
+  identityReferenceAssetId: string | null;
   styleName: string;
   prompt: string;
   model: string | null;
@@ -260,6 +261,8 @@ export function CompositionShotsTabContent({
             characterName: character.name,
             characterDescription: character.description,
             characterBio: character.bio,
+            identityReferenceAssetId:
+              character.identityAssetId ?? character.avatarAssetId ?? character.avatarResourceImage?.assetId ?? null,
             styleName: style.name,
             prompt: style.prompt ?? '',
             model: style.model ?? null,
@@ -2448,6 +2451,7 @@ function ReferencePickerDialog({
           entity={editorConfig.entity}
           project={project}
           characterId={editorConfig.characterId}
+          identityReferenceAssetId={editorConfig.identityReferenceAssetId}
           buildAutoPrompt={editorConfig.buildAutoPrompt}
           onSave={editorConfig.onSave}
           onClose={() => setEditingOption(null)}
@@ -2519,6 +2523,7 @@ type ReferenceEditorConfig = {
   kind: 'style' | 'scene' | 'item';
   entity: EntityDetailData;
   characterId?: string;
+  identityReferenceAssetId?: string | null;
   buildAutoPrompt: () => string;
   onSave: (patch: EntitySavePatch) => Promise<EntityDetailData>;
 };
@@ -2553,6 +2558,7 @@ function referenceEditorConfig({
     return {
       kind: 'style',
       characterId: characterOption.characterId,
+      identityReferenceAssetId: characterOption.identityReferenceAssetId,
       entity: {
         id: characterOption.id,
         name: characterOption.styleName,

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { Prisma } from '@prisma/client';
 import { zValidator } from '../middleware/validator';
 import { prisma } from '../lib/prisma.js';
 import { tryReadUser, requireUser } from '../middleware/auth.js';
@@ -11,6 +12,17 @@ import {
 } from '@oneness/shared/schemas';
 
 export const sceneRoutes = new Hono();
+
+const sceneInclude = {
+  asset: true,
+  resourceImages: {
+    where: { kind: 'scene' },
+    include: { asset: true, task: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: 1,
+  },
+} satisfies Prisma.SceneInclude;
+
 sceneRoutes.use('/projects/:id/scenes', tryReadUser, requireUser);
 sceneRoutes.use('/scenes/:id', tryReadUser, requireUser);
 
@@ -29,7 +41,7 @@ sceneRoutes.get(
     }
     const scenes = await prisma.scene.findMany({
       where: { projectId },
-      include: { asset: true },
+      include: sceneInclude,
       orderBy: { createdAt: 'asc' },
     });
     return c.json(await Promise.all(scenes.map(serializeScene)));
@@ -62,7 +74,7 @@ sceneRoutes.post(
         ratio: body.ratio ?? null,
         assetId: body.assetId ?? null,
       },
-      include: { asset: true },
+      include: sceneInclude,
     });
     return c.json(await serializeScene(created), 201);
   },
@@ -90,7 +102,7 @@ sceneRoutes.patch(
     const updated = await prisma.scene.update({
       where: { id: existing.id },
       data,
-      include: { asset: true },
+      include: sceneInclude,
     });
     return c.json(await serializeScene(updated));
   },
@@ -111,7 +123,7 @@ sceneRoutes.delete(
 async function loadOwnedScene(id: string, userId: string) {
   const row = await prisma.scene.findFirst({
     where: { id, project: { ownerId: userId } },
-    include: { asset: true },
+    include: sceneInclude,
   });
   if (!row) throw AppError.notFound(ErrorCodes.SCENE_NOT_FOUND, 'scene not found');
   return row;

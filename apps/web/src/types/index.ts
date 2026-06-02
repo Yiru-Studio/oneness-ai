@@ -53,6 +53,7 @@ export interface Character {
     model?: string | null;
     ratio?: string | null;
     assetId?: string | null;
+    styleResourceImage?: ResourceImage | null;
   }>;
   avatarResourceImage?: ResourceImage | null;
 }
@@ -78,6 +79,7 @@ export interface Scene {
   ratio?: string | null;
   assetId?: string | null;
   image: string;
+  sceneResourceImage?: ResourceImage | null;
 }
 
 export type ResourceImageKind = 'character-avatar' | 'character-style' | 'scene' | 'item';

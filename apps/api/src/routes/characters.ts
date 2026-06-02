@@ -16,7 +16,15 @@ export const characterRoutes = new Hono();
 
 const characterInclude = {
   styles: {
-    include: { asset: true },
+    include: {
+      asset: true,
+      resourceImages: {
+        where: { kind: 'character-style' },
+        include: { asset: true, task: true },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 1,
+      },
+    },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   },
   avatar: true,

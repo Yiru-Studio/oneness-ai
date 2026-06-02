@@ -147,16 +147,8 @@ export async function createCharacterStyle(
     ratio?: string | null;
     assetId?: string | null;
   },
-): Promise<{
-  id: string;
-  name: string;
-  image: string;
-  prompt: string;
-  model: string | null;
-  ratio: string | null;
-  assetId: string | null;
-}> {
-  return await apiFetch(`/api/characters/${characterId}/styles`, {
+): Promise<Character['styles'][number]> {
+  return await apiFetch<Character['styles'][number]>(`/api/characters/${characterId}/styles`, {
     method: 'POST',
     body: data,
   });
@@ -171,16 +163,8 @@ export async function updateCharacterStyle(
     ratio: string | null;
     assetId: string | null;
   }>,
-): Promise<{
-  id: string;
-  name: string;
-  image: string;
-  prompt: string;
-  model: string | null;
-  ratio: string | null;
-  assetId: string | null;
-}> {
-  return await apiFetch(`/api/character-styles/${styleId}`, {
+): Promise<Character['styles'][number]> {
+  return await apiFetch<Character['styles'][number]>(`/api/character-styles/${styleId}`, {
     method: 'PATCH',
     body: data,
   });

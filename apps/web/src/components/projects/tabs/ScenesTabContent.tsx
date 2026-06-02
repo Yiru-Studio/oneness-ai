@@ -2,7 +2,7 @@
 
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 import { Scene, Project } from '@/types';
-import { Plus, Trash2, Loader2, ImagePlus, X } from 'lucide-react';
+import { Plus, Trash2, Loader2, ImagePlus, X, AlertCircle } from 'lucide-react';
 import {
   createScene,
   deleteScene,
@@ -20,6 +20,29 @@ interface Props {
   onChange: Dispatch<SetStateAction<Scene[]>>;
 }
 
+function sceneTaskState(
+  scene: Scene,
+  inSessionGenerating: boolean,
+  inSessionError: string | null,
+): { pending: boolean; failed: boolean; error: string | null; label: string | null; title: string | undefined } {
+  const row = scene.sceneResourceImage;
+  const queued = row?.status === 'QUEUED';
+  const running = row?.status === 'RUNNING';
+  const pending = inSessionGenerating || queued || running;
+  const persistedError = row?.status === 'FAILED' ? row.error || '场景图生成失败' : null;
+  const error = inSessionError || persistedError;
+  const failed = !pending && Boolean(error);
+  const label = queued
+    ? '排队中'
+    : running || inSessionGenerating
+      ? '生成中'
+      : failed
+        ? '生成失败'
+        : null;
+  const title = label ? `${scene.name}：${failed && error ? `${label}，${error}` : label}` : undefined;
+  return { pending, failed, error, label, title };
+}
+
 /**
  * Scenes tab — grid of cards. Clicking a card opens the secondary detail
  * drawer with prompt + model + ratio editor.
@@ -29,7 +52,7 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { isGenerating } = useGeneration();
+  const { isGenerating, getError } = useGeneration();
 
   const clearBusy = (key: string) => {
     setBusy((current) => (current === key ? null : current));
@@ -77,6 +100,20 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
 
   const opened = openId ? scenes.find((s) => s.id === openId) ?? null : null;
 
+  useEffect(() => {
+    const hasPendingScenes = scenes.some((scene) =>
+      isGenerating('scene', scene.id) ||
+      scene.sceneResourceImage?.status === 'QUEUED' ||
+      scene.sceneResourceImage?.status === 'RUNNING',
+    );
+    if (!hasPendingScenes) return;
+
+    const timer = window.setInterval(() => {
+      void getProjectScenes(project.id).then(onChange).catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [scenes, isGenerating, onChange, project.id]);
+
   const buildAutoPrompt = (scene: Scene): string => {
     const stem = scene.name.replace(/^(INT|EXT)\.?\s*/i, '').split(/\s*[-–]\s*/)[0];
     const ctxLines = scriptContent
@@ -108,51 +145,69 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
           <span className="text-sm">添加场景</span>
         </button>
 
-        {scenes.map((scene) => (
-          <div
-            key={scene.id}
-            className="group relative rounded-xl overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => setOpenId(scene.id)}
-          >
-            <div className={`${aspect} flex items-center justify-center relative`}>
-              {scene.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={scene.image} alt={scene.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="flex flex-col items-center text-gray-400">
-                  <ImagePlus className="w-8 h-8" />
-                  <span className="text-xs mt-1">点击编辑</span>
-                </div>
-              )}
-              {isGenerating('scene', scene.id) && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                  <Loader2 className="w-6 h-6 text-white animate-spin" />
-                </div>
-              )}
-            </div>
-            <div className="px-3 py-2 bg-gray-700 text-white text-xs text-center truncate" title={scene.name}>
-              {scene.name}
-            </div>
-
-            <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void handleDelete(scene.id);
-                }}
-                disabled={busy === `del-${scene.id}`}
-                className="w-7 h-7 rounded-md bg-white/95 text-gray-600 hover:text-red-500 flex items-center justify-center shadow-sm"
-                title="删除"
-              >
-                {busy === `del-${scene.id}` ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        {scenes.map((scene) => {
+          const sceneTask = sceneTaskState(
+            scene,
+            isGenerating('scene', scene.id),
+            getError('scene', scene.id),
+          );
+          const displayImage = scene.image || scene.sceneResourceImage?.image || '';
+          return (
+            <div
+              key={scene.id}
+              title={sceneTask.title}
+              className="group relative rounded-xl overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => setOpenId(scene.id)}
+            >
+              <div className={`${aspect} flex items-center justify-center relative`}>
+                {displayImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={displayImage} alt={scene.name} className="w-full h-full object-cover" />
                 ) : (
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <div className="flex flex-col items-center text-gray-400">
+                    <ImagePlus className="w-8 h-8" />
+                    <span className="text-xs mt-1">{sceneTask.label || '点击编辑'}</span>
+                  </div>
                 )}
-              </button>
+                {sceneTask.pending && (
+                  <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2 text-white">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <span className="text-xs font-medium">{sceneTask.label}</span>
+                  </div>
+                )}
+                {sceneTask.failed && (
+                  <div
+                    className="absolute right-2 top-2 w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center shadow-sm"
+                    title={sceneTask.error ?? undefined}
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                  </div>
+                )}
+              </div>
+              <div className="px-3 py-2 bg-gray-700 text-white text-xs text-center truncate" title={scene.name}>
+                {scene.name}
+              </div>
+
+              <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleDelete(scene.id);
+                  }}
+                  disabled={busy === `del-${scene.id}`}
+                  className="w-7 h-7 rounded-md bg-white/95 text-gray-600 hover:text-red-500 flex items-center justify-center shadow-sm"
+                  title="删除"
+                >
+                  {busy === `del-${scene.id}` ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {error && <div className="text-sm text-red-600 mt-4">{error}</div>}
@@ -163,7 +218,11 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
         <EntityDetailDrawer
           open
           kind="scene"
-          entity={opened}
+          entity={{
+            ...opened,
+            image: opened.image || opened.sceneResourceImage?.image || '',
+            assetId: opened.assetId ?? opened.sceneResourceImage?.assetId ?? null,
+          }}
           project={project}
           buildAutoPrompt={() => buildAutoPrompt(opened)}
           onSave={async (patch) => {
@@ -195,13 +254,12 @@ function AddSceneModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isOpen) {
-      setName('');
-      setBusy(false);
-      setError(null);
-    }
-  }, [isOpen]);
+  const closeAndReset = () => {
+    setName('');
+    setBusy(false);
+    setError(null);
+    onClose();
+  };
 
   const handleConfirm = async () => {
     if (!name.trim()) {
@@ -212,7 +270,7 @@ function AddSceneModal({
     setError(null);
     try {
       await onCreate({ name: name.trim() });
-      onClose();
+      closeAndReset();
     } catch (e) {
       setError(e instanceof Error ? e.message : '保存失败');
     } finally {
@@ -223,14 +281,14 @@ function AddSceneModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40" onClick={closeAndReset}>
       <div
         className="bg-white rounded-xl p-6 w-[420px] relative shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold">添加场景</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={closeAndReset} className="text-gray-400 hover:text-gray-600">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -258,7 +316,7 @@ function AddSceneModal({
 
           <div className="flex justify-end gap-2 pt-2">
             <button
-              onClick={onClose}
+              onClick={closeAndReset}
               className="px-4 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:bg-gray-50"
             >
               取消

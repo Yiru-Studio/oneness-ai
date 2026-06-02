@@ -1,8 +1,10 @@
 import { Hono } from 'hono';
+import type { Prisma } from '@prisma/client';
 import { zValidator } from '../middleware/validator';
 import { prisma } from '../lib/prisma.js';
 import { tryReadUser, requireUser } from '../middleware/auth.js';
 import { presignGet } from '../lib/assets.js';
+import { serializeResourceImage, type ResourceImageDTO } from '../serializers/resource-image.js';
 import { AppError, ErrorCodes } from '@oneness/shared/errors';
 import {
   CreateCharacterStyleSchema,
@@ -10,11 +12,22 @@ import {
   IdParamSchema,
 } from '@oneness/shared/schemas';
 import type { CharacterStyle, Asset } from '@oneness/shared/prisma';
+import type { ResourceImage, Task } from '@oneness/shared/prisma';
 
 export const characterStyleRoutes = new Hono();
 
 characterStyleRoutes.use('/characters/:id/styles', tryReadUser, requireUser);
 characterStyleRoutes.use('/character-styles/:id', tryReadUser, requireUser);
+
+const styleInclude = {
+  asset: true,
+  resourceImages: {
+    where: { kind: 'character-style' },
+    include: { asset: true, task: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: 1,
+  },
+} satisfies Prisma.CharacterStyleInclude;
 
 type StyleDTO = {
   id: string;
@@ -24,9 +37,22 @@ type StyleDTO = {
   model: string | null;
   ratio: string | null;
   assetId: string | null;
+  styleResourceImage: ResourceImageDTO | null;
 };
 
-async function toDTO(style: CharacterStyle & { asset: Asset | null }): Promise<StyleDTO> {
+type ResourceImageWithRelations = ResourceImage & {
+  asset: Asset | null;
+  task: Task | null;
+};
+type StyleWithRelations = CharacterStyle & {
+  asset: Asset | null;
+  resourceImages?: ResourceImageWithRelations[];
+};
+
+async function toDTO(style: StyleWithRelations): Promise<StyleDTO> {
+  const styleResourceImage = style.resourceImages?.[0]
+    ? await serializeResourceImage(style.resourceImages[0])
+    : null;
   return {
     id: style.id,
     name: style.name,
@@ -35,6 +61,7 @@ async function toDTO(style: CharacterStyle & { asset: Asset | null }): Promise<S
     model: style.model ?? null,
     ratio: style.ratio ?? null,
     assetId: style.assetId ?? null,
+    styleResourceImage,
   };
 }
 
@@ -64,7 +91,7 @@ characterStyleRoutes.post(
         ratio: body.ratio ?? null,
         assetId: body.assetId ?? null,
       },
-      include: { asset: true },
+      include: styleInclude,
     });
     return c.json(await toDTO(style), 201);
   },
@@ -92,7 +119,7 @@ characterStyleRoutes.patch(
     const updated = await prisma.characterStyle.update({
       where: { id: existing.id },
       data,
-      include: { asset: true },
+      include: styleInclude,
     });
     return c.json(await toDTO(updated));
   },
@@ -114,7 +141,7 @@ characterStyleRoutes.delete(
 async function loadOwnedStyle(id: string, userId: string) {
   const row = await prisma.characterStyle.findFirst({
     where: { id, character: { project: { ownerId: userId } } },
-    include: { asset: true },
+    include: styleInclude,
   });
   if (!row) {
     throw AppError.notFound(ErrorCodes.NOT_FOUND, 'character style not found');

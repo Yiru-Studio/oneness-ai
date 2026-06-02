@@ -10,6 +10,7 @@ export type CharacterStyleDTO = {
   model: string | null;
   ratio: string | null;
   assetId: string | null;
+  styleResourceImage: ResourceImageDTO | null;
 };
 export type CharacterDTO = {
   id: string;
@@ -26,10 +27,13 @@ export type CharacterDTO = {
   styles: CharacterStyleDTO[];
 };
 
-type StyleWithAsset = CharacterStyle & { asset: Asset | null };
 type ResourceImageWithRelations = ResourceImage & {
   asset: Asset | null;
   task: Task | null;
+};
+type StyleWithAsset = CharacterStyle & {
+  asset: Asset | null;
+  resourceImages?: ResourceImageWithRelations[];
 };
 type CharacterWithStyles = Character & {
   styles: StyleWithAsset[];
@@ -40,15 +44,21 @@ type CharacterWithStyles = Character & {
 export async function serializeCharacter(c: CharacterWithStyles): Promise<CharacterDTO> {
   const avatar = c.avatar ? await presignGet(c.avatar.bucket, c.avatar.key) : '';
   const styles = await Promise.all(
-    c.styles.map(async (s) => ({
-      id: s.id,
-      name: s.name,
-      image: s.asset ? await presignGet(s.asset.bucket, s.asset.key) : '',
-      prompt: s.prompt ?? '',
-      model: s.model ?? null,
-      ratio: s.ratio ?? null,
-      assetId: s.assetId ?? null,
-    })),
+    c.styles.map(async (s) => {
+      const styleResourceImage = s.resourceImages?.[0]
+        ? await serializeResourceImage(s.resourceImages[0])
+        : null;
+      return {
+        id: s.id,
+        name: s.name,
+        image: s.asset ? await presignGet(s.asset.bucket, s.asset.key) : '',
+        prompt: s.prompt ?? '',
+        model: s.model ?? null,
+        ratio: s.ratio ?? null,
+        assetId: s.assetId ?? null,
+        styleResourceImage,
+      };
+    }),
   );
   const avatarResourceImage = c.resourceImages?.[0]
     ? await serializeResourceImage(c.resourceImages[0])
