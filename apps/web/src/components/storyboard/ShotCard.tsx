@@ -216,9 +216,13 @@ export function ShotCard({
         onClose={() => setSketchDrawerOpen(false)}
         project={project}
         shot={shot}
+        characters={characters}
+        scenes={scenes}
+        items={items}
         compositionTasks={compositionTasks}
         busy={editingDisabled}
         onError={onError}
+        onRefreshReferences={onRefreshReferences}
         onRefreshShots={onRefreshShots}
         onRefreshCompositionTasks={onRefreshCompositionTasks}
       />

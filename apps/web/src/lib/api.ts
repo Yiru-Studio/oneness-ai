@@ -572,6 +572,8 @@ export async function generateShotSketch(
 export type ShotSketchReferenceAsset = AssetDTO & {
   label: string;
   source: 'composition' | 'character' | 'scene' | 'item';
+  sourceId: string | null;
+  removable: boolean;
 };
 
 export type ShotSketchContext = {

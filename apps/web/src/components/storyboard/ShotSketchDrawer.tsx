@@ -8,12 +8,13 @@ import {
   Image as ImageIcon,
   ImagePlus,
   Loader2,
+  Plus,
   RefreshCcw,
   Trash2,
   Wand2,
   X,
 } from 'lucide-react';
-import { CompositionCandidate, CompositionTask, CompositionTaskRuns, Project, Shot, ShotAssetRef } from '@/types';
+import { Character, CompositionCandidate, CompositionTask, CompositionTaskRuns, Item, Project, Scene, Shot, ShotAssetRef } from '@/types';
 import {
   generateShotSketch,
   getCompositionTaskRuns,
@@ -23,7 +24,8 @@ import {
   type ShotSketchContext,
   type ShotSketchReferenceAsset,
 } from '@/lib/api';
-import { IMAGE_MODEL_OPTIONS, imageModelLabel } from '@/data/style-presets';
+import { IMAGE_MODEL_OPTIONS } from '@/data/style-presets';
+import { ReferencePickerDialog } from './ReferencePickerDialog';
 
 type ExistingImage = {
   id: string;
@@ -39,9 +41,13 @@ interface Props {
   onClose: () => void;
   project: Project;
   shot: Shot;
+  characters: Character[];
+  scenes: Scene[];
+  items: Item[];
   compositionTasks: CompositionTask[];
   busy: boolean;
   onError: (message: string) => void;
+  onRefreshReferences: () => Promise<void>;
   onRefreshShots: () => Promise<Shot[]>;
   onRefreshCompositionTasks: () => Promise<CompositionTask[]>;
 }
@@ -61,14 +67,43 @@ const SOURCE_LABEL: Record<ShotSketchReferenceAsset['source'], string> = {
   item: '道具',
 };
 
+function buildReferenceRemovalPatch(
+  shot: Shot,
+  reference: ShotSketchReferenceAsset,
+): Partial<Shot> | null {
+  if (!reference.sourceId) return null;
+  if (reference.source === 'composition') {
+    return {
+      compositionTaskIds: shot.compositionTaskIds.filter((id) => id !== reference.sourceId),
+    };
+  }
+  if (reference.source === 'character') {
+    return {
+      characterStyleIds: shot.characterStyleIds.filter((id) => id !== reference.sourceId),
+    };
+  }
+  if (reference.source === 'scene') {
+    return {
+      sceneIds: shot.sceneIds.filter((id) => id !== reference.sourceId),
+    };
+  }
+  return {
+    itemIds: shot.itemIds.filter((id) => id !== reference.sourceId),
+  };
+}
+
 export function ShotSketchDrawer({
   open,
   onClose,
   project,
   shot,
+  characters,
+  scenes,
+  items,
   compositionTasks,
   busy,
   onError,
+  onRefreshReferences,
   onRefreshShots,
   onRefreshCompositionTasks,
 }: Props) {
@@ -81,6 +116,7 @@ export function ShotSketchDrawer({
   const [promptDraft, setPromptDraft] = useState(shot.prompt);
   const [model, setModel] = useState(project.imageModel);
   const [ratio, setRatio] = useState(project.ratio);
+  const [referencePickerOpen, setReferencePickerOpen] = useState(false);
   const activeContextShotRef = useRef<string | null>(null);
 
   const compositionTask = useMemo(
@@ -192,6 +228,41 @@ export function ShotSketchDrawer({
       await onRefreshShots();
     } catch (error) {
       onError(error instanceof Error ? error.message : '移除主分镜图失败');
+    } finally {
+      setLocalBusy(false);
+    }
+  };
+
+  const handleConfirmReferences = async (next: {
+    compositionTaskIds: string[];
+    characterStyleIds: string[];
+    sceneIds: string[];
+    itemIds: string[];
+  }) => {
+    setLocalBusy(true);
+    try {
+      await updateShot(shot.id, next);
+      await onRefreshShots();
+      await loadContextAndRuns();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : '保存生成参考图失败');
+      throw error;
+    } finally {
+      setLocalBusy(false);
+    }
+  };
+
+  const handleRemoveReference = async (reference: ShotSketchReferenceAsset) => {
+    if (!reference.removable || !reference.sourceId) return;
+    const patch = buildReferenceRemovalPatch(shot, reference);
+    if (!patch) return;
+    setLocalBusy(true);
+    try {
+      await updateShot(shot.id, patch);
+      await onRefreshShots();
+      await loadContextAndRuns();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : '移除生成参考图失败');
     } finally {
       setLocalBusy(false);
     }
@@ -316,7 +387,13 @@ export function ShotSketchDrawer({
                     {contextLoading ? '加载中...' : `${context?.referenceAssets.length ?? 0} 张`}
                   </span>
                 </div>
-                <ReferenceStrip references={context?.referenceAssets ?? []} loading={contextLoading} />
+                <ReferenceStrip
+                  references={context?.referenceAssets ?? []}
+                  loading={contextLoading}
+                  disabled={disabled}
+                  onAdd={() => setReferencePickerOpen(true)}
+                  onRemove={(reference) => void handleRemoveReference(reference)}
+                />
               </div>
 
               <div className="border-t border-[var(--color-border)] p-4">
@@ -409,6 +486,23 @@ export function ShotSketchDrawer({
           </div>
         </div>
       </aside>
+      <ReferencePickerDialog
+        isOpen={referencePickerOpen}
+        onClose={() => setReferencePickerOpen(false)}
+        characters={characters}
+        scenes={scenes}
+        items={items}
+        compositionTasks={compositionTasks}
+        project={project}
+        selected={{
+          compositionTaskIds: shot.compositionTaskIds,
+          characterStyleIds: shot.characterStyleIds,
+          sceneIds: shot.sceneIds,
+          itemIds: shot.itemIds,
+        }}
+        onRefreshReferences={onRefreshReferences}
+        onConfirm={handleConfirmReferences}
+      />
     </div>
   );
 }
@@ -447,27 +541,34 @@ function StatusBadge({
 function ReferenceStrip({
   references,
   loading,
+  disabled,
+  onAdd,
+  onRemove,
 }: {
   references: ShotSketchReferenceAsset[];
   loading: boolean;
+  disabled: boolean;
+  onAdd: () => void;
+  onRemove: (reference: ShotSketchReferenceAsset) => void;
 }) {
   if (loading) {
     return (
-      <div className="flex h-[112px] items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        正在匹配参考图…
-      </div>
-    );
-  }
-  if (references.length === 0) {
-    return (
-      <div className="flex h-[112px] items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500">
-        暂无可用参考图，将仅使用提示词生成。
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        <div className="flex h-[112px] w-[224px] shrink-0 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          正在匹配参考图…
+        </div>
+        <AddReferenceButton disabled={disabled} onClick={onAdd} />
       </div>
     );
   }
   return (
     <div className="flex gap-3 overflow-x-auto pb-1">
+      {references.length === 0 && (
+        <div className="flex h-[112px] w-[224px] shrink-0 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 text-center text-sm text-gray-500">
+          暂无可用参考图，将仅使用提示词生成。
+        </div>
+      )}
       {references.map((reference) => (
         <div
           key={reference.id}
@@ -479,12 +580,45 @@ function ReferenceStrip({
           <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[11px] font-medium text-white">
             {SOURCE_LABEL[reference.source]}
           </span>
+          {reference.removable ? (
+            <button
+              type="button"
+              onClick={() => onRemove(reference)}
+              disabled={disabled}
+              className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white opacity-100 transition-colors hover:bg-red-500 disabled:opacity-40 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100"
+              aria-label={`移除参考图：${reference.label}`}
+              title="移除参考图"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ) : (
+            <span className="absolute right-1.5 top-1.5 rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 shadow-sm">
+              自动
+            </span>
+          )}
           <span className="absolute inset-x-0 bottom-0 truncate bg-black/70 px-2 py-1.5 text-xs font-medium text-white">
             {reference.label}
           </span>
         </div>
       ))}
+      <AddReferenceButton disabled={disabled} onClick={onAdd} />
     </div>
+  );
+}
+
+function AddReferenceButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex h-[112px] w-[112px] shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 text-gray-600 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
+      aria-label="添加生成参考图"
+      title="添加生成参考图"
+    >
+      <Plus className="h-6 w-6" />
+      <span className="text-xs font-medium">添加参考图</span>
+    </button>
   );
 }
 

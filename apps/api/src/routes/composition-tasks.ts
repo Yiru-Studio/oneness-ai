@@ -90,6 +90,8 @@ type ReferenceLibrary = Awaited<ReturnType<typeof loadReferenceLibrary>>;
 type ShotSketchReferenceAssetDTO = AssetDTO & {
   label: string;
   source: 'composition' | 'character' | 'scene' | 'item';
+  sourceId: string | null;
+  removable: boolean;
 };
 
 compositionTaskRoutes.get('/projects/:id/composition-tasks', async (c) => {
@@ -1706,9 +1708,15 @@ function buildGridPrompt(
 
 async function resolveReferenceAssetIds(
   projectId: string,
-  refs: { characterStyleIds: string[]; sceneIds: string[]; itemIds: string[] },
+  refs: { compositionTaskIds?: string[]; characterStyleIds: string[]; sceneIds: string[]; itemIds: string[] },
 ): Promise<string[]> {
-  const [styles, scenes, items] = await Promise.all([
+  const [compositionTasks, styles, scenes, items] = await Promise.all([
+    refs.compositionTaskIds?.length
+      ? prisma.compositionTask.findMany({
+          where: { id: { in: refs.compositionTaskIds }, projectId },
+          include: COMPOSITION_INCLUDE,
+        })
+      : Promise.resolve([]),
     prisma.characterStyle.findMany({
       where: { id: { in: refs.characterStyleIds }, character: { projectId } },
       select: {
@@ -1726,6 +1734,7 @@ async function resolveReferenceAssetIds(
     }),
   ]);
   return uniqueAssetIds([
+    ...compositionTasks.map(currentCompositionImageAssetId),
     ...styles.flatMap((row) => [
       row.character?.identityAssetId ?? row.character?.avatarAssetId ?? null,
       row.assetId,
@@ -1738,10 +1747,11 @@ async function resolveReferenceAssetIds(
 async function buildShotSketchReferenceAssetIds(
   projectId: string,
   compositionTask: { characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
-  shot: { characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
+  shot: { compositionTaskIds?: unknown; characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
   compositionImageAssetId: string | null,
 ): Promise<string[]> {
   const assetIds = await resolveReferenceAssetIds(projectId, {
+    compositionTaskIds: jsonStringArray(shot.compositionTaskIds),
     characterStyleIds: uniqueStrings([
       ...jsonStringArray(shot.characterStyleIds),
       ...jsonStringArray(compositionTask.characterStyleIds),
@@ -1765,23 +1775,34 @@ async function serializeShotSketchReferenceAssets(
   projectId: string,
   referenceAssetIds: string[],
   compositionTask: { characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
-  shot: { characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
+  shot: { compositionTaskIds?: unknown; characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
   compositionImageAssetId: string | null,
 ): Promise<ShotSketchReferenceAssetDTO[]> {
   if (referenceAssetIds.length === 0) return [];
-  const [assets, styles, sceneRows, itemRows] = await Promise.all([
+  const shotCompositionTaskIds = jsonStringArray(shot.compositionTaskIds);
+  const shotStyleIds = jsonStringArray(shot.characterStyleIds);
+  const shotSceneIds = jsonStringArray(shot.sceneIds);
+  const shotItemIds = jsonStringArray(shot.itemIds);
+  const [assets, selectedCompositionTasks, styles, sceneRows, itemRows] = await Promise.all([
     prisma.asset.findMany({ where: { id: { in: referenceAssetIds } } }),
+    shotCompositionTaskIds.length
+      ? prisma.compositionTask.findMany({
+          where: { id: { in: shotCompositionTaskIds }, projectId },
+          include: COMPOSITION_INCLUDE,
+        })
+      : Promise.resolve([]),
     prisma.characterStyle.findMany({
       where: {
         id: {
           in: uniqueStrings([
-            ...jsonStringArray(shot.characterStyleIds),
+            ...shotStyleIds,
             ...jsonStringArray(compositionTask.characterStyleIds),
           ]),
         },
         character: { projectId },
       },
       select: {
+        id: true,
         name: true,
         assetId: true,
         character: {
@@ -1797,31 +1818,58 @@ async function serializeShotSketchReferenceAssets(
       where: {
         id: {
           in: uniqueStrings([
-            ...jsonStringArray(shot.sceneIds),
+            ...shotSceneIds,
             ...jsonStringArray(compositionTask.sceneIds),
           ]),
         },
         projectId,
       },
-      select: { name: true, assetId: true },
+      select: { id: true, name: true, assetId: true },
     }),
     prisma.item.findMany({
       where: {
         id: {
           in: uniqueStrings([
-            ...jsonStringArray(shot.itemIds),
+            ...shotItemIds,
             ...jsonStringArray(compositionTask.itemIds),
           ]),
         },
         projectId,
       },
-      select: { name: true, assetId: true },
+      select: { id: true, name: true, assetId: true },
     }),
   ]);
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
-  const metaByAssetId = new Map<string, { label: string; source: ShotSketchReferenceAssetDTO['source'] }>();
+  const metaByAssetId = new Map<
+    string,
+    Pick<ShotSketchReferenceAssetDTO, 'label' | 'source' | 'sourceId' | 'removable'>
+  >();
+  const setMeta = (
+    assetId: string | null | undefined,
+    meta: Pick<ShotSketchReferenceAssetDTO, 'label' | 'source' | 'sourceId' | 'removable'>,
+  ) => {
+    if (!assetId) return;
+    const existing = metaByAssetId.get(assetId);
+    if (!existing || (!existing.removable && meta.removable)) {
+      metaByAssetId.set(assetId, meta);
+    }
+  };
   if (compositionImageAssetId) {
-    metaByAssetId.set(compositionImageAssetId, { label: '当前场景图', source: 'composition' });
+    setMeta(compositionImageAssetId, {
+      label: '当前场景图',
+      source: 'composition',
+      sourceId: null,
+      removable: false,
+    });
+  }
+  for (const task of selectedCompositionTasks) {
+    const assetId = currentCompositionImageAssetId(task);
+    setMeta(assetId, {
+      label: `第${task.sceneIndex + 1}场 · ${task.title}`,
+      source: 'composition',
+      sourceId: task.id,
+      removable: true,
+    });
   }
   for (const style of styles) {
     const label = `${style.character.name}${style.name ? ` - ${style.name}` : ''}`;
@@ -1829,14 +1877,29 @@ async function serializeShotSketchReferenceAssets(
       style.character.identityAssetId ?? style.character.avatarAssetId ?? null,
       style.assetId,
     ])) {
-      metaByAssetId.set(assetId, { label, source: 'character' });
+      setMeta(assetId, {
+        label,
+        source: 'character',
+        sourceId: style.id,
+        removable: shotStyleIds.includes(style.id),
+      });
     }
   }
   for (const scene of sceneRows) {
-    if (scene.assetId) metaByAssetId.set(scene.assetId, { label: scene.name, source: 'scene' });
+    setMeta(scene.assetId, {
+      label: scene.name,
+      source: 'scene',
+      sourceId: scene.id,
+      removable: shotSceneIds.includes(scene.id),
+    });
   }
   for (const item of itemRows) {
-    if (item.assetId) metaByAssetId.set(item.assetId, { label: item.name, source: 'item' });
+    setMeta(item.assetId, {
+      label: item.name,
+      source: 'item',
+      sourceId: item.id,
+      removable: shotItemIds.includes(item.id),
+    });
   }
 
   const serialized = await Promise.all(
@@ -1844,7 +1907,12 @@ async function serializeShotSketchReferenceAssets(
       const asset = assetById.get(assetId);
       if (!asset) return null;
       const dto = await serializeAsset(asset);
-      const meta = metaByAssetId.get(assetId) ?? { label: '参考图', source: 'composition' as const };
+      const meta = metaByAssetId.get(assetId) ?? {
+        label: '参考图',
+        source: 'composition' as const,
+        sourceId: null,
+        removable: false,
+      };
       return { ...dto, ...meta };
     }),
   );
