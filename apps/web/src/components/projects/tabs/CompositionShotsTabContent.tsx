@@ -821,6 +821,7 @@ export function CompositionShotsTabContent({
                     task={panelTask}
                     index={panelTaskIndex}
                     active
+                    projectRatio={project.ratio}
                     promptDraft={panelTaskPromptDraft}
                     imageSettings={panelTaskSettings}
                     imageRun={panelTaskImageRun}
@@ -1115,6 +1116,7 @@ function CompositionTaskRow({
   task,
   index,
   active,
+  projectRatio,
   promptDraft,
   imageSettings,
   imageRun,
@@ -1132,6 +1134,7 @@ function CompositionTaskRow({
   task: CompositionTask;
   index: number;
   active: boolean;
+  projectRatio: string;
   promptDraft: string;
   imageSettings: ImageSettings;
   imageRun: CompositionImageRun | null;
@@ -1199,6 +1202,7 @@ function CompositionTaskRow({
         <SceneImageColumn
           task={task}
           imageRun={imageRun}
+          projectRatio={projectRatio}
           imageSettings={imageSettings}
           busy={busy}
           onImageSettingsChange={onImageSettingsChange}
@@ -1325,6 +1329,7 @@ function ReferenceColumn({
 function SceneImageColumn({
   task,
   imageRun,
+  projectRatio,
   imageSettings,
   busy,
   onImageSettingsChange,
@@ -1333,6 +1338,7 @@ function SceneImageColumn({
 }: {
   task: CompositionTask;
   imageRun: CompositionImageRun | null;
+  projectRatio: string;
   imageSettings: ImageSettings;
   busy: string | null;
   onImageSettingsChange: (next: ImageSettings) => void;
@@ -1356,6 +1362,8 @@ function SceneImageColumn({
             ? '重新生成场景图'
             : '生成场景图';
   const imageUrl = imageRun?.image?.url ?? task.image?.url ?? null;
+  const previewRatio = imageSettings.ratio || imageRun?.ratio || projectRatio || '16:9';
+  const previewAspectClassName = previewRatioClassName(previewRatio);
   const scenePreviewClassName = imageUrl
     ? 'bg-gray-950 text-gray-400'
     : 'border-2 border-dashed border-gray-300 bg-gray-50 px-4 text-center text-gray-600 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]';
@@ -1380,11 +1388,11 @@ function SceneImageColumn({
       <button
         type="button"
         onClick={() => onOpenDetail('image')}
-        className={`flex min-h-[360px] w-full flex-1 items-center justify-center overflow-hidden rounded-lg text-sm ${scenePreviewClassName}`}
+        className={`relative flex w-full max-h-[clamp(360px,42vh,520px)] items-center justify-center overflow-hidden rounded-lg text-sm ${previewAspectClassName} ${scenePreviewClassName}`}
       >
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={task.title} className="h-full w-full object-contain" />
+          <img src={imageUrl} alt={task.title} className="max-h-full max-w-full object-contain" />
         ) : imageBusy ? (
           <span className="flex flex-col items-center gap-2 font-medium">
             <Loader2 className="h-6 w-6 animate-spin" />
@@ -2851,6 +2859,14 @@ function ratioToCss(value: string | null | undefined) {
     return `${w} / ${h}`;
   }
   return '16 / 9';
+}
+
+function previewRatioClassName(value: string | null | undefined) {
+  if (value === '9:16') return 'aspect-[9/16]';
+  if (value === '1:1') return 'aspect-square';
+  if (value === '4:3') return 'aspect-[4/3]';
+  if (value === '3:4') return 'aspect-[3/4]';
+  return 'aspect-video';
 }
 
 function qualityLabel(value: string) {
