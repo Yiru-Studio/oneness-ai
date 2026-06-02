@@ -491,7 +491,7 @@ export function EntityDetailDrawer({
   const hasPreviewImage = Boolean(image);
   const showPreviewBusyOverlay = (generateBusy || uploading) && !hasPreviewImage;
   const showPreviewBusyBadge = (generateBusy || uploading) && hasPreviewImage;
-  const showPreviewErrorOverlay = Boolean(visibleErrorDisplay) && !generateBusy && !uploading && !hasPreviewImage;
+  const showPreviewErrorEmpty = Boolean(visibleErrorDisplay) && !generateBusy && !uploading && !hasPreviewImage;
   const showPreviewErrorBadge = Boolean(visibleErrorDisplay) && !generateBusy && !uploading && hasPreviewImage;
 
   return (
@@ -537,9 +537,9 @@ export function EntityDetailDrawer({
                   className="mt-1 w-full px-2 py-1 -ml-2 rounded-lg border border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-primary)] outline-none text-sm leading-relaxed text-[var(--color-text-secondary)] bg-transparent resize-none"
                   placeholder={`${KIND_LABEL[kind]}描述`}
                 />
-                {visibleErrorDisplay && (
-                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    <X className="mt-0.5 h-4 w-4 shrink-0" />
+                {visibleErrorDisplay && !showPreviewErrorEmpty && (
+                  <div className="mt-2 flex items-start gap-2 rounded-lg border border-red-100 bg-white px-3 py-2 text-xs text-red-600">
+                    <X className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <div className="min-w-0">
                       <div className="font-medium">{visibleErrorDisplay.title}</div>
                       <div className="mt-0.5 break-words">{visibleErrorDisplay.message}</div>
@@ -583,7 +583,21 @@ export function EntityDetailDrawer({
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-gray-400 w-full h-full text-center px-4">
-                    <ImagePlus className="w-10 h-10" />
+                    {showPreviewErrorEmpty ? (
+                      <>
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-red-100 bg-white text-red-500 shadow-sm">
+                          <X className="h-4 w-4" />
+                        </div>
+                        <div className="mt-3 text-sm font-medium text-gray-700">
+                          {visibleErrorDisplay?.title}
+                        </div>
+                        <div className="mt-1 max-w-[520px] text-xs leading-5 text-gray-500">
+                          {visibleErrorDisplay?.message}
+                        </div>
+                      </>
+                    ) : (
+                      <ImagePlus className="w-10 h-10" />
+                    )}
                     <button
                       onClick={() => fileRef.current?.click()}
                       className="mt-4 px-3 py-1.5 rounded-lg border border-[var(--color-border)] bg-white text-sm text-[var(--color-text)] hover:bg-gray-50"
@@ -606,22 +620,9 @@ export function EntityDetailDrawer({
                     {generateBusy ? generationLabel || '生成中…' : '上传中…'}
                   </div>
                 )}
-                {showPreviewErrorOverlay && (
-                  <div
-                    className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-red-50/95 px-6 text-center text-red-700"
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
-                      <X className="h-5 w-5" />
-                    </div>
-                    <div className="mt-3 text-sm font-semibold">{visibleErrorDisplay?.title}</div>
-                    <div className="mt-1 max-w-[520px] text-xs leading-5 text-red-600">
-                      {visibleErrorDisplay?.message}
-                    </div>
-                  </div>
-                )}
                 {showPreviewErrorBadge && (
                   <div
-                    className="pointer-events-none absolute right-3 top-3 inline-flex max-w-[min(520px,calc(100%-24px))] items-center gap-1.5 rounded-full bg-red-600 px-3 py-1.5 text-xs font-medium text-white"
+                    className="pointer-events-none absolute right-3 top-3 inline-flex max-w-[min(520px,calc(100%-24px))] items-center gap-1.5 rounded-full border border-red-100 bg-white/90 px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm"
                     title={visibleErrorDisplay?.message}
                   >
                     <X className="h-3.5 w-3.5 shrink-0" />
