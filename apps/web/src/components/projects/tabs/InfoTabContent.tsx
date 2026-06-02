@@ -135,7 +135,7 @@ export function InfoTabContent({
               <div>
                 <div className="text-sm font-semibold text-[var(--color-text)]">素材解析</div>
                 <p className="mt-1 text-xs leading-5 text-[var(--color-text-secondary)]">
-                  解析剧本，生成角色、场景和道具素材，用于后续分镜与合成镜头。
+                  解析剧本，生成角色、场景和道具素材，用于后续分镜与场景图。
                 </p>
               </div>
 
@@ -193,7 +193,7 @@ export function InfoTabContent({
                 {firstEpisode.title}
               </h3>
               <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
-                剧本已上传，解析会抽取角色、场景和道具，后续用于分镜与合成镜头流程。
+                剧本已上传，解析会抽取角色、场景和道具，后续用于分镜与场景图流程。
               </p>
             </div>
             <div className="prose max-w-none whitespace-pre-wrap leading-relaxed text-[var(--color-text)] text-sm">

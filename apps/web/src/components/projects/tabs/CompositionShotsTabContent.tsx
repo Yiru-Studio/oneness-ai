@@ -169,7 +169,7 @@ function getCompositionGate(
     return {
       ready: false,
       title: '还没有剧本',
-      description: '先上传剧本并解析素材，再进入合成镜头任务。',
+      description: '先上传剧本并解析素材，再进入场景图任务。',
       actionLabel: '上传剧本',
       tab: 'info',
     };
@@ -181,8 +181,8 @@ function getCompositionGate(
       ready: false,
       title: running ? '剧本正在解析' : failed ? '剧本解析失败' : '剧本尚未解析',
       description: running
-        ? '剧本解析完成后，角色、场景和道具引用会用于合成镜头任务。'
-        : '先完成角色、场景和道具素材解析，再生成合成镜头任务。',
+        ? '剧本解析完成后，角色、场景和道具引用会用于场景图任务。'
+        : '先完成角色、场景和道具素材解析，再生成场景图任务。',
       actionLabel: running ? '查看解析状态' : failed ? '重新解析剧本' : '开始解析剧本',
       tab: 'info',
     };
@@ -191,17 +191,17 @@ function getCompositionGate(
     return {
       ready: false,
       title: '还没有场景素材',
-      description: '先在场景页生成或选择场景素材，合成镜头会基于角色、道具和场景素材创建。',
+      description: '先在场景页生成或选择场景素材，场景图任务会基于角色、道具和场景素材创建。',
       actionLabel: '进入场景页',
       tab: 'scenes',
     };
   }
   return {
     ready: true,
-    title: '可以生成合成镜头任务',
+    title: '可以生成场景图任务',
     description:
-      '系统会读取已解析的角色、场景和道具素材，按场景素材预填引用并创建合成镜头任务。首版只创建任务，不会自动生成图片。',
-    actionLabel: '生成合成镜头任务',
+      '系统会读取已解析的角色、场景和道具素材，按场景素材预填引用并创建场景图任务。首版只创建任务，不会自动生成图片。',
+    actionLabel: '生成场景图任务',
   };
 }
 
@@ -433,7 +433,7 @@ export function CompositionShotsTabContent({
       setTasks(fresh);
       setSelectedId(fresh[0]?.id ?? null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '生成合成镜头任务失败');
+      setError(e instanceof Error ? e.message : '生成场景图任务失败');
     } finally {
       clearBusy('analyze');
     }
@@ -625,7 +625,7 @@ export function CompositionShotsTabContent({
     return (
       <div className="h-full flex items-center justify-center text-gray-400">
         <Loader2 className="w-5 h-5 animate-spin mr-2" />
-        加载合成镜头...
+        加载场景图...
       </div>
     );
   }
@@ -637,7 +637,7 @@ export function CompositionShotsTabContent({
           <div className="w-14 h-14 rounded-full bg-[var(--color-dark)] text-white flex items-center justify-center mb-4">
             <Clapperboard className="w-7 h-7" />
           </div>
-          <h2 className="text-xl font-semibold text-[var(--color-text)] mb-2">生成合成镜头任务</h2>
+          <h2 className="text-xl font-semibold text-[var(--color-text)] mb-2">生成场景图任务</h2>
           <p className="max-w-[560px] text-sm leading-6 text-[var(--color-text-secondary)] mb-5">
             {compositionGate.description}
           </p>
@@ -668,7 +668,7 @@ export function CompositionShotsTabContent({
     <div className="h-full flex flex-col bg-white">
       <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--color-border)]">
         <div>
-          <h2 className="text-lg font-semibold text-[var(--color-text)]">合成镜头</h2>
+          <h2 className="text-lg font-semibold text-[var(--color-text)]">场景图</h2>
           <div className="text-xs text-[var(--color-text-secondary)]">
             版本化保存场景图和分镜图，候选图从当前分镜图或历史分镜图中按需应用
           </div>
@@ -697,7 +697,7 @@ export function CompositionShotsTabContent({
           <button
             onClick={handleAnalyze}
             disabled={busy === 'analyze' || !compositionGate.ready}
-            title={compositionGate.ready ? '重新生成合成镜头任务' : compositionGate.title}
+            title={compositionGate.ready ? '重新生成场景图任务' : compositionGate.title}
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
           >
             {busy === 'analyze' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}

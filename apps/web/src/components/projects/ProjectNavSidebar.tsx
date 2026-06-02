@@ -23,7 +23,7 @@ const NAV_ITEMS: Array<{
   { tab: 'characters', icon: Users, label: '角色' },
   { tab: 'items', icon: Package, label: '物品' },
   { tab: 'scenes', icon: Image, label: '场景' },
-  { tab: 'workbench', icon: Clapperboard, label: '合成镜头' },
+  { tab: 'workbench', icon: Clapperboard, label: '场景图' },
   { tab: 'storyboard', icon: Film, label: '分镜' },
   { tab: 'analytics', icon: BarChart3, label: '数据分析' },
 ];

@@ -550,7 +550,7 @@ function buildResourceThumbs(
     if (task) {
       out.push({
         key: `ct-${taskId}`,
-        label: `合成镜头：${task.title}`,
+        label: `场景图：${task.title}`,
         url: task.image?.url ?? null,
       });
     }

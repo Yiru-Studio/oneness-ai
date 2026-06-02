@@ -500,7 +500,7 @@ function CompositionNode({ data }: NodeProps<CompositionCanvasNode>) {
           onChange={(event) => data.onPromptChange(event.target.value)}
           onBlur={(event) => data.onPromptBlur(event.target.value)}
           className="nodrag nowheel h-[118px] w-full resize-none rounded-lg border border-white/10 bg-[#11151b] px-3 py-2 text-sm leading-6 text-white outline-none placeholder:text-white/30 focus:border-[#d7ff14]"
-          placeholder="描述想要生成的合成镜头..."
+          placeholder="描述想要生成的场景图..."
         />
 
         <div className="flex items-center gap-2 overflow-hidden">

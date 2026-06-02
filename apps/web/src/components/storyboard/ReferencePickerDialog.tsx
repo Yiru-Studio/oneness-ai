@@ -108,7 +108,7 @@ export function ReferencePickerDialog({
     .map((task) => ({
       id: task.id,
       label: `第${task.sceneIndex + 1}场 · ${task.title}`,
-      sub: '合成镜头图',
+      sub: '场景图',
       thumb: task.image?.url ?? null,
     }));
 
@@ -162,7 +162,7 @@ export function ReferencePickerDialog({
           : setItemIds;
 
   const tabs: Array<{ key: PickerTab; label: string; count: number }> = [
-    { key: 'composition', label: '合成镜头', count: compositionTaskIds.length },
+    { key: 'composition', label: '场景图', count: compositionTaskIds.length },
     { key: 'characters', label: '角色造型', count: styleIds.length },
     { key: 'scenes', label: '场景', count: sceneIds.length },
     { key: 'items', label: '物品', count: itemIds.length },
