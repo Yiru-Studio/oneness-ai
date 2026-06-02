@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildSceneImageCompositionPrompt,
   canRefreshSceneImageTaskDraft,
+  cleanSceneImageSummary,
   normalizeSceneImagePlans,
   parseSceneImagePlanResponse,
   parseSceneImageReferenceBindingResponse,
@@ -44,10 +46,53 @@ describe('composition AI planning helpers', () => {
     expect(scenes[0]).toMatchObject({
       index: 0,
       title: '雨夜旧照相馆入口',
+      content: '林沐撑伞跑过街口，旧灯牌亮起。',
       characters: ['林沐'],
       environment: '老城区街口',
     });
     expect(scenes[0]?.prompt).toContain('电影感雨夜街口');
+  });
+
+  it('keeps only the leading short scene summary before pasted script dumps', () => {
+    const dirty = [
+      '雨夜路口被漫长红灯笼罩，车窗外雨声沙沙，车厢内昏暗安静而逐渐缓和。',
+      '《遇见》',
+      '1场 小区 夜 外 人物：我 司机',
+      '初夏傍晚，闷热潮湿，淅淅沥沥的夜雨落个不停。',
+      '2场 马路红绿灯 夜 外 人物：我 司机',
+      '车子开到路口，遇上整整七十秒的长红灯，动弹不得。',
+    ].join('\n\n');
+
+    expect(cleanSceneImageSummary(dirty)).toBe('雨夜路口被漫长红灯笼罩，车窗外雨声沙沙，车厢内昏暗安静而逐渐缓和。');
+  });
+
+  it('keeps already clean short summaries stable', () => {
+    const clean = '初夏傍晚，闷热潮湿，夜雨淅淅沥沥地下个不停。我坐上网约车后座，刚上车就感到司机满心烦躁，语气带着不耐。司机叹气说：跑完你这单我就收车，回家。';
+
+    expect(cleanSceneImageSummary(clean)).toBe(clean);
+  });
+
+  it('builds composition prompts from the cleaned short summary', () => {
+    const prompt = buildSceneImageCompositionPrompt(
+      { ratio: '16:9', stylePrompt: 'cinematic lighting' },
+      {
+        index: 1,
+        title: 'INT. 网约车内 / EXT. 路口红绿灯 - 夜',
+        content: [
+          '雨夜路口被漫长红灯笼罩，车窗外雨声沙沙，车厢内昏暗安静而逐渐缓和。',
+          '《遇见》',
+          '1场 小区 夜 外 人物：我 司机',
+          '初夏傍晚，闷热潮湿，淅淅沥沥的夜雨落个不停。',
+        ].join('\n'),
+        characters: ['我', '司机'],
+        environment: '网约车内、路口红绿灯',
+      },
+      { characterStyleIds: ['style-1'], sceneIds: [], itemIds: ['item-1'] },
+    );
+
+    expect(prompt).toContain('剧情内容：\n雨夜路口被漫长红灯笼罩，车窗外雨声沙沙，车厢内昏暗安静而逐渐缓和。');
+    expect(prompt).not.toContain('《遇见》');
+    expect(prompt).not.toContain('1场 小区');
   });
 
   it('falls back when AI planning output is unusable', () => {

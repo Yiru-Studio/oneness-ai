@@ -1177,7 +1177,7 @@ function CompositionTaskRow({
               <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
             )}
           </div>
-          <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-[var(--color-text-secondary)]">
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--color-text-secondary)]">
             {task.scriptExcerpt}
           </p>
         </div>

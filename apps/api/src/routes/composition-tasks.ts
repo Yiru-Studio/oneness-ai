@@ -1559,6 +1559,8 @@ async function ensureCompositionTaskForScene(
       imageTaskId: true,
     },
   });
+  const sceneSummary = cleanSceneImageSummary(scene.content);
+  const sceneForPrompt = { ...scene, content: sceneSummary };
   if (!existing) {
     const created = await prisma.compositionTask.create({
       data: {
@@ -1566,8 +1568,8 @@ async function ensureCompositionTaskForScene(
         episodeId: episode.id,
         sceneIndex: scene.index,
         title,
-        scriptExcerpt: scene.content,
-        prompt: buildCompositionPrompt(project, scene, refs),
+        scriptExcerpt: sceneSummary,
+        prompt: buildCompositionPrompt(project, sceneForPrompt, refs),
         characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
         sceneIds: refs.sceneIds as Prisma.InputJsonValue,
         itemIds: refs.itemIds as Prisma.InputJsonValue,
@@ -1589,10 +1591,10 @@ async function ensureCompositionTaskForScene(
       episodeId: episode.id,
       sceneIndex: scene.index,
       title,
-      scriptExcerpt: scene.content,
+      scriptExcerpt: sceneSummary,
       ...(canRefreshDraft
         ? {
-            prompt: buildCompositionPrompt(project, scene, refs),
+            prompt: buildCompositionPrompt(project, sceneForPrompt, refs),
             characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
             sceneIds: refs.sceneIds as Prisma.InputJsonValue,
             itemIds: refs.itemIds as Prisma.InputJsonValue,
@@ -1608,15 +1610,7 @@ function buildCompositionPrompt(
   scene: EpisodeScene,
   refs: { characterStyleIds: string[]; sceneIds: string[]; itemIds: string[] },
 ): string {
-  return [
-    `场景图：${scene.title}`,
-    scene.environment ? `环境：${scene.environment}` : '',
-    scene.characters.length ? `出场人物：${scene.characters.join('、')}` : '',
-    `剧情内容：\n${scene.content}`,
-    `参考数量：角色 ${refs.characterStyleIds.length}，场景素材 ${refs.sceneIds.length}，道具 ${refs.itemIds.length}`,
-    `画面要求：生成一张可作为镜头首帧的场景图，人物、道具与环境需要自然同框，构图清晰，光线统一，比例 ${project.ratio}。`,
-    project.stylePrompt ? `风格要求：${project.stylePrompt}` : '',
-  ].filter(Boolean).join('\n\n');
+  return buildSceneImageCompositionPrompt(project, scene, refs);
 }
 
 function buildShotSketchPrompt(

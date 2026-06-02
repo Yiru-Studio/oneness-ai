@@ -112,10 +112,11 @@ export function normalizeSceneImagePlans(
   for (const plan of plans) {
     if (used.has(plan.sceneIndex)) continue;
     used.add(plan.sceneIndex);
+    const content = cleanSceneImageSummary(plan.scriptExcerpt || plan.storyBeat);
     normalized.push({
       index: plan.sceneIndex,
       title: plan.name.trim(),
-      content: (plan.scriptExcerpt || plan.storyBeat).trim(),
+      content,
       characters: uniqueStrings(plan.requiredReferences.characters),
       environment: uniqueStrings(plan.requiredReferences.scenes).join('、'),
       prompt: plan.prompt.trim(),
@@ -192,7 +193,7 @@ export function buildSceneImagePlanningMessages(args: {
     '- sceneIndex 从 0 开始，按剧情顺序递增，不能重复。',
     '- name 是简短的中文场景图名称。',
     '- storyBeat 描述这张图覆盖的剧情节点。',
-    '- scriptExcerpt 摘取相关剧本片段。',
+    '- scriptExcerpt 必须是一行中文视觉/剧情短描述，保留 1-3 句核心画面信息；不要复制剧本全文、场次列表或对白长段。',
     '- prompt 是可直接用于生成单张场景图的中文提示词，要求人物、环境、道具自然同框，电影感构图，不能要求九宫格或拼贴。',
     '- requiredReferences 用自然语言列出需要参考的角色、地点/环境、道具名称。',
     '',
@@ -200,6 +201,50 @@ export function buildSceneImagePlanningMessages(args: {
   ].filter(Boolean).join('\n');
 
   return { systemPrompt, userPrompt };
+}
+
+export function cleanSceneImageSummary(input: string | null | undefined, fallback = '当前场景关键画面。'): string {
+  const source = text(input);
+  if (!source) return fallback;
+  const normalized = source
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+  const beforeScriptDump = normalized
+    .split(/\n\s*(?:《[^》]+》|第?\d+\s*场\b|\d+\s*场\b|INT\.|EXT\.)/iu)[0]
+    ?.trim();
+  const primary = beforeScriptDump || normalized;
+  const compact = primary
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(' ');
+  const withoutSceneMarkers = compact
+    .replace(/《[^》]+》/g, '')
+    .replace(/(?:^|\s)第?\d+\s*场\s*[^。！？!?]{0,60}(?=\s|$)/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const withoutLongDialogue = trimDialogueTail(withoutSceneMarkers);
+  const sentences = splitChineseSentences(withoutLongDialogue);
+  const summary = sentences.slice(0, 3).join('').trim() || withoutLongDialogue || fallback;
+  return truncateText(summary.replace(/\s+/g, ' ').trim(), 180);
+}
+
+export function buildSceneImageCompositionPrompt(
+  project: { stylePrompt: string; ratio: string },
+  scene: EpisodeScene,
+  refs: { characterStyleIds: string[]; sceneIds: string[]; itemIds: string[] },
+): string {
+  const summary = cleanSceneImageSummary(scene.content);
+  return [
+    `场景图：${scene.title}`,
+    scene.environment ? `环境：${scene.environment}` : '',
+    scene.characters.length ? `出场人物：${scene.characters.join('、')}` : '',
+    `剧情内容：\n${summary}`,
+    `参考数量：角色 ${refs.characterStyleIds.length}，场景素材 ${refs.sceneIds.length}，道具 ${refs.itemIds.length}`,
+    `画面要求：生成一张可作为镜头首帧的场景图，人物、道具与环境需要自然同框，构图清晰，光线统一，比例 ${project.ratio}。`,
+    project.stylePrompt ? `风格要求：${project.stylePrompt}` : '',
+  ].filter(Boolean).join('\n\n');
 }
 
 export function buildReferenceBindingMessages(args: {
@@ -385,6 +430,20 @@ function removeTrailingCommas(input: string): string {
   return output;
 }
 
+function trimDialogueTail(input: string): string {
+  const dialogueIndex = input.search(/[：:]/u);
+  if (dialogueIndex < 0) return input;
+  const before = input.slice(0, dialogueIndex);
+  const after = input.slice(dialogueIndex + 1);
+  if (before.length < 18 && after.length > 20) return input;
+  return input;
+}
+
+function splitChineseSentences(input: string): string[] {
+  const matches = input.match(/[^。！？!?]+[。！？!?]?/gu) ?? [];
+  return matches.map((item) => item.trim()).filter(Boolean);
+}
+
 function formatCharacterStyleOptions(library: ReferenceLibraryForPlanning): string {
   const rows = library.characters.flatMap((character) => (
     character.styles.map((style) => (
@@ -400,4 +459,8 @@ function uniqueStrings(values: Array<string | null | undefined>): string[] {
 
 function truncateText(value: string, maxLength: number): string {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+}
+
+function text(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
