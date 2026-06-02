@@ -159,6 +159,10 @@ export function ShotSketchDrawer({
   const sceneImages = useMemo(() => buildSceneImages(runs, compositionTask, shot), [runs, compositionTask, shot]);
   const candidateImages = useMemo(() => buildCandidateImages(runs, compositionTask, shot), [runs, compositionTask, shot]);
   const currentList = tab === 'scene' ? sceneImages : candidateImages;
+  const visibleReferenceAssets = useMemo(
+    () => (context?.referenceAssets ?? []).filter((reference) => reference.scope !== 'locked'),
+    [context?.referenceAssets],
+  );
   const promptDirty = promptDraft !== shot.prompt;
   const hasPrompt = promptDraft.trim().length > 0;
 
@@ -420,11 +424,11 @@ export function ShotSketchDrawer({
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs font-medium text-gray-500">生成参考图</span>
                   <span className="text-xs text-gray-400">
-                    {contextLoading ? '加载中...' : `${context?.referenceAssets.length ?? 0} 张`}
+                    {contextLoading ? '加载中...' : `${visibleReferenceAssets.length} 张`}
                   </span>
                 </div>
                 <ReferenceStrip
-                  references={context?.referenceAssets ?? []}
+                  references={visibleReferenceAssets}
                   loading={contextLoading}
                   disabled={disabled}
                   onAdd={() => setReferencePickerOpen(true)}
@@ -611,7 +615,7 @@ function ReferenceStrip({
     <div className="flex gap-3 overflow-x-auto pb-1">
       {references.length === 0 && (
         <div className="flex h-[112px] w-[224px] shrink-0 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 text-center text-sm text-gray-500">
-          暂无可用参考图，将仅使用提示词生成。
+          暂无可管理参考图。
         </div>
       )}
       {references.map((reference) => (
