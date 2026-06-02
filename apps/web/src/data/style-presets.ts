@@ -86,8 +86,12 @@ export const IMAGE_MODEL_OPTIONS: AnalysisModelOption[] = [
 ];
 
 export const VIDEO_MODEL_OPTIONS: AnalysisModelOption[] = [
-  { modelId: 'doubao-seedance-2-0-260128', label: 'Seedance 2.0 Pro' },
-  { modelId: 'doubao-seedance-2-0-fast-260128', label: 'Seedance 2.0 Fast' },
+  { modelId: 'doubao-seedance-2-0-260128', label: 'Seedance 2.0 Pro (API Sweet)' },
+  { modelId: 'doubao-seedance-2-0-fast-260128', label: 'Seedance 2.0 Fast (API Sweet)' },
+  { modelId: 'apisweet/sd_2.0', label: 'API Sweet Seedance 2.0' },
+  { modelId: 'apisweet/sd_2.0_fast', label: 'API Sweet Seedance 2.0 Fast' },
+  { modelId: 'apisweet/sd_2.0_1080p', label: 'API Sweet Seedance 2.0 1080p' },
+  { modelId: 'apisweet/sd_2.0_fast_1080p', label: 'API Sweet Seedance 2.0 Fast 1080p' },
   { modelId: 'stub/placeholder', label: 'Stub (开发用)' },
 ];
 

@@ -292,6 +292,12 @@ shotRoutes.post(
         'shot prompt is empty; add a prompt before generating',
       );
     }
+    if (!shot.sketchAssetId) {
+      throw AppError.badRequest(
+        ErrorCodes.VALIDATION_FAILED,
+        'shot sketch is required before generating video',
+      );
+    }
 
     const references: VideoReference[] = await resolveReferences(shot);
 
@@ -463,6 +469,10 @@ function jsonArr(v: unknown): string[] {
 
 const SEEDANCE_PRO_MODEL = 'doubao-seedance-2-0-260128';
 const SEEDANCE_FAST_MODEL = 'doubao-seedance-2-0-fast-260128';
+const APISWEET_SEEDANCE_PRO_MODEL = 'apisweet/sd_2.0';
+const APISWEET_SEEDANCE_FAST_MODEL = 'apisweet/sd_2.0_fast';
+const APISWEET_SEEDANCE_1080P_MODEL = 'apisweet/sd_2.0_1080p';
+const APISWEET_SEEDANCE_FAST_1080P_MODEL = 'apisweet/sd_2.0_fast_1080p';
 
 /**
  * Map UI-visible model id (one of MODEL_OPTIONS) → registered worker provider
@@ -475,11 +485,17 @@ function pickVideoProvider(uiModel: string): string {
       return 'stub';
     case SEEDANCE_FAST_MODEL:
     case 'seedance-fast':
-      return 'seedance-fast';
+      return 'apisweet-seedance';
+    case APISWEET_SEEDANCE_PRO_MODEL:
+    case APISWEET_SEEDANCE_FAST_MODEL:
+    case APISWEET_SEEDANCE_1080P_MODEL:
+    case APISWEET_SEEDANCE_FAST_1080P_MODEL:
+    case 'apisweet-seedance':
+      return 'apisweet-seedance';
     case SEEDANCE_PRO_MODEL:
     case 'seedance':
     default:
-      return 'seedance';
+      return 'apisweet-seedance';
   }
 }
 
@@ -488,6 +504,11 @@ function pickVideoProvider(uiModel: string): string {
  * leave model blank so each provider can use its pinned default.
  */
 function modelIdForProvider(_provider: string, uiModel: string): string {
+  if (_provider === 'apisweet-seedance') {
+    if (uiModel === SEEDANCE_PRO_MODEL || uiModel === 'seedance') return 'sd_2.0';
+    if (uiModel === SEEDANCE_FAST_MODEL || uiModel === 'seedance-fast') return 'sd_2.0_fast';
+    return uiModel.replace(/^apisweet\//u, '') || 'sd_2.0_fast';
+  }
   if (uiModel === SEEDANCE_PRO_MODEL || uiModel === SEEDANCE_FAST_MODEL) {
     return uiModel;
   }

@@ -6,6 +6,7 @@ import { openaiImageProvider } from './openai-image.js';
 import { openaiTextProvider } from './openai-text.js';
 import { nanobananaImageProvider } from './nanobanana.js';
 import { createSeedanceProvider } from './seedance.js';
+import { createApiSweetSeedanceProvider } from './apisweet-seedance.js';
 import { config } from '../config.js';
 
 /**
@@ -24,6 +25,10 @@ const seedanceFast = createSeedanceProvider({
   name: 'seedance-fast',
   pinnedModel: 'doubao-seedance-2-0-fast-260128',
 });
+const apiSweetSeedance = createApiSweetSeedanceProvider({
+  name: 'apisweet-seedance',
+  pinnedModel: 'sd_2.0_fast',
+});
 
 const registry = {
   image: {
@@ -35,6 +40,7 @@ const registry = {
     stub: stubVideoProvider,
     seedance,
     'seedance-fast': seedanceFast,
+    'apisweet-seedance': apiSweetSeedance,
   },
   text: {
     stub: stubTextProvider,

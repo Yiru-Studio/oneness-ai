@@ -47,6 +47,8 @@ const ConfigSchema = z.object({
     .string()
     .url()
     .default('https://ark.cn-beijing.volces.com/api/v3'),
+  APISWEET_API_KEY: z.string().optional(),
+  APISWEET_BASE_URL: z.string().url().default('https://apisweet.com'),
 
   // Public-reachable base URL used to hand presigned asset URLs to external
   // providers (Seedance pulls reference assets by URL, not byte upload).

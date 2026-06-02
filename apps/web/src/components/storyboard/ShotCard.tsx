@@ -10,8 +10,12 @@ import { ShotSketchDrawer } from './ShotSketchDrawer';
 // Models we actually have registered in the worker registry. Adding more is
 // a backend change — DO NOT add cosmetic-only options here.
 export const VIDEO_MODEL_OPTIONS = [
-  { value: 'doubao-seedance-2-0-260128', label: 'Seedance 2.0 Pro' },
-  { value: 'doubao-seedance-2-0-fast-260128', label: 'Seedance 2.0 Fast' },
+  { value: 'doubao-seedance-2-0-260128', label: 'Seedance 2.0 Pro (API Sweet)' },
+  { value: 'doubao-seedance-2-0-fast-260128', label: 'Seedance 2.0 Fast (API Sweet)' },
+  { value: 'apisweet/sd_2.0', label: 'API Sweet Seedance 2.0' },
+  { value: 'apisweet/sd_2.0_fast', label: 'API Sweet Seedance 2.0 Fast' },
+  { value: 'apisweet/sd_2.0_1080p', label: 'API Sweet Seedance 2.0 1080p' },
+  { value: 'apisweet/sd_2.0_fast_1080p', label: 'API Sweet Seedance 2.0 Fast 1080p' },
   { value: 'stub/placeholder', label: '测试 Stub' },
 ] as const;
 
@@ -97,14 +101,14 @@ export function ShotCard({
   };
 
   const referenceThumbs = buildReferenceThumbs(shot, characters, scenes, items, compositionTasks);
-  const hasSelectedReference = Boolean(shot.sketch) || referenceThumbs.length > 0;
-  const hasVideoReference = Boolean(shot.sketch?.url) || referenceThumbs.some((r) => Boolean(r.url));
+  const hasMainSketch = Boolean(shot.sketch);
+  const hasMainSketchImage = Boolean(shot.sketch?.url);
   const videoDisabledReason = !promptReady
     ? '请先填写视频提示词'
-    : !hasSelectedReference
-      ? '请先选择或生成主分镜图，也可补充参考资产'
-      : !hasVideoReference
-        ? '请选择带图片的参考资产'
+    : !hasMainSketch
+      ? '请先选择或生成主分镜图'
+      : !hasMainSketchImage
+        ? '主分镜图缺少可用图片'
       : null;
   const editingDisabled = busy || isGenerating;
   const handleRemoveReference = (thumb: ResourceThumb) => {
