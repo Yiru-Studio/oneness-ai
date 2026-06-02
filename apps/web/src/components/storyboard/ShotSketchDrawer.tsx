@@ -142,7 +142,7 @@ export function ShotSketchDrawer({
   const [model, setModel] = useState(project.imageModel);
   const [ratio, setRatio] = useState(project.ratio);
   const [referencePickerOpen, setReferencePickerOpen] = useState(false);
-  const [previewReference, setPreviewReference] = useState<ShotSketchReferenceAsset | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ url: string; label: string } | null>(null);
   const activeContextShotRef = useRef<string | null>(null);
 
   const compositionTask = useMemo(
@@ -423,7 +423,7 @@ export function ShotSketchDrawer({
                   loading={contextLoading}
                   disabled={disabled}
                   onAdd={() => setReferencePickerOpen(true)}
-                  onPreview={setPreviewReference}
+                  onPreview={(reference) => setPreviewImage({ url: reference.url, label: reference.label })}
                   onRemove={(reference) => void handleRemoveReference(reference)}
                 />
               </div>
@@ -521,6 +521,7 @@ export function ShotSketchDrawer({
                       key={item.id}
                       item={item}
                       disabled={disabled}
+                      onPreview={() => setPreviewImage({ url: item.url, label: item.label })}
                       onApply={() => void handleSelect(item.assetId)}
                     />
                   ))}
@@ -548,10 +549,10 @@ export function ShotSketchDrawer({
         onConfirm={handleConfirmReferences}
       />
       <ImagePreview
-        src={previewReference?.url ?? ''}
-        alt={previewReference?.label}
-        open={Boolean(previewReference)}
-        onClose={() => setPreviewReference(null)}
+        src={previewImage?.url ?? ''}
+        alt={previewImage?.label}
+        open={Boolean(previewImage)}
+        onClose={() => setPreviewImage(null)}
       />
     </div>
   );
@@ -687,10 +688,12 @@ function AddReferenceButton({ disabled, onClick }: { disabled: boolean; onClick:
 function ExistingImageCard({
   item,
   disabled,
+  onPreview,
   onApply,
 }: {
   item: ExistingImage;
   disabled: boolean;
+  onPreview: () => void;
   onApply: () => void;
 }) {
   return (
@@ -699,15 +702,23 @@ function ExistingImageCard({
         item.selected ? 'border-[var(--color-primary)] ring-2 ring-blue-100' : 'border-[var(--color-border)]'
       }`}
     >
-      <div className="relative aspect-video bg-gray-100">
+      <button
+        type="button"
+        onClick={onPreview}
+        className="group relative block aspect-video w-full cursor-zoom-in bg-gray-100"
+        aria-label={`查看已有图：${item.label}`}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={item.url} alt={item.label} className="h-full w-full object-cover" />
+        <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-black/55 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+          点击放大
+        </span>
         {item.selected && (
           <span className="absolute left-2 top-2 rounded bg-[var(--color-primary)] px-2 py-0.5 text-xs font-medium text-white">
             当前使用
           </span>
         )}
-      </div>
+      </button>
       <div className="p-2">
         <div className="truncate text-sm font-medium text-gray-900">{item.label}</div>
         <div className="truncate text-xs text-gray-500">{item.sublabel}</div>
