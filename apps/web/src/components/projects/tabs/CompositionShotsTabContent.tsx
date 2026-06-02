@@ -1026,19 +1026,11 @@ function ReferenceColumn({
   const showAddTile = !showMoreTile;
   return (
     <div className="min-w-0 space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-text)]">
           <Layers3 className="h-4 w-4" />
           参考图
         </div>
-        <button
-          type="button"
-          onClick={onOpen}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-2.5 py-1.5 text-xs text-[var(--color-text)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          管理
-        </button>
       </div>
       <div className="grid grid-cols-3 gap-2">
         {visible.map((item) => (
