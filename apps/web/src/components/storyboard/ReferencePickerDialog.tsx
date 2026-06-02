@@ -11,7 +11,10 @@ type PickerOption = {
   label: string;
   sub?: string;
   thumb: string | null;
+  fallbackThumb?: string | null;
   badge?: string;
+  emptyTitle?: string;
+  emptyText?: string;
 };
 
 type CharacterStyleGroup = {
@@ -108,8 +111,11 @@ export function ReferencePickerDialog({
           id: s.id as string,
           label: characterStylePickerLabel(s.name, c.name, index),
           sub: c.name,
-          thumb: s.image || c.avatar || null,
-          badge: s.image ? '造型图' : c.avatar ? '角色头像' : undefined,
+          thumb: s.image || null,
+          fallbackThumb: s.image ? null : c.avatar || null,
+          badge: s.image ? '造型图' : '待生成',
+          emptyTitle: '暂无造型图',
+          emptyText: c.avatar ? '生成视频时会用角色头像兜底' : '请先生成该造型图',
         })),
     }))
     .filter((group) => group.options.length > 0);
@@ -221,10 +227,35 @@ export function ReferencePickerDialog({
               </span>
             </>
           ) : (
-            <span className="text-xs text-gray-400">无封面</span>
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[linear-gradient(135deg,#f8fafc,#eef2f7)] px-3 text-center">
+              {opt.fallbackThumb && (
+                <div className="h-10 w-10 overflow-hidden rounded-full border border-white bg-white shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={opt.fallbackThumb}
+                    alt={`${opt.sub || opt.label}头像`}
+                    className="h-full w-full object-cover opacity-70 grayscale"
+                  />
+                </div>
+              )}
+              <div>
+                <div className="text-xs font-medium text-gray-600">
+                  {opt.emptyTitle || '无封面'}
+                </div>
+                {opt.emptyText && (
+                  <div className="mt-1 text-[10px] leading-4 text-gray-400">
+                    {opt.emptyText}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
           {opt.badge && (
-            <span className="absolute left-1.5 top-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
+            <span
+              className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[10px] ${
+                opt.thumb ? 'bg-black/60 text-white' : 'bg-white/85 text-gray-500 shadow-sm'
+              }`}
+            >
               {opt.badge}
             </span>
           )}
