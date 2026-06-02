@@ -51,6 +51,7 @@ import {
 import { IMAGE_MODEL_OPTIONS, imageModelLabel } from '@/data/style-presets';
 import { EntityDetailDrawer, type EntityDetailData } from '@/components/projects/EntityDetailDrawer';
 import { useGeneration, type GenerationKind } from '@/contexts/GenerationContext';
+import { getGenerationErrorDisplay } from '@/lib/generation-error';
 import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 import { CompositionCanvasView } from './CompositionCanvasView';
 
@@ -162,7 +163,8 @@ function referenceGenerationError(
   status: ResourceImageStatus | null | undefined,
   error?: string | null,
 ): string | null {
-  return status === 'FAILED' ? error || '生成失败' : null;
+  if (status !== 'FAILED') return null;
+  return getGenerationErrorDisplay(error)?.message || error || '生成失败，请重试；如果多次失败，请稍后再试。';
 }
 
 function matchesCompositionFilter(task: CompositionTask, filter: FilterValue): boolean {
@@ -1150,6 +1152,10 @@ function CompositionTaskRow({
   onOpenDetail: (view?: ResultView) => void;
 }) {
   const references = selectedReferenceItems(task, characterOptions, sceneOptions, itemOptions);
+  const taskErrorDisplay =
+    task.status === 'IMAGE_FAILED' || task.status === 'GRID_FAILED'
+      ? getGenerationErrorDisplay(task.error)
+      : null;
   return (
     <section
       className={`flex min-h-full flex-col rounded-lg border bg-white shadow-sm transition-colors ${
@@ -1189,8 +1195,8 @@ function CompositionTaskRow({
               className="min-h-[320px] w-full flex-1 resize-none rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm leading-6 outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
             />
           </label>
-          {task.error && (task.status === 'IMAGE_FAILED' || task.status === 'GRID_FAILED') && (
-            <div className="mt-3 line-clamp-2 text-xs leading-5 text-red-600">{task.error}</div>
+          {taskErrorDisplay && (
+            <div className="mt-3 line-clamp-2 text-xs leading-5 text-red-600">{taskErrorDisplay.message}</div>
           )}
         </div>
 
@@ -1563,7 +1569,9 @@ function CompositionDetailDrawer({
               {(task.status === 'IMAGE_FAILED' || task.status === 'GRID_FAILED') && (
                 <div className="flex gap-2 rounded-lg border border-red-100 bg-red-50 p-3 text-xs text-red-600">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <span>{task.error || '生成失败，可调整提示词或参数后重试。'}</span>
+                  <span>
+                    {getGenerationErrorDisplay(task.error)?.message || '生成失败，请重试；如果多次失败，请稍后再试。'}
+                  </span>
                 </div>
               )}
             </div>

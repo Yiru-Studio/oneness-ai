@@ -34,6 +34,7 @@ import {
   ResourceImageStatus,
 } from '@/types';
 import { IMAGE_MODEL_OPTIONS, imageModelLabel } from '@/data/style-presets';
+import { getGenerationErrorDisplay } from '@/lib/generation-error';
 
 type CanvasResourceKind = 'character' | 'item' | 'scene';
 
@@ -470,11 +471,12 @@ function ResourceNode({ data }: NodeProps<ResourceCanvasNode>) {
   const size = resourceNodeSize(data.kind);
   const pending = isCanvasResourcePending(data.resourceStatus);
   const failed = isCanvasResourceFailed(data.resourceStatus);
+  const errorDisplay = getGenerationErrorDisplay(data.resourceError);
   return (
     <div
       className="group overflow-hidden rounded-xl border border-white/10 bg-[#11151b] shadow-2xl transition-colors hover:border-[#4f8fd8]"
       style={{ width: size.width, height: size.height }}
-      title={`${KIND_META[data.kind].label} · ${data.label}${failed && data.resourceError ? `：${data.resourceError}` : ''}`}
+      title={`${KIND_META[data.kind].label} · ${data.label}${failed && errorDisplay ? `：${errorDisplay.message}` : ''}`}
     >
       {data.image ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -587,7 +589,7 @@ function CompositionNode({ data }: NodeProps<CompositionCanvasNode>) {
 
         {task.error && (task.status === 'IMAGE_FAILED' || task.status === 'GRID_FAILED') && (
           <div className="rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-            {task.error}
+            {getGenerationErrorDisplay(task.error)?.message || '生成失败，请重试；如果多次失败，请稍后再试。'}
           </div>
         )}
 
@@ -634,11 +636,12 @@ function CompositionNode({ data }: NodeProps<CompositionCanvasNode>) {
 function CanvasResourceThumb({ resource }: { resource: CanvasResource }) {
   const pending = isCanvasResourcePending(resource.resourceStatus);
   const failed = isCanvasResourceFailed(resource.resourceStatus);
+  const errorDisplay = getGenerationErrorDisplay(resource.resourceError);
 
   return (
     <div
       className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-[#11151b]"
-      title={`${KIND_META[resource.kind].label} · ${resource.label}${failed && resource.resourceError ? `：${resource.resourceError}` : ''}`}
+      title={`${KIND_META[resource.kind].label} · ${resource.label}${failed && errorDisplay ? `：${errorDisplay.message}` : ''}`}
     >
       {resource.image ? (
         // eslint-disable-next-line @next/next/no-img-element

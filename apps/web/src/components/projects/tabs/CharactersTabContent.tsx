@@ -17,6 +17,7 @@ import { AddCharacterModal } from '@/components/modals/AddCharacterModal';
 import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
 import { useGeneration } from '@/contexts/GenerationContext';
 import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
+import { getGenerationErrorDisplay } from '@/lib/generation-error';
 
 interface Props {
   characters: Character[];
@@ -36,6 +37,7 @@ function avatarTaskState(
   const pending = inSessionGenerating || queued || running;
   const persistedError = row?.status === 'FAILED' ? row.error || '头像生成失败' : null;
   const error = inSessionError || persistedError;
+  const errorDisplay = getGenerationErrorDisplay(error);
   const failed = !pending && Boolean(error);
   const statusLabel = queued
     ? row?.error
@@ -44,7 +46,7 @@ function avatarTaskState(
     : running || inSessionGenerating
       ? '头像生成中'
       : failed
-        ? `头像生成失败：${error}`
+        ? `头像生成失败：${errorDisplay?.message || '请重试；如果多次失败，请稍后再试。'}`
         : undefined;
   return { pending, failed, error, title: statusLabel };
 }
@@ -70,15 +72,16 @@ function styleTaskState(
   const pending = inSessionGenerating || queued || running;
   const persistedError = row?.status === 'FAILED' ? row.error || '造型图生成失败' : null;
   const error = inSessionError || persistedError;
+  const errorDisplay = getGenerationErrorDisplay(error);
   const failed = !pending && Boolean(error);
   const label = queued
     ? '排队中'
     : running || inSessionGenerating
       ? '生成中'
       : failed
-        ? '生成失败'
+        ? errorDisplay?.shortLabel || '生成失败'
         : null;
-  const title = label ? `${style.name}：${failed && error ? `${label}，${error}` : label}` : undefined;
+  const title = label ? `${style.name}：${failed && errorDisplay ? `${label}，${errorDisplay.message}` : label}` : undefined;
   return { pending, failed, error, label, title };
 }
 
@@ -640,7 +643,7 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
                 {taskState.failed && (
                   <div
                     className="absolute right-1.5 top-1.5 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center shadow-sm"
-                    title={taskState.error ?? undefined}
+                    title={getGenerationErrorDisplay(taskState.error)?.message}
                   >
                     <AlertCircle className="w-3 h-3" />
                   </div>

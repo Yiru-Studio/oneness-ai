@@ -12,6 +12,7 @@ import {
 import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
 import { useGeneration } from '@/contexts/GenerationContext';
 import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
+import { getGenerationErrorDisplay } from '@/lib/generation-error';
 
 interface Props {
   scenes: Scene[];
@@ -31,15 +32,16 @@ function sceneTaskState(
   const pending = inSessionGenerating || queued || running;
   const persistedError = row?.status === 'FAILED' ? row.error || '场景图生成失败' : null;
   const error = inSessionError || persistedError;
+  const errorDisplay = getGenerationErrorDisplay(error);
   const failed = !pending && Boolean(error);
   const label = queued
     ? '排队中'
     : running || inSessionGenerating
       ? '生成中'
       : failed
-        ? '生成失败'
+        ? errorDisplay?.shortLabel || '生成失败'
         : null;
-  const title = label ? `${scene.name}：${failed && error ? `${label}，${error}` : label}` : undefined;
+  const title = label ? `${scene.name}：${failed && errorDisplay ? `${label}，${errorDisplay.message}` : label}` : undefined;
   return { pending, failed, error, label, title };
 }
 
@@ -178,7 +180,7 @@ export function ScenesTabContent({ scenes, project, scriptContent, onChange }: P
                 {sceneTask.failed && (
                   <div
                     className="absolute right-2 top-2 w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center shadow-sm"
-                    title={sceneTask.error ?? undefined}
+                    title={getGenerationErrorDisplay(sceneTask.error)?.message}
                   >
                     <AlertCircle className="w-4 h-4" />
                   </div>

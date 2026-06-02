@@ -28,6 +28,7 @@ import {
   imageProviderForModel,
 } from '@/data/style-presets';
 import { useGeneration } from '@/contexts/GenerationContext';
+import { getGenerationErrorDisplay } from '@/lib/generation-error';
 
 /**
  * Generic secondary-detail drawer used by Items, Scenes, and CharacterStyles.
@@ -486,11 +487,12 @@ export function EntityDetailDrawer({
   ];
   const persistedError = latestHistory?.status === 'FAILED' ? latestHistory.error : null;
   const visibleError = error || remoteError || persistedError;
+  const visibleErrorDisplay = getGenerationErrorDisplay(visibleError);
   const hasPreviewImage = Boolean(image);
   const showPreviewBusyOverlay = (generateBusy || uploading) && !hasPreviewImage;
   const showPreviewBusyBadge = (generateBusy || uploading) && hasPreviewImage;
-  const showPreviewErrorOverlay = Boolean(visibleError) && !generateBusy && !uploading && !hasPreviewImage;
-  const showPreviewErrorBadge = Boolean(visibleError) && !generateBusy && !uploading && hasPreviewImage;
+  const showPreviewErrorOverlay = Boolean(visibleErrorDisplay) && !generateBusy && !uploading && !hasPreviewImage;
+  const showPreviewErrorBadge = Boolean(visibleErrorDisplay) && !generateBusy && !uploading && hasPreviewImage;
 
   return (
     <>
@@ -535,12 +537,12 @@ export function EntityDetailDrawer({
                   className="mt-1 w-full px-2 py-1 -ml-2 rounded-lg border border-transparent hover:border-[var(--color-border)] focus:border-[var(--color-primary)] outline-none text-sm leading-relaxed text-[var(--color-text-secondary)] bg-transparent resize-none"
                   placeholder={`${KIND_LABEL[kind]}描述`}
                 />
-                {visibleError && (
+                {visibleErrorDisplay && (
                   <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                     <X className="mt-0.5 h-4 w-4 shrink-0" />
                     <div className="min-w-0">
-                      <div className="font-medium">生成失败</div>
-                      <div className="mt-0.5 break-words">{visibleError}</div>
+                      <div className="font-medium">{visibleErrorDisplay.title}</div>
+                      <div className="mt-0.5 break-words">{visibleErrorDisplay.message}</div>
                     </div>
                   </div>
                 )}
@@ -611,19 +613,19 @@ export function EntityDetailDrawer({
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
                       <X className="h-5 w-5" />
                     </div>
-                    <div className="mt-3 text-sm font-semibold">生成失败</div>
+                    <div className="mt-3 text-sm font-semibold">{visibleErrorDisplay?.title}</div>
                     <div className="mt-1 max-w-[520px] text-xs leading-5 text-red-600">
-                      {visibleError}
+                      {visibleErrorDisplay?.message}
                     </div>
                   </div>
                 )}
                 {showPreviewErrorBadge && (
                   <div
                     className="pointer-events-none absolute right-3 top-3 inline-flex max-w-[min(520px,calc(100%-24px))] items-center gap-1.5 rounded-full bg-red-600 px-3 py-1.5 text-xs font-medium text-white"
-                    title={visibleError ?? undefined}
+                    title={visibleErrorDisplay?.message}
                   >
                     <X className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">生成失败</span>
+                    <span className="truncate">{visibleErrorDisplay?.shortLabel}</span>
                   </div>
                 )}
               </div>
@@ -875,7 +877,7 @@ function HistoryRail({
                 } disabled:cursor-default`}
                 title={
                   failed
-                    ? row.error || '生成失败'
+                    ? getGenerationErrorDisplay(row.error)?.message || '生成失败，请重试；如果多次失败，请稍后再试。'
                     : usedIdentityReference
                       ? '使用身份母版生成'
                       : row.source === 'upload'

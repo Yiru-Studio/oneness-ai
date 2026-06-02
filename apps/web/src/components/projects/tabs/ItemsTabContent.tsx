@@ -12,6 +12,7 @@ import {
 import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
 import { useGeneration } from '@/contexts/GenerationContext';
+import { getGenerationErrorDisplay } from '@/lib/generation-error';
 
 interface Props {
   items: Item[];
@@ -31,15 +32,16 @@ function itemTaskState(
   const pending = inSessionGenerating || queued || running;
   const persistedError = row?.status === 'FAILED' ? row.error || '道具图生成失败' : null;
   const error = inSessionError || persistedError;
+  const errorDisplay = getGenerationErrorDisplay(error);
   const failed = !pending && Boolean(error);
   const label = queued
     ? '排队中'
     : running || inSessionGenerating
       ? '生成中'
       : failed
-        ? '生成失败'
+        ? errorDisplay?.shortLabel || '生成失败'
         : null;
-  const title = label ? `${item.name}：${failed && error ? `${label}，${error}` : label}` : undefined;
+  const title = label ? `${item.name}：${failed && errorDisplay ? `${label}，${errorDisplay.message}` : label}` : undefined;
   return { pending, failed, error, label, title };
 }
 
@@ -175,7 +177,7 @@ export function ItemsTabContent({ items, project, scriptContent, onChange }: Pro
                 {itemTask.failed && (
                   <div
                     className="absolute right-2 top-2 w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center shadow-sm"
-                    title={itemTask.error ?? undefined}
+                    title={getGenerationErrorDisplay(itemTask.error)?.message}
                   >
                     <AlertCircle className="w-4 h-4" />
                   </div>
