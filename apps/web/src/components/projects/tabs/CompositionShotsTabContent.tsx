@@ -1125,6 +1125,9 @@ function SceneImageColumn({
             ? '重新生成场景图'
             : '生成场景图';
   const imageUrl = imageRun?.image?.url ?? task.image?.url ?? null;
+  const scenePreviewClassName = imageUrl
+    ? 'bg-gray-950 text-gray-400'
+    : 'border-2 border-dashed border-gray-300 bg-gray-50 px-4 text-center text-gray-600 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]';
 
   return (
     <div className="min-w-0 space-y-3">
@@ -1146,14 +1149,14 @@ function SceneImageColumn({
       <button
         type="button"
         onClick={() => onOpenDetail('image')}
-        className="flex min-h-[196px] w-full items-center justify-center overflow-hidden rounded-lg bg-gray-950 text-sm text-gray-400"
+        className={`flex min-h-[196px] w-full items-center justify-center overflow-hidden rounded-lg text-sm ${scenePreviewClassName}`}
         style={{ aspectRatio: ratioToCss(imageSettings.ratio) }}
       >
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={imageUrl} alt={task.title} className="h-full w-full object-contain" />
         ) : imageBusy ? (
-          <span className="flex flex-col items-center gap-2 text-white">
+          <span className="flex flex-col items-center gap-2 font-medium">
             <Loader2 className="h-6 w-6 animate-spin" />
             {imageGenerationStatusLabel(task, imageRun)}
           </span>
