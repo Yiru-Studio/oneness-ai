@@ -214,8 +214,14 @@ export function ShotSketchDrawer({
     }
   }, [optimisticSketchTaskId, shot.sketchTaskId, shot.sketchTaskStatus]);
 
-  const loadContextAndRuns = async () => {
-    setContextLoading(true);
+  useEffect(() => {
+    if (!open || !shot.sketch || previewGenerating) return;
+    void loadContextAndRuns({ quiet: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, shot.sketch?.id, previewGenerating]);
+
+  const loadContextAndRuns = async (options: { quiet?: boolean } = {}) => {
+    if (!options.quiet) setContextLoading(true);
     try {
       const nextContext = await getShotSketchContext(project.id, { shotId: shot.id });
       if (activeContextShotRef.current !== shot.id) return;
@@ -227,7 +233,7 @@ export function ShotSketchDrawer({
     } catch (error) {
       onError(error instanceof Error ? error.message : '加载分镜图设置失败');
     } finally {
-      setContextLoading(false);
+      if (!options.quiet) setContextLoading(false);
     }
   };
 
@@ -256,9 +262,8 @@ export function ShotSketchDrawer({
         ratio,
       });
       setOptimisticSketchTaskId(result.taskId);
-      await Promise.all([onRefreshShots(), onRefreshCompositionTasks()]);
-      await refreshRuns(result.compositionTaskId);
-      await loadContextAndRuns();
+      void onRefreshCompositionTasks().catch(() => {});
+      await onRefreshShots();
     } catch (error) {
       setOptimisticSketchTaskId(null);
       onError(error instanceof Error ? error.message : '生成分镜图失败');
