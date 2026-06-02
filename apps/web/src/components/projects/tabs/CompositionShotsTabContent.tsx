@@ -653,7 +653,7 @@ export function CompositionShotsTabContent({
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
           >
             {busy === 'analyze' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {busy === 'analyze' ? '生成中...' : compositionGate.actionLabel}
+            {busy === 'analyze' ? '正在规划场景图任务并匹配参考图...' : compositionGate.actionLabel}
           </button>
           {!compositionGate.ready && (
             <div className="text-xs text-red-500 mt-3">{compositionGate.title}</div>
@@ -701,7 +701,7 @@ export function CompositionShotsTabContent({
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
           >
             {busy === 'analyze' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
-            重新生成任务
+            {busy === 'analyze' ? '正在规划任务...' : '重新生成任务'}
           </button>
         </div>
       </div>

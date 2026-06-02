@@ -30,6 +30,19 @@ import {
 } from '@oneness/shared/schemas';
 import { config } from '../config.js';
 import { uniqueAssetIds } from '../lib/character-identity.js';
+import {
+  buildReferenceBindingMessages,
+  buildSceneImagePlanningMessages,
+  canRefreshSceneImageTaskDraft,
+  normalizeSceneImagePlans,
+  parseSceneImagePlanResponse,
+  parseSceneImageReferenceBindingResponse,
+  referenceLibraryIdSets,
+  requestOpenAIJson,
+  sanitizeReferenceBinding,
+  type EpisodeScene,
+  type SceneImageReferenceIds,
+} from '../lib/composition-ai-planning.js';
 
 export const compositionTaskRoutes = new Hono();
 
@@ -65,15 +78,6 @@ const COMPOSITION_INCLUDE = {
 
 const ANGLE_LABELS = ['远景', '中景', '近景', '侧面', '正面', '背影', '俯拍', '仰拍', '特写'];
 
-type EpisodeScene = {
-  index: number;
-  title: string;
-  content: string;
-  characters: string[];
-  environment: string;
-  referenceSceneId?: string;
-};
-
 type ReferenceLibrary = Awaited<ReturnType<typeof loadReferenceLibrary>>;
 
 compositionTaskRoutes.get('/projects/:id/composition-tasks', async (c) => {
@@ -107,10 +111,23 @@ compositionTaskRoutes.post(
     }
 
     const library = await loadReferenceLibrary(projectId);
+    const plannedEpisodes = new Map<
+      string,
+      { scenes: EpisodeScene[]; refsBySceneIndex: Map<number, SceneImageReferenceIds> }
+    >();
+    for (const episode of episodes) {
+      const fallbackScenes = scenesForEpisode(episode, library.scenes);
+      const plannedScenes = await planSceneImagesForEpisode(project, episode, fallbackScenes);
+      const refsBySceneIndex = await bindReferencesForEpisode(project, episode, plannedScenes, library);
+      plannedEpisodes.set(episode.id, { scenes: plannedScenes, refsBySceneIndex });
+    }
+
     await prisma.$transaction(async (tx) => {
       for (const episode of episodes) {
-        for (const scene of scenesForEpisode(episode, library.scenes)) {
-          const refs = prefillReferences(scene, library);
+        const planned = plannedEpisodes.get(episode.id);
+        const scenes = planned?.scenes ?? scenesForEpisode(episode, library.scenes);
+        for (const scene of scenes) {
+          const refs = planned?.refsBySceneIndex.get(scene.index) ?? prefillReferences(scene, library);
           const title = `第${episode.number}集 · ${scene.title || `场景 ${scene.index + 1}`}`;
           const where = {
             episodeId_sceneIndex: {
@@ -136,7 +153,7 @@ compositionTaskRoutes.post(
                 sceneIndex: scene.index,
                 title,
                 scriptExcerpt: scene.content,
-                prompt: buildCompositionPrompt(project, scene, refs),
+                prompt: scene.prompt?.trim() ? scene.prompt.trim() : buildCompositionPrompt(project, scene, refs),
                 characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
                 sceneIds: refs.sceneIds as Prisma.InputJsonValue,
                 itemIds: refs.itemIds as Prisma.InputJsonValue,
@@ -145,11 +162,7 @@ compositionTaskRoutes.post(
             continue;
           }
 
-          const canRefreshDraft =
-            existing.status === 'DRAFT' &&
-            !existing.currentImageRunId &&
-            !existing.imageAssetId &&
-            !existing.imageTaskId;
+          const canRefreshDraft = canRefreshSceneImageTaskDraft(existing);
           await tx.compositionTask.update({
             where: { id: existing.id },
             data: {
@@ -160,7 +173,7 @@ compositionTaskRoutes.post(
               scriptExcerpt: scene.content,
               ...(canRefreshDraft
                 ? {
-                    prompt: buildCompositionPrompt(project, scene, refs),
+                    prompt: scene.prompt?.trim() ? scene.prompt.trim() : buildCompositionPrompt(project, scene, refs),
                     characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
                     sceneIds: refs.sceneIds as Prisma.InputJsonValue,
                     itemIds: refs.itemIds as Prisma.InputJsonValue,
@@ -368,7 +381,7 @@ compositionTaskRoutes.post(
     const body = c.req.valid('json');
     const row = await loadOwnedCompositionTask(id, user.id);
     if (!row.currentImageRunId) {
-      throw AppError.badRequest(ErrorCodes.VALIDATION_FAILED, '请先生成合成镜头图，再生成分镜网格');
+      throw AppError.badRequest(ErrorCodes.VALIDATION_FAILED, '请先生成场景图，再生成分镜网格');
     }
     const taskId = await createGridRunForImageRun(row.currentImageRunId, user.id, body);
     return c.json(await serializeCompositionTask(await loadCompositionTask(taskId)));
@@ -417,7 +430,7 @@ async function createImageRunForTask(
 ): Promise<string> {
   const row = await loadOwnedCompositionTask(taskId, userId);
   if (!row.prompt.trim()) {
-    throw AppError.badRequest(ErrorCodes.VALIDATION_FAILED, '合成镜头提示词不能为空');
+    throw AppError.badRequest(ErrorCodes.VALIDATION_FAILED, '场景图提示词不能为空');
   }
   const project = await assertOwnedProject(row.projectId, userId);
   const settings = normalizeImageSettings(project, body);
@@ -521,7 +534,7 @@ async function createGridRunForImageRun(
   if (!source) {
     throw AppError.badRequest(
       ErrorCodes.VALIDATION_FAILED,
-      '请先等待合成镜头图生成完成，再生成分镜网格',
+      '请先等待场景图生成完成，再生成分镜网格',
     );
   }
   const settings = normalizeGridSettings(project, imageRun, body);
@@ -1240,6 +1253,65 @@ async function loadReferenceLibrary(projectId: string) {
   return { characters, scenes, items };
 }
 
+async function planSceneImagesForEpisode(
+  project: { ratio: string; stylePrompt: string; analysisModel: string },
+  episode: { number: number; title: string; content: string },
+  fallbackScenes: EpisodeScene[],
+): Promise<EpisodeScene[]> {
+  if (!canUseTextAI()) return fallbackScenes;
+  try {
+    const { systemPrompt, userPrompt } = buildSceneImagePlanningMessages({ project, episode });
+    const raw = await requestOpenAIJson({
+      model: project.analysisModel,
+      systemPrompt,
+      userPrompt,
+    });
+    const plans = parseSceneImagePlanResponse(raw);
+    return normalizeSceneImagePlans(plans, fallbackScenes);
+  } catch {
+    return fallbackScenes;
+  }
+}
+
+async function bindReferencesForEpisode(
+  project: { ratio: string; stylePrompt: string; analysisModel: string },
+  episode: { number: number; title: string },
+  scenes: EpisodeScene[],
+  library: ReferenceLibrary,
+): Promise<Map<number, SceneImageReferenceIds>> {
+  const fallback = new Map<number, SceneImageReferenceIds>(
+    scenes.map((scene) => [scene.index, prefillReferences(scene, library)]),
+  );
+  if (!canUseTextAI()) return fallback;
+  try {
+    const { systemPrompt, userPrompt } = buildReferenceBindingMessages({
+      project,
+      episode,
+      scenes,
+      library,
+    });
+    const raw = await requestOpenAIJson({
+      model: project.analysisModel,
+      systemPrompt,
+      userPrompt,
+    });
+    const validIds = referenceLibraryIdSets(library);
+    const knownSceneIndexes = new Set(scenes.map((scene) => scene.index));
+    const next = new Map<number, SceneImageReferenceIds>();
+    for (const binding of parseSceneImageReferenceBindingResponse(raw)) {
+      if (!knownSceneIndexes.has(binding.sceneIndex)) continue;
+      next.set(binding.sceneIndex, sanitizeReferenceBinding(binding, validIds));
+    }
+    return next.size > 0 ? next : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function canUseTextAI(): boolean {
+  return config.PROVIDER_TEXT === 'openai' && Boolean(process.env.OPENAI_API_KEY);
+}
+
 function prefillReferences(scene: EpisodeScene, library: ReferenceLibrary) {
   const haystack = [scene.title, scene.content, scene.environment, ...scene.characters].join('\n');
   const characterStyleIds = library.characters
@@ -1338,12 +1410,12 @@ function buildCompositionPrompt(
   refs: { characterStyleIds: string[]; sceneIds: string[]; itemIds: string[] },
 ): string {
   return [
-    `合成镜头：${scene.title}`,
+    `场景图：${scene.title}`,
     scene.environment ? `环境：${scene.environment}` : '',
     scene.characters.length ? `出场人物：${scene.characters.join('、')}` : '',
     `剧情内容：\n${scene.content}`,
     `参考数量：角色 ${refs.characterStyleIds.length}，场景素材 ${refs.sceneIds.length}，道具 ${refs.itemIds.length}`,
-    `画面要求：生成一张可作为镜头首帧的合成镜头图，人物、道具与环境需要自然同框，构图清晰，光线统一，比例 ${project.ratio}。`,
+    `画面要求：生成一张可作为镜头首帧的场景图，人物、道具与环境需要自然同框，构图清晰，光线统一，比例 ${project.ratio}。`,
     project.stylePrompt ? `风格要求：${project.stylePrompt}` : '',
   ].filter(Boolean).join('\n\n');
 }
@@ -1355,7 +1427,7 @@ function buildShotSketchPrompt(
   hasCompositionImage: boolean,
 ): string {
   const prompt = [
-    '请生成一张单张电影分镜/合成镜头图，用作后续视频生成的参考首帧。',
+    '请生成一张单张电影分镜场景图，用作后续视频生成的参考首帧。',
     '',
     '强制要求：',
     '- 只输出一张完整画面，不要九宫格、拼贴、分屏或 contact sheet。',
@@ -1364,7 +1436,7 @@ function buildShotSketchPrompt(
     '- 人物、道具和环境需要自然同框；构图、光线、色彩保持统一。',
     `- 输出比例按 ${project.ratio} 构图。`,
     hasCompositionImage
-      ? '- 已提供的合成镜头图是空间、角色、服装、光线和画风锚点；请在保持一致的基础上，根据本 Shot 重新构图。'
+      ? '- 已提供的场景图是空间、角色、服装、光线和画风锚点；请在保持一致的基础上，根据本 Shot 重新构图。'
       : '',
     '',
     `Shot：#${shot.displayId}`,
@@ -1434,7 +1506,7 @@ function buildGridPrompt(
     '',
     `剧情场景：${imageRun.task.title}`,
     `剧情摘要：\n${imageRun.task.scriptExcerpt}`,
-    `原始合成镜头提示词：\n${imageRun.prompt}`,
+    `原始场景图提示词：\n${imageRun.prompt}`,
     project.stylePrompt ? `项目风格：\n${project.stylePrompt}` : '',
   ].filter(Boolean).join('\n');
 }
