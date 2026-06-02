@@ -11,6 +11,8 @@ import {
 } from '@oneness/shared/providers';
 import { selectProvider } from './providers/registry.js';
 import { distillForThreeView } from './lib/three-view-distill.js';
+import { config } from './config.js';
+import { installImageTaskTimeout } from './lib/task-timeout.js';
 
 const CANCEL_POLL_MS = 1000;
 
@@ -21,6 +23,7 @@ type ProcessTaskOptions = {
 
 export async function processTask(taskId: string, opts: ProcessTaskOptions = {}) {
   const taskLog = logger.child({ taskId });
+  const startedAtMs = Date.now();
 
   // 1. Re-read task. If not in QUEUED, exit cleanly.
   const task = await prisma.task.findUnique({
@@ -62,6 +65,17 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
 
   // 3. AbortController + cancel poller
   const ac = new AbortController();
+  const imageTimeout = installImageTaskTimeout({
+    taskType: task.type,
+    timeoutMs: config.IMAGE_TASK_TIMEOUT_MS,
+    controller: ac,
+    onTimeout: () => {
+      taskLog.warn(
+        { timeoutMs: config.IMAGE_TASK_TIMEOUT_MS },
+        'image task timeout reached, aborting provider',
+      );
+    },
+  });
   const poller = setInterval(async () => {
     const fresh = await prisma.task.findUnique({
       where: { id: taskId },
@@ -127,9 +141,10 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
       ).generate(providerPayload as never, ctx);
     }
   } catch (err) {
-    providerError = err as Error;
+    providerError = imageTimeout.timedOut() ? imageTimeout.error() : (err as Error);
   } finally {
     clearInterval(poller);
+    imageTimeout.dispose();
   }
 
   // 4. Was it cancelled during run?
@@ -159,7 +174,7 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
       type: task.type,
       provider: task.provider,
     });
-    taskLog.info('task cancelled mid-run, refunded credits');
+    taskLog.info({ durationMs: Date.now() - startedAtMs }, 'task cancelled mid-run, refunded credits');
     return;
   }
 
@@ -188,6 +203,7 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
           err: providerError.message,
           attemptsMade: opts.attemptsMade ?? 0,
           attempts: opts.attempts ?? 1,
+          durationMs: Date.now() - startedAtMs,
         },
         'task failed transiently, queued for retry',
       );
@@ -216,7 +232,10 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
       }),
     ]);
     metrics.incr('task.fail', { type: task.type, provider: task.provider });
-    taskLog.warn({ err: providerError.message }, 'task failed');
+    taskLog.warn(
+      { err: providerError.message, durationMs: Date.now() - startedAtMs },
+      'task failed',
+    );
     throw providerError; // surface terminal failure to BullMQ logs.
   }
 
@@ -233,7 +252,13 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
     if (shotId) await linkShotSketch(shotId, taskId, taskLog);
   }
   metrics.incr('task.success', { type: task.type, provider: task.provider });
-  taskLog.info({ outputAssets: r.outputAssets?.length ?? 0 }, 'task succeeded');
+  taskLog.info(
+    {
+      outputAssets: r.outputAssets?.length ?? 0,
+      durationMs: Date.now() - startedAtMs,
+    },
+    'task succeeded',
+  );
 }
 
 function stripInternalImageInput(input: unknown): unknown {

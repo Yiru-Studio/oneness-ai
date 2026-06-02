@@ -11,10 +11,10 @@ describe('worker queue concurrency', () => {
     vi.resetModules();
   });
 
-  it('defaults image concurrency to 1', async () => {
+  it('defaults image concurrency to 2', async () => {
     const { workerConcurrencyForQueue } = await loadConcurrencyModule();
 
-    expect(workerConcurrencyForQueue(QueueNames.IMAGE)).toBe(1);
+    expect(workerConcurrencyForQueue(QueueNames.IMAGE)).toBe(2);
   });
 
   it('uses IMAGE_WORKER_CONCURRENCY for image workers', async () => {

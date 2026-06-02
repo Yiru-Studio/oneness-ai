@@ -19,7 +19,7 @@ export function queueForTaskType(type: TaskType): QueueName {
 }
 
 export const WorkerConcurrency = {
-  [QueueNames.IMAGE]: 1,
+  [QueueNames.IMAGE]: 2,
   [QueueNames.VIDEO]: 1,
   [QueueNames.TEXT]:  4,
 } as const;
