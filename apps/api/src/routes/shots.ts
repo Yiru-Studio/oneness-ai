@@ -303,6 +303,7 @@ shotRoutes.post(
 
     const provider = pickVideoProvider(shot.model);
     assertVideoProviderConfigured(provider);
+    assertVideoReferencesReachable(provider, references);
     const cost = estimateCost(TaskType.VIDEO);
 
     const updatedShot = await prisma.$transaction(async (tx) => {
@@ -505,6 +506,18 @@ function assertVideoProviderConfigured(provider: string) {
     throw AppError.badRequest(
       ErrorCodes.VALIDATION_FAILED,
       'APISWEET_API_KEY is not set; configure API Sweet before generating video',
+    );
+  }
+}
+
+function assertVideoReferencesReachable(provider: string, references: VideoReference[]) {
+  if (provider === 'stub' || references.length === 0) return;
+  const endpoint = config.MINIO_PUBLIC_ENDPOINT ?? config.MINIO_ENDPOINT;
+  const host = new URL(endpoint).hostname;
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+    throw AppError.badRequest(
+      ErrorCodes.VALIDATION_FAILED,
+      '视频生成使用了参考图，但当前素材地址是本地 localhost，外部视频服务无法访问。请配置 MINIO_PUBLIC_ENDPOINT 为公网可访问地址后重试。',
     );
   }
 }
