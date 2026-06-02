@@ -18,6 +18,7 @@ import { estimateCost } from '@oneness/shared/pricing';
 import { queueForTaskType } from '@oneness/shared/queues';
 import type { VideoReference } from '@oneness/shared/providers';
 import { uniqueAssetIds } from '../lib/character-identity.js';
+import { reconcileShotSketchTasksForEpisode } from '../lib/shot-sketches.js';
 
 export const shotRoutes = new Hono();
 
@@ -82,6 +83,7 @@ shotRoutes.get('/projects/:id/episodes/:episodeId/shots', async (c) => {
   const projectId = c.req.param('id');
   const episodeId = c.req.param('episodeId');
   await ownedEpisode(projectId, episodeId, user.id);
+  await reconcileShotSketchTasksForEpisode(prisma, episodeId);
   const shots = await prisma.shot.findMany({
     where: { episodeId },
     include: SHOT_INCLUDE,

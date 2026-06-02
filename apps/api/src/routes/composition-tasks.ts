@@ -35,6 +35,7 @@ import {
 import { config } from '../config.js';
 import { uniqueAssetIds } from '../lib/character-identity.js';
 import { serializeAsset, type AssetDTO } from '../lib/assets.js';
+import { reconcileShotSketchTask } from '../lib/shot-sketches.js';
 import {
   buildSceneImageCompositionPrompt,
   buildReferenceBindingMessages,
@@ -978,32 +979,43 @@ async function buildShotSketchContext(
     },
   });
   if (!shot) throw AppError.notFound(ErrorCodes.SHOT_NOT_FOUND, 'shot not found');
+  await reconcileShotSketchTask(prisma, shot.id);
+  const reconciledShot = await prisma.shot.findUnique({
+    where: { id: shot.id },
+    include: {
+      sketchTask: true,
+      episode: {
+        select: { id: true, number: true, title: true, content: true, scenesJson: true },
+      },
+    },
+  });
+  if (!reconciledShot) throw AppError.notFound(ErrorCodes.SHOT_NOT_FOUND, 'shot not found');
 
   const library = await loadReferenceLibrary(projectId);
-  const scene = scenesForEpisode(shot.episode, library.scenes).find((item) => item.index === shot.sceneIndex);
+  const scene = scenesForEpisode(reconciledShot.episode, library.scenes).find((item) => item.index === reconciledShot.sceneIndex);
   if (!scene) throw AppError.badRequest(ErrorCodes.VALIDATION_FAILED, 'sceneIndex out of range');
 
-  const compositionTaskId = await ensureCompositionTaskForScene(project, shot.episode, scene, library);
+  const compositionTaskId = await ensureCompositionTaskForScene(project, reconciledShot.episode, scene, library);
   const compositionTask = await loadCompositionTask(compositionTaskId);
   const compositionImageAssetId = currentCompositionImageAssetId(compositionTask);
   const referenceAssetIds = await buildShotSketchReferenceAssetIds(
     projectId,
     compositionTask,
-    shot,
+    reconciledShot,
     compositionImageAssetId,
   );
   const referenceAssets = await serializeShotSketchReferenceAssets(
     projectId,
     referenceAssetIds,
     compositionTask,
-    shot,
+    reconciledShot,
     compositionImageAssetId,
   );
-  const sketchHistory = await serializeShotSketchHistory(projectId, shot.id, shot.sketchAssetId, userId);
+  const sketchHistory = await serializeShotSketchHistory(projectId, reconciledShot.id, reconciledShot.sketchAssetId, userId);
 
   return {
     compositionTaskId,
-    prompt: buildShotSketchPrompt(project, scene, shot, Boolean(compositionImageAssetId)),
+    prompt: buildShotSketchPrompt(project, scene, reconciledShot, Boolean(compositionImageAssetId)),
     model: project.imageModel,
     ratio: project.ratio,
     referenceAssetIds,
