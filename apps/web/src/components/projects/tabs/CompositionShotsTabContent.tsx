@@ -908,6 +908,7 @@ type RowReferenceItem = {
   id: string;
   label: string;
   kind: '角色' | '场景' | '道具';
+  generationKind: GenerationKind;
   image: string;
 };
 
@@ -920,13 +921,31 @@ function selectedReferenceItems(
   return [
     ...characterOptions
       .filter((option) => task.characterStyleIds.includes(option.id))
-      .map((option) => ({ id: option.id, label: option.label, image: option.image, kind: '角色' as const })),
+      .map((option) => ({
+        id: option.id,
+        label: option.label,
+        image: option.image,
+        kind: '角色' as const,
+        generationKind: 'style' as const,
+      })),
     ...sceneOptions
       .filter((option) => task.sceneIds.includes(option.id))
-      .map((option) => ({ id: option.id, label: option.label, image: option.image, kind: '场景' as const })),
+      .map((option) => ({
+        id: option.id,
+        label: option.label,
+        image: option.image,
+        kind: '场景' as const,
+        generationKind: 'scene' as const,
+      })),
     ...itemOptions
       .filter((option) => task.itemIds.includes(option.id))
-      .map((option) => ({ id: option.id, label: option.label, image: option.image, kind: '道具' as const })),
+      .map((option) => ({
+        id: option.id,
+        label: option.label,
+        image: option.image,
+        kind: '道具' as const,
+        generationKind: 'item' as const,
+      })),
   ];
 }
 
@@ -1169,6 +1188,7 @@ function ReferenceColumn({
   const visible = references.slice(0, slotCount - 1);
   const hiddenCount = references.length - visible.length;
   const showAddTile = !showMoreTile;
+  const { isGenerating, getError } = useGeneration();
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col gap-3">
       <div className="flex items-center gap-2">
@@ -1178,28 +1198,46 @@ function ReferenceColumn({
         </div>
       </div>
       <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto pr-1 2xl:grid-cols-3">
-        {visible.map((item) => (
-          <button
-            key={`${item.kind}-${item.id}`}
-            type="button"
-            onClick={onOpen}
-            title={`${item.kind} · ${item.label}`}
-            className="group relative aspect-square overflow-hidden rounded-lg border border-[var(--color-border)] bg-gray-50 text-left hover:border-[var(--color-primary)]"
-          >
-            {item.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.image} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-1 px-1.5 text-center">
-                <ImageIcon className="h-4 w-4 text-gray-400" />
-                <span className="line-clamp-2 text-[10px] leading-3 text-gray-500">{compactReferenceLabel(item.label)}</span>
-              </div>
-            )}
-            <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[10px] text-white">
-              {item.kind}
-            </span>
-          </button>
-        ))}
+        {visible.map((item) => {
+          const generating = isGenerating(item.generationKind, item.id);
+          const generationError = getError(item.generationKind, item.id);
+          return (
+            <button
+              key={`${item.kind}-${item.id}`}
+              type="button"
+              onClick={onOpen}
+              title={`${item.kind} · ${item.label}`}
+              className="group relative aspect-square overflow-hidden rounded-lg border border-[var(--color-border)] bg-gray-50 text-left hover:border-[var(--color-primary)]"
+            >
+              {item.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.image} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-1 px-1.5 text-center">
+                  <ImageIcon className="h-4 w-4 text-gray-400" />
+                  <span className="line-clamp-2 text-[10px] leading-3 text-gray-500">{compactReferenceLabel(item.label)}</span>
+                </div>
+              )}
+              {generating && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40 text-white">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-[10px] font-medium">生成中...</span>
+                </div>
+              )}
+              {generationError && !generating && (
+                <div
+                  className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow-sm"
+                  title={generationError}
+                >
+                  <AlertTriangle className="h-3 w-3" />
+                </div>
+              )}
+              <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[10px] text-white">
+                {item.kind}
+              </span>
+            </button>
+          );
+        })}
         {hiddenCount > 0 && (
           <button
             type="button"
