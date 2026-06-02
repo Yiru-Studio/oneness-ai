@@ -92,6 +92,7 @@ type ShotSketchReferenceAssetDTO = AssetDTO & {
   label: string;
   source: 'composition' | 'character' | 'scene' | 'item';
   sourceId: string | null;
+  scope: 'shot' | 'compositionTask' | 'locked';
   removable: boolean;
 };
 
@@ -1864,14 +1865,15 @@ async function serializeShotSketchReferenceAssets(
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
   const metaByAssetId = new Map<
     string,
-    Pick<ShotSketchReferenceAssetDTO, 'label' | 'source' | 'sourceId' | 'removable'>
+    Pick<ShotSketchReferenceAssetDTO, 'label' | 'source' | 'sourceId' | 'scope' | 'removable'>
   >();
   const setMeta = (
     assetId: string | null | undefined,
-    meta: Pick<ShotSketchReferenceAssetDTO, 'label' | 'source' | 'sourceId' | 'removable'>,
+    meta: Pick<ShotSketchReferenceAssetDTO, 'label' | 'source' | 'sourceId' | 'scope' | 'removable'>,
   ) => {
     if (!assetId) return;
     const existing = metaByAssetId.get(assetId);
+    if (existing?.scope === 'locked') return;
     if (!existing || (!existing.removable && meta.removable)) {
       metaByAssetId.set(assetId, meta);
     }
@@ -1881,6 +1883,7 @@ async function serializeShotSketchReferenceAssets(
       label: '当前场景图',
       source: 'composition',
       sourceId: null,
+      scope: 'locked',
       removable: false,
     });
   }
@@ -1890,11 +1893,13 @@ async function serializeShotSketchReferenceAssets(
       label: `第${task.sceneIndex + 1}场 · ${task.title}`,
       source: 'composition',
       sourceId: task.id,
+      scope: 'shot',
       removable: true,
     });
   }
   for (const style of styles) {
     const label = `${style.character.name}${style.name ? ` - ${style.name}` : ''}`;
+    const selectedByShot = shotStyleIds.includes(style.id);
     for (const assetId of uniqueAssetIds([
       style.character.identityAssetId ?? style.character.avatarAssetId ?? null,
       style.assetId,
@@ -1903,24 +1908,29 @@ async function serializeShotSketchReferenceAssets(
         label,
         source: 'character',
         sourceId: style.id,
-        removable: shotStyleIds.includes(style.id),
+        scope: selectedByShot ? 'shot' : 'compositionTask',
+        removable: true,
       });
     }
   }
   for (const scene of sceneRows) {
+    const selectedByShot = shotSceneIds.includes(scene.id);
     setMeta(scene.assetId, {
       label: scene.name,
       source: 'scene',
       sourceId: scene.id,
-      removable: shotSceneIds.includes(scene.id),
+      scope: selectedByShot ? 'shot' : 'compositionTask',
+      removable: true,
     });
   }
   for (const item of itemRows) {
+    const selectedByShot = shotItemIds.includes(item.id);
     setMeta(item.assetId, {
       label: item.name,
       source: 'item',
       sourceId: item.id,
-      removable: shotItemIds.includes(item.id),
+      scope: selectedByShot ? 'shot' : 'compositionTask',
+      removable: true,
     });
   }
 
@@ -1933,6 +1943,7 @@ async function serializeShotSketchReferenceAssets(
         label: '参考图',
         source: 'composition' as const,
         sourceId: null,
+        scope: 'locked' as const,
         removable: false,
       };
       return { ...dto, ...meta };

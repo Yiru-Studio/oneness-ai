@@ -20,11 +20,13 @@ import {
   getCompositionTaskRuns,
   getShotSketchContext,
   setShotSketch,
+  updateCompositionTask,
   updateShot,
   type ShotSketchContext,
   type ShotSketchReferenceAsset,
 } from '@/lib/api';
 import { IMAGE_MODEL_OPTIONS } from '@/data/style-presets';
+import { ImagePreview } from '@/components/ImagePreview';
 import { ReferencePickerDialog } from './ReferencePickerDialog';
 
 type ExistingImage = {
@@ -67,7 +69,7 @@ const SOURCE_LABEL: Record<ShotSketchReferenceAsset['source'], string> = {
   item: '道具',
 };
 
-function buildReferenceRemovalPatch(
+function buildShotReferenceRemovalPatch(
   shot: Shot,
   reference: ShotSketchReferenceAsset,
 ): Partial<Shot> | null {
@@ -90,6 +92,29 @@ function buildReferenceRemovalPatch(
   return {
     itemIds: shot.itemIds.filter((id) => id !== reference.sourceId),
   };
+}
+
+function buildCompositionTaskReferenceRemovalPatch(
+  task: CompositionTask,
+  reference: ShotSketchReferenceAsset,
+): Parameters<typeof updateCompositionTask>[1] | null {
+  if (!reference.sourceId) return null;
+  if (reference.source === 'character') {
+    return {
+      characterStyleIds: task.characterStyleIds.filter((id) => id !== reference.sourceId),
+    };
+  }
+  if (reference.source === 'scene') {
+    return {
+      sceneIds: task.sceneIds.filter((id) => id !== reference.sourceId),
+    };
+  }
+  if (reference.source === 'item') {
+    return {
+      itemIds: task.itemIds.filter((id) => id !== reference.sourceId),
+    };
+  }
+  return null;
 }
 
 export function ShotSketchDrawer({
@@ -117,6 +142,7 @@ export function ShotSketchDrawer({
   const [model, setModel] = useState(project.imageModel);
   const [ratio, setRatio] = useState(project.ratio);
   const [referencePickerOpen, setReferencePickerOpen] = useState(false);
+  const [previewReference, setPreviewReference] = useState<ShotSketchReferenceAsset | null>(null);
   const activeContextShotRef = useRef<string | null>(null);
 
   const compositionTask = useMemo(
@@ -254,12 +280,22 @@ export function ShotSketchDrawer({
 
   const handleRemoveReference = async (reference: ShotSketchReferenceAsset) => {
     if (!reference.removable || !reference.sourceId) return;
-    const patch = buildReferenceRemovalPatch(shot, reference);
-    if (!patch) return;
+    const shotPatch = reference.scope === 'shot' ? buildShotReferenceRemovalPatch(shot, reference) : null;
+    const taskPatch =
+      reference.scope === 'compositionTask' && compositionTask
+        ? buildCompositionTaskReferenceRemovalPatch(compositionTask, reference)
+        : null;
+    if (!shotPatch && !taskPatch) return;
     setLocalBusy(true);
     try {
-      await updateShot(shot.id, patch);
-      await onRefreshShots();
+      if (shotPatch) {
+        await updateShot(shot.id, shotPatch);
+        await onRefreshShots();
+      }
+      if (taskPatch && compositionTask) {
+        await updateCompositionTask(compositionTask.id, taskPatch);
+        await onRefreshCompositionTasks();
+      }
       await loadContextAndRuns();
     } catch (error) {
       onError(error instanceof Error ? error.message : '移除生成参考图失败');
@@ -392,6 +428,7 @@ export function ShotSketchDrawer({
                   loading={contextLoading}
                   disabled={disabled}
                   onAdd={() => setReferencePickerOpen(true)}
+                  onPreview={setPreviewReference}
                   onRemove={(reference) => void handleRemoveReference(reference)}
                 />
               </div>
@@ -503,6 +540,12 @@ export function ShotSketchDrawer({
         onRefreshReferences={onRefreshReferences}
         onConfirm={handleConfirmReferences}
       />
+      <ImagePreview
+        src={previewReference?.url ?? ''}
+        alt={previewReference?.label}
+        open={Boolean(previewReference)}
+        onClose={() => setPreviewReference(null)}
+      />
     </div>
   );
 }
@@ -543,12 +586,14 @@ function ReferenceStrip({
   loading,
   disabled,
   onAdd,
+  onPreview,
   onRemove,
 }: {
   references: ShotSketchReferenceAsset[];
   loading: boolean;
   disabled: boolean;
   onAdd: () => void;
+  onPreview: (reference: ShotSketchReferenceAsset) => void;
   onRemove: (reference: ShotSketchReferenceAsset) => void;
 }) {
   if (loading) {
@@ -575,8 +620,18 @@ function ReferenceStrip({
           className="group relative h-[112px] w-[112px] shrink-0 overflow-hidden rounded-lg border border-[var(--color-border)] bg-gray-50"
           title={`${SOURCE_LABEL[reference.source]} · ${reference.label}`}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={reference.url} alt={reference.label} className="h-full w-full object-cover" />
+          <button
+            type="button"
+            onClick={() => onPreview(reference)}
+            className="absolute inset-0 cursor-zoom-in"
+            aria-label={`查看参考图：${reference.label}`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={reference.url} alt={reference.label} className="h-full w-full object-cover" />
+            <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-black/55 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+              点击放大
+            </span>
+          </button>
           <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[11px] font-medium text-white">
             {SOURCE_LABEL[reference.source]}
           </span>
@@ -585,7 +640,7 @@ function ReferenceStrip({
               type="button"
               onClick={() => onRemove(reference)}
               disabled={disabled}
-              className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white opacity-100 transition-colors hover:bg-red-500 disabled:opacity-40 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100"
+              className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white opacity-100 transition-colors hover:bg-red-500 disabled:opacity-40 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100"
               aria-label={`移除参考图：${reference.label}`}
               title="移除参考图"
             >

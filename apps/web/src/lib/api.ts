@@ -573,6 +573,7 @@ export type ShotSketchReferenceAsset = AssetDTO & {
   label: string;
   source: 'composition' | 'character' | 'scene' | 'item';
   sourceId: string | null;
+  scope: 'shot' | 'compositionTask' | 'locked';
   removable: boolean;
 };
 
