@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2, Circle, Loader2, Sparkles, RotateCcw } from 'lucide-react';
+import { CheckCircle2, Circle, Loader2, RotateCcw } from 'lucide-react';
 import { EpisodeScene } from '@/types';
 
 interface Props {
@@ -52,27 +52,18 @@ export function AnalysisProgressPanel({
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
             生成中…
           </span>
+        ) : sceneShotCount === 0 ? (
+          <span className="text-xs text-gray-400">等待分镜生成</span>
         ) : (
           <div className="flex items-center gap-2">
-            {sceneShotCount > 0 && (
-              <span className="text-xs text-gray-500">本场景 {sceneShotCount} 个分镜</span>
-            )}
+            <span className="text-xs text-gray-500">本场景 {sceneShotCount} 个分镜</span>
             <button
               onClick={onGenerate}
               disabled={!selectedScene}
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[var(--color-primary)] text-white text-xs font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
             >
-              {sceneShotCount > 0 ? (
-                <>
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  重新生成
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5" />
-                  智能分镜创作
-                </>
-              )}
+              <RotateCcw className="w-3.5 h-3.5" />
+              重新生成
             </button>
           </div>
         )}
