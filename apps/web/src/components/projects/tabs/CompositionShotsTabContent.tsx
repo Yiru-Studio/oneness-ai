@@ -28,6 +28,7 @@ import {
   Item,
   Project,
   ProjectTab,
+  ResourceImageStatus,
   Scene,
   StoryboardEpisode,
 } from '@/types';
@@ -87,6 +88,8 @@ type ReferenceBaseOption = {
   id: string;
   label: string;
   image: string;
+  resourceStatus?: ResourceImageStatus | null;
+  resourceError?: string | null;
 };
 
 type CharacterReferenceOption = ReferenceBaseOption & {
@@ -144,6 +147,23 @@ const QUALITY_OPTIONS: Array<{ value: ImageSettings['quality']; label: string }>
 const IMAGE_RUNNING_TASK_STATUSES = new Set(['IMAGE_QUEUED', 'IMAGE_RUNNING']);
 const RUNNING_TASK_STATUSES = new Set(['IMAGE_QUEUED', 'IMAGE_RUNNING', 'GRID_QUEUED', 'GRID_RUNNING']);
 const RUNNING_RUN_STATUSES = new Set(['QUEUED', 'RUNNING']);
+
+function isReferenceResourcePending(status: ResourceImageStatus | null | undefined): boolean {
+  return status === 'QUEUED' || status === 'RUNNING';
+}
+
+function referenceResourceStatusLabel(status: ResourceImageStatus | null | undefined): string {
+  if (status === 'QUEUED') return '排队中...';
+  if (status === 'RUNNING') return '生成中...';
+  return '生成中...';
+}
+
+function referenceGenerationError(
+  status: ResourceImageStatus | null | undefined,
+  error?: string | null,
+): string | null {
+  return status === 'FAILED' ? error || '生成失败' : null;
+}
 
 function matchesCompositionFilter(task: CompositionTask, filter: FilterValue): boolean {
   if (filter === 'all') return true;
@@ -257,6 +277,8 @@ export function CompositionShotsTabContent({
             label: `${character.name} · ${style.name}`,
             image,
             assetId,
+            resourceStatus: style.styleResourceImage?.status ?? null,
+            resourceError: style.styleResourceImage?.error ?? null,
             characterId: character.id,
             characterName: character.name,
             characterDescription: character.description,
@@ -278,6 +300,8 @@ export function CompositionShotsTabContent({
       label: scene.name,
       image: scene.image || scene.sceneResourceImage?.image || '',
       assetId: scene.assetId ?? scene.sceneResourceImage?.assetId ?? null,
+      resourceStatus: scene.sceneResourceImage?.status ?? null,
+      resourceError: scene.sceneResourceImage?.error ?? null,
       name: scene.name,
       description: scene.description ?? '',
       prompt: scene.prompt ?? '',
@@ -292,6 +316,8 @@ export function CompositionShotsTabContent({
       label: item.name,
       image: item.image || item.itemResourceImage?.image || '',
       assetId: item.assetId ?? item.itemResourceImage?.assetId ?? null,
+      resourceStatus: item.itemResourceImage?.status ?? null,
+      resourceError: item.itemResourceImage?.error ?? null,
       name: item.name,
       description: item.description ?? '',
       prompt: item.prompt ?? '',
@@ -910,13 +936,15 @@ type RowReferenceItem = {
   kind: '角色' | '场景' | '道具';
   generationKind: GenerationKind;
   image: string;
+  resourceStatus?: ResourceImageStatus | null;
+  resourceError?: string | null;
 };
 
 function selectedReferenceItems(
   task: CompositionTask,
-  characterOptions: Array<{ id: string; label: string; image: string }>,
-  sceneOptions: Array<{ id: string; label: string; image: string }>,
-  itemOptions: Array<{ id: string; label: string; image: string }>,
+  characterOptions: ReferenceBaseOption[],
+  sceneOptions: ReferenceBaseOption[],
+  itemOptions: ReferenceBaseOption[],
 ): RowReferenceItem[] {
   return [
     ...characterOptions
@@ -925,6 +953,8 @@ function selectedReferenceItems(
         id: option.id,
         label: option.label,
         image: option.image,
+        resourceStatus: option.resourceStatus,
+        resourceError: option.resourceError,
         kind: '角色' as const,
         generationKind: 'style' as const,
       })),
@@ -934,6 +964,8 @@ function selectedReferenceItems(
         id: option.id,
         label: option.label,
         image: option.image,
+        resourceStatus: option.resourceStatus,
+        resourceError: option.resourceError,
         kind: '场景' as const,
         generationKind: 'scene' as const,
       })),
@@ -943,6 +975,8 @@ function selectedReferenceItems(
         id: option.id,
         label: option.label,
         image: option.image,
+        resourceStatus: option.resourceStatus,
+        resourceError: option.resourceError,
         kind: '道具' as const,
         generationKind: 'item' as const,
       })),
@@ -1102,9 +1136,9 @@ function CompositionTaskRow({
   imageSettings: ImageSettings;
   imageRun: CompositionImageRun | null;
   busy: string | null;
-  characterOptions: Array<{ id: string; label: string; image: string }>;
-  sceneOptions: Array<{ id: string; label: string; image: string }>;
-  itemOptions: Array<{ id: string; label: string; image: string }>;
+  characterOptions: ReferenceBaseOption[];
+  sceneOptions: ReferenceBaseOption[];
+  itemOptions: ReferenceBaseOption[];
   onPromptChange: (next: string) => void;
   onPromptBlur: (next: string) => void;
   onImageSettingsChange: (next: ImageSettings) => void;
@@ -1187,6 +1221,7 @@ function ReferenceColumn({
   const showMoreTile = references.length >= slotCount;
   const visible = references.slice(0, slotCount - 1);
   const hiddenCount = references.length - visible.length;
+  const hiddenHasPending = references.slice(slotCount - 1).some((item) => isReferenceResourcePending(item.resourceStatus));
   const showAddTile = !showMoreTile;
   const { isGenerating, getError } = useGeneration();
   return (
@@ -1199,8 +1234,14 @@ function ReferenceColumn({
       </div>
       <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto pr-1 2xl:grid-cols-3">
         {visible.map((item) => {
-          const generating = isGenerating(item.generationKind, item.id);
-          const generationError = getError(item.generationKind, item.id);
+          const realtimeGenerating = isGenerating(item.generationKind, item.id);
+          const persistedPending = isReferenceResourcePending(item.resourceStatus);
+          const generating = realtimeGenerating || persistedPending;
+          const generationLabel = realtimeGenerating
+            ? '生成中...'
+            : referenceResourceStatusLabel(item.resourceStatus);
+          const generationError =
+            getError(item.generationKind, item.id) ?? referenceGenerationError(item.resourceStatus, item.resourceError);
           return (
             <button
               key={`${item.kind}-${item.id}`}
@@ -1221,7 +1262,7 @@ function ReferenceColumn({
               {generating && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40 text-white">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-[10px] font-medium">生成中...</span>
+                  <span className="text-[10px] font-medium">{generationLabel}</span>
                 </div>
               )}
               {generationError && !generating && (
@@ -1240,13 +1281,20 @@ function ReferenceColumn({
         })}
         {hiddenCount > 0 && (
           <button
-            type="button"
-            onClick={onOpen}
-            className="aspect-square rounded-lg border border-dashed border-[var(--color-border)] bg-white text-sm font-medium text-gray-500 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-          >
-            +{hiddenCount}
-          </button>
-        )}
+          type="button"
+          onClick={onOpen}
+          className="flex aspect-square items-center justify-center rounded-lg border border-dashed border-[var(--color-border)] bg-white text-sm font-medium text-gray-500 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
+        >
+          {hiddenHasPending ? (
+            <span className="inline-flex items-center gap-1">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              +{hiddenCount}
+            </span>
+          ) : (
+            `+${hiddenCount}`
+          )}
+        </button>
+      )}
         {showAddTile && (
           <button
             type="button"
@@ -2189,6 +2237,7 @@ function ReferencePickerCard({
   option,
   selected,
   generating,
+  generationLabel,
   generationError,
   onToggle,
   onEdit,
@@ -2197,6 +2246,7 @@ function ReferencePickerCard({
   option: ReferencePickerOption;
   selected: boolean;
   generating: boolean;
+  generationLabel: string;
   generationError: string | null;
   onToggle: () => void;
   onEdit: () => void;
@@ -2238,7 +2288,7 @@ function ReferencePickerCard({
           {generating && (
             <div className="absolute inset-0 bg-black/40 text-white flex flex-col items-center justify-center gap-1">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-xs">生成中...</span>
+              <span className="text-xs">{generationLabel}</span>
             </div>
           )}
         </div>
@@ -2275,7 +2325,7 @@ function ReferencePickerCard({
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-white px-2 py-1.5 text-xs font-medium text-[var(--color-primary)] hover:border-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
-            {generating ? '生成中...' : '生成图片'}
+            {generating ? generationLabel : '生成图片'}
           </button>
           {generationError && !generating && (
             <div className="mt-1 line-clamp-2 text-[10px] leading-3 text-red-500">
@@ -2447,14 +2497,23 @@ function ReferencePickerDialog({
               {activeOptions.map((option) => {
                 const selected = option.selectedIds.includes(option.id);
                 const generationKind = generationKindForReference(option.kind);
-                const generating = isGenerating(generationKind, option.id);
+                const realtimeGenerating = isGenerating(generationKind, option.id);
+                const persistedPending = isReferenceResourcePending(option.resourceStatus);
+                const generating = realtimeGenerating || persistedPending;
+                const generationLabel = realtimeGenerating
+                  ? '生成中...'
+                  : referenceResourceStatusLabel(option.resourceStatus);
+                const generationError =
+                  getError(generationKind, option.id) ??
+                  referenceGenerationError(option.resourceStatus, option.resourceError);
                 return (
                   <ReferencePickerCard
                     key={`${option.kind}-${option.id}`}
                     option={option}
                     selected={selected}
                     generating={generating}
-                    generationError={getError(generationKind, option.id)}
+                    generationLabel={generationLabel}
+                    generationError={generationError}
                     onToggle={() => toggle(option.kind, option.id)}
                     onEdit={() => setEditingOption(option)}
                     onPreview={() => setPreviewOption(option)}

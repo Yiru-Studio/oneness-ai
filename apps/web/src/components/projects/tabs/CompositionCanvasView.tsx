@@ -18,7 +18,9 @@ import {
   useNodesState,
 } from '@xyflow/react';
 import {
+  AlertTriangle,
   Clapperboard,
+  Image as ImageIcon,
   Loader2,
   Plus,
   Settings2,
@@ -29,6 +31,7 @@ import {
   CompositionImageRun,
   CompositionTask,
   CompositionTaskRuns,
+  ResourceImageStatus,
 } from '@/types';
 import { IMAGE_MODEL_OPTIONS, imageModelLabel } from '@/data/style-presets';
 
@@ -38,6 +41,8 @@ type CanvasResourceOption = {
   id: string;
   label: string;
   image: string;
+  resourceStatus?: ResourceImageStatus | null;
+  resourceError?: string | null;
 };
 
 type CanvasResource = CanvasResourceOption & {
@@ -64,6 +69,8 @@ type ResourceNodeData = {
   kind: CanvasResourceKind;
   label: string;
   image: string;
+  resourceStatus?: ResourceImageStatus | null;
+  resourceError?: string | null;
 };
 
 type CompositionNodeData = {
@@ -129,6 +136,21 @@ const NODE_TYPES = {
   composition: CompositionNode,
 };
 
+function isCanvasResourcePending(status: ResourceImageStatus | null | undefined): boolean {
+  return status === 'QUEUED' || status === 'RUNNING';
+}
+
+function isCanvasResourceFailed(status: ResourceImageStatus | null | undefined): boolean {
+  return status === 'FAILED';
+}
+
+function canvasResourceStatusLabel(status: ResourceImageStatus | null | undefined): string {
+  if (status === 'QUEUED') return '排队中...';
+  if (status === 'RUNNING') return '生成中...';
+  if (status === 'FAILED') return '生成失败';
+  return '暂无图片';
+}
+
 export function CompositionCanvasView(props: Props) {
   return (
     <ReactFlowProvider>
@@ -182,7 +204,14 @@ function CompositionCanvasInner({
     );
   }, [allResources, selectedTask]);
   const visibleResources = useMemo(
-    () => selectedResources.filter((resource) => resource.image).slice(0, 8),
+    () =>
+      selectedResources
+        .filter((resource) => (
+          resource.image ||
+          isCanvasResourcePending(resource.resourceStatus) ||
+          isCanvasResourceFailed(resource.resourceStatus)
+        ))
+        .slice(0, 8),
     [selectedResources],
   );
   const hiddenResourceCount = selectedResources.length - Math.min(visibleResources.length, 7);
@@ -372,6 +401,8 @@ function buildNodes({
         kind: resource.kind,
         label: resource.label,
         image: resource.image,
+        resourceStatus: resource.resourceStatus,
+        resourceError: resource.resourceError,
       },
     });
     y += size.height + 34;
@@ -437,14 +468,29 @@ function buildEdges(
 
 function ResourceNode({ data }: NodeProps<ResourceCanvasNode>) {
   const size = resourceNodeSize(data.kind);
+  const pending = isCanvasResourcePending(data.resourceStatus);
+  const failed = isCanvasResourceFailed(data.resourceStatus);
   return (
     <div
       className="group overflow-hidden rounded-xl border border-white/10 bg-[#11151b] shadow-2xl transition-colors hover:border-[#4f8fd8]"
       style={{ width: size.width, height: size.height }}
-      title={`${KIND_META[data.kind].label} · ${data.label}`}
+      title={`${KIND_META[data.kind].label} · ${data.label}${failed && data.resourceError ? `：${data.resourceError}` : ''}`}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={data.image} alt="" className="h-full w-full object-cover" />
+      {data.image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={data.image} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[#171c23] px-3 text-center text-white/55">
+          {pending ? (
+            <Loader2 className="h-5 w-5 animate-spin text-[#d7ff14]" />
+          ) : failed ? (
+            <AlertTriangle className="h-5 w-5 text-red-300" />
+          ) : (
+            <ImageIcon className="h-5 w-5" />
+          )}
+          <span className="text-xs">{canvasResourceStatusLabel(data.resourceStatus)}</span>
+        </div>
+      )}
       <Handle
         type="source"
         id="out"
@@ -514,14 +560,10 @@ function CompositionNode({ data }: NodeProps<CompositionCanvasNode>) {
             <Plus className="h-4 w-4" />
           </button>
           {data.visibleResources.slice(0, 7).map((resource) => (
-            <div
+            <CanvasResourceThumb
               key={`${resource.kind}-${resource.id}`}
-              className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[#11151b]"
-              title={`${KIND_META[resource.kind].label} · ${resource.label}`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={resource.image} alt="" className="h-full w-full object-cover" />
-            </div>
+              resource={resource}
+            />
           ))}
           {data.hiddenResourceCount > 0 && (
             <span className="rounded-lg border border-white/10 px-2 py-2 text-xs text-white/60">
@@ -585,6 +627,29 @@ function CompositionNode({ data }: NodeProps<CompositionCanvasNode>) {
           {imageModelLabel(data.imageSettings.model)} · {data.imageSettings.ratio} · {qualityLabel(data.imageSettings.quality)}
         </div>
       </div>
+    </div>
+  );
+}
+
+function CanvasResourceThumb({ resource }: { resource: CanvasResource }) {
+  const pending = isCanvasResourcePending(resource.resourceStatus);
+  const failed = isCanvasResourceFailed(resource.resourceStatus);
+
+  return (
+    <div
+      className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-[#11151b]"
+      title={`${KIND_META[resource.kind].label} · ${resource.label}${failed && resource.resourceError ? `：${resource.resourceError}` : ''}`}
+    >
+      {resource.image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={resource.image} alt="" className="h-full w-full object-cover" />
+      ) : pending ? (
+        <Loader2 className="h-4 w-4 animate-spin text-[#d7ff14]" />
+      ) : failed ? (
+        <AlertTriangle className="h-4 w-4 text-red-300" />
+      ) : (
+        <ImageIcon className="h-4 w-4 text-white/45" />
+      )}
     </div>
   );
 }
