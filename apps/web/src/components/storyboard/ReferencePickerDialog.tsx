@@ -2,7 +2,10 @@
 
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 import { X, Check, Loader2 } from 'lucide-react';
-import { Character, CompositionTask, Item, Scene } from '@/types';
+import { Character, CompositionTask, Item, Project, Scene } from '@/types';
+import { EntityDetailDrawer, type EntityDetailData } from '@/components/projects/EntityDetailDrawer';
+import { updateCharacterStyle } from '@/lib/api';
+import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 
 type PickerTab = 'composition' | 'characters' | 'scenes' | 'items';
 
@@ -15,12 +18,20 @@ type PickerOption = {
   badge?: string;
   emptyTitle?: string;
   emptyText?: string;
+  styleEditor?: CharacterStyleEditor;
 };
 
 type CharacterStyleGroup = {
   id: string;
   label: string;
   options: PickerOption[];
+};
+
+type CharacterStyle = Character['styles'][number];
+
+type CharacterStyleEditor = {
+  character: Character;
+  style: CharacterStyle & { id: string };
 };
 
 function characterStylePickerLabel(styleName: string, characterName: string, index: number) {
@@ -38,12 +49,14 @@ interface Props {
   items: Item[];
   scenes: Scene[];
   compositionTasks: CompositionTask[];
+  project: Project;
   selected: {
     compositionTaskIds: string[];
     characterStyleIds: string[];
     sceneIds: string[];
     itemIds: string[];
   };
+  onRefreshReferences: () => Promise<void>;
   onConfirm: (next: {
     compositionTaskIds: string[];
     characterStyleIds: string[];
@@ -65,7 +78,9 @@ export function ReferencePickerDialog({
   items,
   scenes,
   compositionTasks,
+  project,
   selected,
+  onRefreshReferences,
   onConfirm,
 }: Props) {
   const [tab, setTab] = useState<PickerTab>('composition');
@@ -76,6 +91,7 @@ export function ReferencePickerDialog({
   const [sceneIds, setSceneIds] = useState<string[]>(selected.sceneIds);
   const [itemIds, setItemIds] = useState<string[]>(selected.itemIds);
   const [previewOption, setPreviewOption] = useState<PickerOption | null>(null);
+  const [editingStyle, setEditingStyle] = useState<CharacterStyleEditor | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
 
@@ -87,6 +103,7 @@ export function ReferencePickerDialog({
     setSceneIds(selected.sceneIds);
     setItemIds(selected.itemIds);
     setPreviewOption(null);
+    setEditingStyle(null);
     setConfirmError(null);
     setIsConfirming(false);
     setTab('composition');
@@ -115,7 +132,11 @@ export function ReferencePickerDialog({
           fallbackThumb: s.image ? null : c.avatar || null,
           badge: s.image ? '造型图' : '待生成',
           emptyTitle: '暂无造型图',
-          emptyText: c.avatar ? '生成视频时会用角色头像兜底' : '请先生成该造型图',
+          emptyText: c.avatar ? '点击生成造型图' : '请先生成角色头像',
+          styleEditor: {
+            character: c,
+            style: { ...s, id: s.id as string },
+          },
         })),
     }))
     .filter((group) => group.options.length > 0);
@@ -144,6 +165,13 @@ export function ReferencePickerDialog({
   };
   const openPreview = (opt: PickerOption) => {
     if (opt.thumb) setPreviewOption(opt);
+  };
+  const openOptionDetail = (opt: PickerOption) => {
+    if (opt.thumb) {
+      openPreview(opt);
+      return;
+    }
+    if (opt.styleEditor) setEditingStyle(opt.styleEditor);
   };
   const handleConfirm = async () => {
     setIsConfirming(true);
@@ -208,11 +236,10 @@ export function ReferencePickerDialog({
       >
         <button
           type="button"
-          onPointerDown={() => openPreview(opt)}
-          onClick={() => openPreview(opt)}
-          disabled={!opt.thumb || isConfirming}
+          onClick={() => openOptionDetail(opt)}
+          disabled={(!opt.thumb && !opt.styleEditor) || isConfirming}
           className="group relative flex aspect-square w-full items-center justify-center bg-gray-100 disabled:cursor-default enabled:cursor-zoom-in"
-          aria-label={opt.thumb ? `查看${opt.label}` : opt.label}
+          aria-label={opt.thumb ? `查看${opt.label}` : `编辑${opt.label}`}
         >
           {opt.thumb ? (
             <>
@@ -291,7 +318,7 @@ export function ReferencePickerDialog({
   return (
     <>
       <div
-        className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40"
+        className="fixed inset-0 z-[1800] flex items-center justify-center bg-black/40"
         onClick={() => {
           if (!isConfirming) onClose();
         }}
@@ -432,6 +459,48 @@ export function ReferencePickerDialog({
           </div>
         </div>
       )}
+      {editingStyle && (
+        <EntityDetailDrawer
+          open
+          kind="style"
+          entity={styleEditorEntity(editingStyle.style)}
+          project={project}
+          characterId={editingStyle.character.id}
+          identityReferenceAssetId={
+            editingStyle.character.identityAssetId ?? editingStyle.character.avatarAssetId ?? null
+          }
+          buildAutoPrompt={() =>
+            buildResourceImagePrompt({
+              kind: 'character-style',
+              name: editingStyle.character.name,
+              description: editingStyle.character.description,
+              bio: editingStyle.character.bio,
+              styleName: editingStyle.style.name,
+              userPrompt: editingStyle.style.prompt,
+              projectStylePrompt: project.stylePrompt,
+              ratio: editingStyle.style.ratio || project.ratio,
+            })
+          }
+          onSave={async (patch) => {
+            const fresh = await updateCharacterStyle(editingStyle.style.id, patch);
+            await onRefreshReferences();
+            return styleEditorEntity({ ...fresh, id: fresh.id ?? editingStyle.style.id });
+          }}
+          onClose={() => setEditingStyle(null)}
+        />
+      )}
     </>
   );
+}
+
+function styleEditorEntity(style: CharacterStyle & { id: string }): EntityDetailData {
+  return {
+    id: style.id,
+    name: style.name,
+    prompt: style.prompt ?? '',
+    model: style.model ?? null,
+    ratio: style.ratio ?? null,
+    image: style.image || style.styleResourceImage?.image || '',
+    assetId: style.assetId ?? style.styleResourceImage?.assetId ?? null,
+  };
 }

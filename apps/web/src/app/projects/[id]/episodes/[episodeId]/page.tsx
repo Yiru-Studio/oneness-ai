@@ -34,12 +34,21 @@ import { StoryboardSidebar } from '@/components/storyboard/StoryboardSidebar';
 import { AnalysisProgressPanel } from '@/components/storyboard/AnalysisProgressPanel';
 import { ShotCard } from '@/components/storyboard/ShotCard';
 import { InsertSeparator } from '@/components/storyboard/InsertSeparator';
+import { GenerationProvider } from '@/contexts/GenerationContext';
 
 // While any shot has a QUEUED/RUNNING video task, we poll the list at this
 // cadence so the user sees the video appear when it completes.
 const POLL_MS = 3000;
 
 export default function StoryboardEpisodePage() {
+  return (
+    <GenerationProvider>
+      <StoryboardEpisodeContent />
+    </GenerationProvider>
+  );
+}
+
+function StoryboardEpisodeContent() {
   const { isLoggedIn, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
@@ -82,6 +91,17 @@ export default function StoryboardEpisodePage() {
     setShots(fresh);
     return fresh;
   }, [projectId, episodeId]);
+
+  const reloadReferenceAssets = useCallback(async () => {
+    const [chars, itms, scns] = await Promise.all([
+      getProjectCharacters(projectId),
+      getProjectItems(projectId),
+      getProjectScenes(projectId),
+    ]);
+    setCharacters(chars);
+    setItems(itms);
+    setScenes(scns);
+  }, [projectId]);
 
   const persistShotPatch = useCallback(async (id: string, patch: Partial<Shot>) => {
     setShots((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -412,11 +432,13 @@ export default function StoryboardEpisodePage() {
                     scenes={scenes}
                     items={items}
                     compositionTasks={compositionTasks}
+                    project={project}
                     siblingDisplayIds={siblingIds}
                     busy={busyShot === shot.id}
                     onUpdate={handleUpdate}
                     onDelete={handleDelete}
                     onGenerate={handleGenerate}
+                    onRefreshReferences={reloadReferenceAssets}
                   />
                   <InsertSeparator
                     onInsert={() => handleCreate(shot.displayId)}

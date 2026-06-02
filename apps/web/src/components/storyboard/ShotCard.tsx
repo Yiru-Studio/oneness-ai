@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Trash2, Loader2, Play, Image as ImageIcon, Plus, RotateCcw, X } from 'lucide-react';
-import { Shot, Character, Scene, Item, CompositionTask } from '@/types';
+import { Shot, Character, Scene, Item, CompositionTask, Project } from '@/types';
 import { ImagePreview } from '@/components/ImagePreview';
 import { ReferencePickerDialog } from './ReferencePickerDialog';
 
@@ -36,12 +36,14 @@ interface Props {
   scenes: Scene[];
   items: Item[];
   compositionTasks: CompositionTask[];
+  project: Project;
   /** displayId of every other shot in the episode, for the "续写镜头" preId picker. */
   siblingDisplayIds: number[];
   busy: boolean;
   onUpdate: (id: string, patch: Partial<Shot>, options?: { rethrow?: boolean }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onGenerate: (id: string, beforeGeneratePatch?: Partial<Shot>) => Promise<void>;
+  onRefreshReferences: () => Promise<void>;
 }
 
 type ResourceThumb = { key: string; label: string; url: string | null };
@@ -52,11 +54,13 @@ export function ShotCard({
   scenes,
   items,
   compositionTasks,
+  project,
   siblingDisplayIds,
   busy,
   onUpdate,
   onDelete,
   onGenerate,
+  onRefreshReferences,
 }: Props) {
   const [promptDraft, setPromptDraft] = useState(() => ({
     shotId: shot.id,
@@ -191,12 +195,14 @@ export function ShotCard({
         scenes={scenes}
         items={items}
         compositionTasks={compositionTasks}
+        project={project}
         selected={{
           compositionTaskIds: shot.compositionTaskIds,
           characterStyleIds: shot.characterStyleIds,
           sceneIds: shot.sceneIds,
           itemIds: shot.itemIds,
         }}
+        onRefreshReferences={onRefreshReferences}
         onConfirm={(next) => onUpdate(shot.id, next, { rethrow: true })}
       />
       <ImagePreview
