@@ -24,8 +24,9 @@ export function EditableField({ label, value, options, onSave, multiline }: Prop
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (editing) return;
     setDraft(value);
-  }, [value]);
+  }, [editing, value]);
 
   useEffect(() => {
     if (editing && inputRef.current) inputRef.current.focus();

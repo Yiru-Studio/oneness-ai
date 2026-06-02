@@ -191,15 +191,26 @@ export function EntityDetailDrawer({
   const drawerRef = useRef<HTMLDivElement>(null);
   const activeHistoryKeyRef = useRef<string | null>(null);
   const activeEntityIdRef = useRef(entity.id);
+  const lastEntityKeyRef = useRef(`${kind}:${entity.id}`);
 
   // Reference image uploaded by user for AI to use during generation.
   const [referenceAssetId, setReferenceAssetId] = useState<string | null>(null);
   const [referenceImageUrl, setReferenceImageUrl] = useState<string>('');
   const refFileRef = useRef<HTMLInputElement>(null);
 
-  // Reset state when the entity changes.
+  // Reset editable draft state only when the user switches to a different entity.
+  // Background polling can refresh image/resource fields for the same entity while
+  // the drawer is open; that should not clobber in-progress text edits.
   useEffect(() => {
+    const entityKey = `${kind}:${entity.id}`;
+    const entityChanged = lastEntityKeyRef.current !== entityKey;
+    lastEntityKeyRef.current = entityKey;
     activeEntityIdRef.current = entity.id;
+    if (!entityChanged) {
+      setImage(entity.image || '');
+      setAssetId(entity.assetId ?? null);
+      return;
+    }
     setName(entity.name);
     setDescription(entity.description ?? '');
     const parsed = parseThreeViewPrompt(entity.prompt ?? '');

@@ -356,11 +356,11 @@ function ReferenceAssetCards({
         }}
         disabled={!sketchThumb?.url}
         className="group relative h-[136px] w-[136px] overflow-hidden rounded-[18px] border border-[var(--color-border)] bg-gray-50 text-gray-500 transition-colors enabled:cursor-zoom-in enabled:hover:border-[var(--color-primary)] disabled:cursor-default"
-        aria-label={sketchThumb?.url ? '查看场景图' : '场景图未生成'}
+        aria-label={sketchThumb?.url ? '查看分镜图' : '分镜图未生成'}
       >
         {sketchThumb?.url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={sketchThumb.url} alt="场景图" className="h-full w-full object-cover" />
+          <img src={sketchThumb.url} alt="分镜图" className="h-full w-full object-cover" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center px-3 text-sm font-medium">
             {isSketchGenerating ? (
@@ -376,7 +376,7 @@ function ReferenceAssetCards({
           </div>
         )}
         <span className="absolute inset-x-0 bottom-0 bg-black/70 px-3 py-2 text-center text-sm font-semibold text-white">
-          场景图
+          分镜图
         </span>
       </button>
 

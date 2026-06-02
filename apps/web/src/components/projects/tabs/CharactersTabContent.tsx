@@ -1,6 +1,6 @@
 'use client';
 
-import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from 'react';
 import { Character, Project } from '@/types';
 import { User, ImagePlus, Plus, Trash2, Sparkles, Loader2, Pencil, AlertCircle } from 'lucide-react';
 import {
@@ -487,8 +487,10 @@ function InlineText({
   const [draft, setDraft] = useState(value);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const focusedRef = useRef(false);
 
   useEffect(() => {
+    if (focusedRef.current) return;
     const timer = window.setTimeout(() => {
       setDraft(value);
     }, 0);
@@ -496,6 +498,7 @@ function InlineText({
   }, [value]);
 
   const commit = async () => {
+    focusedRef.current = false;
     if (draft === value) return;
     setSaving(true);
     setError(null);
@@ -515,6 +518,9 @@ function InlineText({
         {multiline ? (
           <textarea
             value={draft}
+            onFocus={() => {
+              focusedRef.current = true;
+            }}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
             rows={3}
@@ -526,6 +532,9 @@ function InlineText({
           <input
             type="text"
             value={draft}
+            onFocus={() => {
+              focusedRef.current = true;
+            }}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
             onKeyDown={(e) => {

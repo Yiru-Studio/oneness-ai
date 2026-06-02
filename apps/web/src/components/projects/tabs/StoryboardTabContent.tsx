@@ -1,6 +1,6 @@
 'use client';
 
-import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { StoryboardEpisode, Project } from '@/types';
 import { Plus, CheckCircle2, Trash2, Loader2, Sparkles, X, Pencil, FileText, Film } from 'lucide-react';
@@ -343,17 +343,21 @@ function AddEpisodeModal({
   const [content, setContent] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
     if (!isOpen) {
+      wasOpenRef.current = false;
       setNumber(defaultNumber);
       setTitle('');
       setContent('');
       setBusy(false);
       setError(null);
-    } else {
-      setNumber(defaultNumber);
+      return;
     }
+    if (wasOpenRef.current) return;
+    wasOpenRef.current = true;
+    setNumber(defaultNumber);
   }, [isOpen, defaultNumber]);
 
   const handleConfirm = async () => {
@@ -465,11 +469,22 @@ function EpisodeDetailDrawer({
   const [content, setContent] = useState(episode.content);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lastEpisodeIdRef = useRef(episode.id);
 
   useEffect(() => {
-    setTitle(episode.title);
-    setContent(episode.content);
-  }, [episode.id, episode.title, episode.content]);
+    const episodeChanged = lastEpisodeIdRef.current !== episode.id;
+    lastEpisodeIdRef.current = episode.id;
+    if (episodeChanged) {
+      setTitle(episode.title);
+      setContent(episode.content);
+      setEditTitle(false);
+      setEditContent(false);
+      setError(null);
+      return;
+    }
+    if (!editTitle) setTitle(episode.title);
+    if (!editContent) setContent(episode.content);
+  }, [editContent, editTitle, episode.id, episode.title, episode.content]);
 
   const saveTitle = async () => {
     if (title === episode.title) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from 'react';
 import { X, Check, Loader2, Image as ImageIcon, ImagePlus } from 'lucide-react';
 import { Character, CompositionTask, Item, Project, ResourceImageStatus, Scene } from '@/types';
 import { EntityDetailDrawer, type EntityDetailData } from '@/components/projects/EntityDetailDrawer';
@@ -108,10 +108,16 @@ export function ReferencePickerDialog({
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const { isGenerating, getError } = useGeneration();
+  const wasOpenRef = useRef(false);
 
   /* eslint-disable react-hooks/set-state-in-effect -- This dialog owns draft selections and resets them from props each time it opens. */
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      wasOpenRef.current = false;
+      return;
+    }
+    if (wasOpenRef.current) return;
+    wasOpenRef.current = true;
     setCompositionTaskIds(selected.compositionTaskIds);
     setStyleIds(selected.characterStyleIds);
     setSceneIds(selected.sceneIds);
