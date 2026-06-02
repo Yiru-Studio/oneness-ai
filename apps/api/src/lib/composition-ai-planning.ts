@@ -321,7 +321,7 @@ function relevantCharacterStyleLabels(labels: string[], characters: string[]): s
   if (names.length === 0) return uniqueLabels.slice(0, 3);
   return uniqueLabels.filter((label) => {
     const owner = label.split(/\s*[·\-－]\s*/u)[0]?.trim() ?? '';
-    return names.some((name) => owner === name || label === name || (name.length > 1 && label.includes(name)));
+    return names.some((name) => owner === name || label === name);
   });
 }
 

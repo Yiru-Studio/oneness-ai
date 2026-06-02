@@ -128,6 +128,7 @@ describe('composition AI planning helpers', () => {
           '司机 · 雨夜网约车司机接单造型',
           '我爷爷 · 抗美援朝年轻夜行军棉军装造型',
           '小战士 · 夜行军志愿军棉服造型',
+          '司机爷爷 · 抗美援朝年轻志愿军军装造型',
         ],
         sceneLabels: ['EXT. 小区 - 夜'],
         itemLabels: ['网约车', '手机', '铁锅', '侦察机', '日记本'],
@@ -138,6 +139,7 @@ describe('composition AI planning helpers', () => {
     expect(prompt).toContain('道具参考（网约车）');
     expect(prompt).not.toContain('我爷爷');
     expect(prompt).not.toContain('小战士');
+    expect(prompt).not.toContain('司机爷爷');
     expect(prompt).not.toContain('铁锅');
     expect(prompt).not.toContain('侦察机');
     expect(prompt).not.toContain('日记本');
