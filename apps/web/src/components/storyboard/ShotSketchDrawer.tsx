@@ -21,6 +21,7 @@ import {
   updateCompositionTask,
   updateShot,
   type ShotSketchContext,
+  type ShotSketchHistoryRun,
   type ShotSketchReferenceAsset,
 } from '@/lib/api';
 import { IMAGE_MODEL_OPTIONS } from '@/data/style-presets';
@@ -34,14 +35,6 @@ type ExistingImage = {
   label: string;
   sublabel: string;
   selected?: boolean;
-};
-
-type SketchHistoryItem = {
-  id: string;
-  url: string;
-  taskId: string;
-  createdAt: string;
-  current: boolean;
 };
 
 interface Props {
@@ -172,16 +165,25 @@ export function ShotSketchDrawer({
     () => (context?.referenceAssets ?? []).filter((reference) => reference.scope !== 'locked'),
     [context?.referenceAssets],
   );
-  const sketchHistory = useMemo<SketchHistoryItem[]>(() => {
+  const sketchHistory = useMemo<ShotSketchHistoryRun[]>(() => {
     const history = context?.sketchHistory ?? [];
-    if (!shot.sketch || history.some((item) => item.id === shot.sketch?.id)) return history;
+    if (!shot.sketch || history.some((item) => item.image?.id === shot.sketch?.id)) return history;
     return [
       {
-        id: shot.sketch.id,
-        url: shot.sketch.url,
-        taskId: 'current-applied',
+        id: `current-${shot.sketch.id}`,
+        source: 'manual',
+        status: 'APPLIED',
+        error: null,
+        taskId: null,
+        prompt: '',
+        model: null,
+        ratio: null,
+        referenceAssetIds: [],
         createdAt: shot.updatedAt,
+        updatedAt: shot.updatedAt,
         current: true,
+        image: shot.sketch,
+        sourceImage: shot.sketch,
       },
       ...history,
     ];
@@ -219,6 +221,20 @@ export function ShotSketchDrawer({
     void loadContextAndRuns({ quiet: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, shot.sketch?.id, previewGenerating]);
+
+  useEffect(() => {
+    if (!open) return;
+    const hasActiveRun = (context?.sketchHistory ?? []).some(
+      (run) => run.status === 'QUEUED' || run.status === 'RUNNING',
+    );
+    if (!hasActiveRun && !previewGenerating) return;
+    const timer = window.setInterval(() => {
+      void loadContextAndRuns({ quiet: true });
+      void onRefreshShots().catch(() => {});
+    }, 3000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, context?.sketchHistory, previewGenerating]);
 
   const loadContextAndRuns = async (options: { quiet?: boolean } = {}) => {
     if (!options.quiet) setContextLoading(true);
@@ -262,6 +278,7 @@ export function ShotSketchDrawer({
         ratio,
       });
       setOptimisticSketchTaskId(result.taskId);
+      void loadContextAndRuns({ quiet: true }).catch(() => {});
       void onRefreshCompositionTasks().catch(() => {});
       await onRefreshShots();
     } catch (error) {
@@ -277,6 +294,22 @@ export function ShotSketchDrawer({
     setLocalBusy(true);
     try {
       await setShotSketch(shot.id, { assetId });
+      await onRefreshShots();
+      await loadContextAndRuns();
+    } catch (error) {
+      onError(error instanceof Error ? error.message : '设置主分镜图失败');
+    } finally {
+      setLocalBusy(false);
+    }
+  };
+
+  const handleSelectExisting = async (assetId: string) => {
+    setLocalBusy(true);
+    try {
+      await setShotSketch(shot.id, {
+        assetId,
+        source: tab === 'scene' ? 'applied_scene_image' : 'applied_candidate',
+      });
       await onRefreshShots();
       await loadContextAndRuns();
     } catch (error) {
@@ -346,8 +379,13 @@ export function ShotSketchDrawer({
           history={sketchHistory}
           currentSketchUrl={shot.sketch?.url ?? null}
           disabled={disabled}
-          onPreview={(asset) => setPreviewImage({ url: asset.url, label: '主分镜图历史' })}
-          onApply={(asset) => void handleSelect(asset.id)}
+          onPreview={(run) => {
+            const image = run.image ?? run.sourceImage;
+            if (image) setPreviewImage({ url: image.url, label: historyLabel(run) });
+          }}
+          onApply={(run) => {
+            if (run.image) void handleSelect(run.image.id);
+          }}
         />
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -499,7 +537,7 @@ export function ShotSketchDrawer({
                       item={item}
                       disabled={disabled}
                       onPreview={() => setPreviewImage({ url: item.url, label: item.label })}
-                      onApply={() => void handleSelect(item.assetId)}
+                      onApply={() => void handleSelectExisting(item.assetId)}
                     />
                   ))}
                 </div>
@@ -610,11 +648,11 @@ function SketchHistoryRail({
   onPreview,
   onApply,
 }: {
-  history: SketchHistoryItem[];
+  history: ShotSketchHistoryRun[];
   currentSketchUrl: string | null;
   disabled: boolean;
-  onPreview: (asset: SketchHistoryItem) => void;
-  onApply: (asset: SketchHistoryItem) => void;
+  onPreview: (run: ShotSketchHistoryRun) => void;
+  onApply: (run: ShotSketchHistoryRun) => void;
 }) {
   return (
     <div className="flex w-[86px] shrink-0 flex-col border-r border-[var(--color-border)] bg-white px-3 py-4">
@@ -625,31 +663,52 @@ function SketchHistoryRail({
             <ImageIcon className="h-5 w-5 text-gray-400" />
           </div>
         ) : (
-          history.map((asset) => {
-            const current = asset.current || asset.url === currentSketchUrl;
+          history.map((run) => {
+            const image = run.image ?? run.sourceImage;
+            const isRunning = run.status === 'QUEUED' || run.status === 'RUNNING';
+            const isFailed = run.status === 'FAILED' || run.status === 'CANCELLED';
+            const current = run.current || Boolean(image?.url && image.url === currentSketchUrl);
             return (
-              <div key={`${asset.taskId}-${asset.id}`} className="group relative h-14 w-14">
+              <div key={run.id} className="group relative h-14 w-14">
                 <button
                   type="button"
-                  onClick={() => onPreview(asset)}
+                  onClick={() => image && onPreview(run)}
+                  disabled={!image}
                   className={`relative h-14 w-14 overflow-hidden rounded-lg border bg-gray-50 ${
                     current ? 'border-[var(--color-primary)] ring-2 ring-blue-100' : 'border-[var(--color-border)]'
                   }`}
-                  aria-label="查看主分镜图历史"
-                  title="点击放大"
+                  aria-label={image ? '查看主分镜图历史' : historyLabel(run)}
+                  title={image ? '点击放大' : historyLabel(run)}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={asset.url} alt="主分镜图历史" className="h-full w-full object-cover" />
+                  {image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={image.url} alt="主分镜图历史" className="h-full w-full object-cover" />
+                  ) : isRunning ? (
+                    <span className="flex h-full w-full items-center justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin text-[var(--color-primary)]" />
+                    </span>
+                  ) : isFailed ? (
+                    <span className="flex h-full w-full items-center justify-center bg-red-50 text-[10px] font-medium text-red-600">
+                      失败
+                    </span>
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center">
+                      <ImageIcon className="h-5 w-5 text-gray-400" />
+                    </span>
+                  )}
                   {current && (
                     <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-primary)] text-white">
                       <Check className="h-3 w-3" />
                     </span>
                   )}
+                  <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-[9px] font-medium text-white">
+                    {historyLabel(run)}
+                  </span>
                 </button>
-                {!current && (
+                {!current && run.image && (
                   <button
                     type="button"
-                    onClick={() => onApply(asset)}
+                    onClick={() => onApply(run)}
                     disabled={disabled}
                     className="absolute -bottom-1 -right-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-white opacity-100 shadow-sm transition-colors hover:bg-[var(--color-primary)] disabled:opacity-40 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100"
                     aria-label="设为当前主分镜图"
@@ -761,6 +820,16 @@ function AddReferenceButton({ disabled, onClick }: { disabled: boolean; onClick:
       <span className="text-xs font-medium">添加参考图</span>
     </button>
   );
+}
+
+function historyLabel(run: ShotSketchHistoryRun): string {
+  if (run.status === 'QUEUED' || run.status === 'RUNNING') return '生成中';
+  if (run.status === 'FAILED') return '失败';
+  if (run.status === 'CANCELLED') return '取消';
+  if (run.source === 'applied_scene_image') return '场景图';
+  if (run.source === 'applied_candidate') return '候选图';
+  if (run.source === 'manual') return '已应用';
+  return '生成';
 }
 
 function ExistingImageCard({

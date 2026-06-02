@@ -71,6 +71,7 @@ model Project {
   compositionTasks CompositionTask[]
   tasks      Task[]
   resourceImages ResourceImage[]
+  shotSketchRuns ShotSketchRun[]
 
   @@index([ownerId, createdAt])
 }
@@ -212,6 +213,7 @@ model StoryboardEpisode {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   shots   Shot[]
   compositionTasks CompositionTask[]
+  shotSketchRuns ShotSketchRun[]
 
   @@unique([projectId, number])
 }
@@ -268,11 +270,46 @@ model Shot {
   lastFrame  Asset?            @relation("ShotLastFrame", fields: [lastFrameAssetId], references: [id], onDelete: SetNull)
   videoTask  Task?             @relation("ShotVideoTask", fields: [videoTaskId], references: [id], onDelete: SetNull)
   compositionCandidates CompositionCandidate[]
+  sketchRuns ShotSketchRun[]
 
   @@unique([episodeId, displayId])
   @@index([episodeId])
   @@index([episodeId, sceneIndex])
   @@index([sketchTaskId])
+}
+
+model ShotSketchRun {
+  id                String   @id @default(cuid())
+  projectId         String
+  episodeId         String
+  shotId            String
+  source            String   @default("generated")
+  prompt            String   @default("") @db.Text
+  model             String?
+  ratio             String?
+  referenceAssetIds Json     @default("[]")
+  params            Json     @default("{}")
+  status            String   @default("QUEUED")
+  error             String?  @db.Text
+  taskJobId         String?
+  outputAssetId     String?
+  sourceAssetId     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  episode     StoryboardEpisode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  shot        Shot              @relation(fields: [shotId], references: [id], onDelete: Cascade)
+  taskJob     Task?             @relation("ShotSketchRunTask", fields: [taskJobId], references: [id], onDelete: SetNull)
+  outputAsset Asset?            @relation("ShotSketchRunOutput", fields: [outputAssetId], references: [id], onDelete: SetNull)
+  sourceAsset Asset?            @relation("ShotSketchRunSource", fields: [sourceAssetId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([episodeId, shotId, createdAt])
+  @@index([shotId, createdAt])
+  @@index([taskJobId])
+  @@index([outputAssetId])
+  @@index([sourceAssetId])
 }
 
 model KnowledgeDoc {
@@ -310,6 +347,7 @@ model Task {
   assets  TaskAsset[]
   shotSketches Shot[]      @relation("ShotSketchTask")
   shots   Shot[]      @relation("ShotVideoTask")
+  shotSketchRuns ShotSketchRun[] @relation("ShotSketchRunTask")
   resourceImages ResourceImage[]
   compositionImageTasks CompositionTask[] @relation("CompositionImageTask")
   compositionGridTasks CompositionTask[]  @relation("CompositionGridTask")
@@ -343,6 +381,8 @@ model Asset {
   shotSketches    Shot[]           @relation("ShotSketch")
   shotVideos      Shot[]           @relation("ShotVideo")
   shotLastFrames  Shot[]           @relation("ShotLastFrame")
+  shotSketchRunOutputs ShotSketchRun[] @relation("ShotSketchRunOutput")
+  shotSketchRunSources ShotSketchRun[] @relation("ShotSketchRunSource")
   compositionTaskImages CompositionTask[] @relation("CompositionTaskImage")
   compositionTaskGrids  CompositionTask[] @relation("CompositionTaskGrid")
   compositionImageRunOutputs CompositionImageRun[] @relation("CompositionImageRunOutput")

@@ -182,6 +182,21 @@ describe('tasks lifecycle', () => {
       },
     });
     await prisma.shot.update({ where: { id: shot.id }, data: { sketchTaskId: task.id } });
+    const run = await prisma.shotSketchRun.create({
+      data: {
+        projectId: project.id,
+        episodeId: episode.id,
+        shotId: shot.id,
+        source: 'generated',
+        prompt: 'blue cinematic storyboard frame',
+        model: 'stub',
+        ratio: project.ratio,
+        referenceAssetIds: [],
+        params: {},
+        status: TaskStatus.QUEUED,
+        taskJobId: task.id,
+      },
+    });
 
     await processTask(task.id);
 
@@ -189,9 +204,16 @@ describe('tasks lifecycle', () => {
       where: { id: shot.id },
       select: { sketchTaskId: true, sketchAssetId: true, sketch: { select: { contentType: true } } },
     });
+    const linkedRun = await prisma.shotSketchRun.findUnique({
+      where: { id: run.id },
+      select: { status: true, error: true, outputAssetId: true },
+    });
     expect(linked?.sketchTaskId).toBe(task.id);
     expect(linked?.sketchAssetId).toBeTruthy();
     expect(linked?.sketch?.contentType).toBe('image/png');
+    expect(linkedRun?.status).toBe(TaskStatus.SUCCEEDED);
+    expect(linkedRun?.error).toBeNull();
+    expect(linkedRun?.outputAssetId).toBe(linked?.sketchAssetId);
 
     await prisma.shot.delete({ where: { id: shot.id } });
   });

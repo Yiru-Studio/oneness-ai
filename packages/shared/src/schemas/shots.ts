@@ -45,6 +45,7 @@ export const UpdateShotSchema = z
 
 export const SetShotSketchSchema = z.object({
   assetId: z.string().nullable(),
+  source: z.enum(['manual', 'applied_scene_image', 'applied_candidate']).optional(),
 });
 
 export type CreateShotInput = z.infer<typeof CreateShotSchema>;

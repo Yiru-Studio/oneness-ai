@@ -71,6 +71,8 @@ async function assertAccessibleProjectAsset(assetId: string, projectId: string, 
         { compositionImageRunOutputs: { some: { task: { projectId } } } },
         { compositionGridRunOutputs: { some: { task: { projectId } } } },
         { compositionCandidates: { some: { task: { projectId } } } },
+        { shotSketchRunOutputs: { some: { projectId } } },
+        { shotSketchRunSources: { some: { projectId } } },
       ],
     },
     select: { id: true },
@@ -179,13 +181,32 @@ shotRoutes.patch(
       await assertAccessibleProjectAsset(body.assetId, shot.episode.projectId, user.id);
     }
 
-    const updated = await prisma.shot.update({
-      where: { id },
-      data: {
-        sketchAssetId: body.assetId,
-        sketchTaskId: null,
-      },
-      include: SHOT_INCLUDE,
+    const updated = await prisma.$transaction(async (tx) => {
+      const nextShot = await tx.shot.update({
+        where: { id },
+        data: {
+          sketchAssetId: body.assetId,
+          sketchTaskId: null,
+        },
+        include: SHOT_INCLUDE,
+      });
+      if (body.assetId) {
+        await tx.shotSketchRun.create({
+          data: {
+            projectId: shot.episode.projectId,
+            episodeId: shot.episode.id,
+            shotId: shot.id,
+            source: body.source ?? 'manual',
+            prompt: '',
+            referenceAssetIds: [],
+            params: {},
+            status: 'APPLIED',
+            outputAssetId: body.assetId,
+            sourceAssetId: body.assetId,
+          },
+        });
+      }
+      return nextShot;
     });
     return c.json(await serializeShot(updated));
   },

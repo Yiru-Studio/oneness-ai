@@ -460,7 +460,7 @@ export async function updateShot(shotId: string, body: UpdateShotInput): Promise
 
 export async function setShotSketch(
   shotId: string,
-  body: { assetId: string | null },
+  body: { assetId: string | null; source?: 'manual' | 'applied_scene_image' | 'applied_candidate' },
 ): Promise<Shot> {
   return await apiFetch<ShotDTO>(`/api/shots/${shotId}/sketch`, {
     method: 'PATCH',
@@ -555,6 +555,7 @@ export async function generateShotSketches(
 export type GenerateShotSketchResult = {
   compositionTaskId: string;
   taskId: string;
+  runId: string;
   targetShotId: string;
   referenceAssetIds: string[];
 };
@@ -577,10 +578,31 @@ export type ShotSketchReferenceAsset = AssetDTO & {
   removable: boolean;
 };
 
-export type ShotSketchHistoryAsset = AssetDTO & {
-  taskId: string;
+export type ShotSketchImage = {
+  id: string;
+  url: string;
+  contentType: string;
+  width: number | null;
+  height: number | null;
+  sizeBytes?: number;
+  durationMs?: number | null;
+};
+
+export type ShotSketchHistoryRun = {
+  id: string;
+  source: string;
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'APPLIED' | string;
+  error: string | null;
+  taskId: string | null;
+  prompt: string;
+  model: string | null;
+  ratio: string | null;
+  referenceAssetIds: string[];
   createdAt: string;
+  updatedAt: string;
   current: boolean;
+  image: ShotSketchImage | null;
+  sourceImage: ShotSketchImage | null;
 };
 
 export type ShotSketchContext = {
@@ -590,7 +612,7 @@ export type ShotSketchContext = {
   ratio: string;
   referenceAssetIds: string[];
   referenceAssets: ShotSketchReferenceAsset[];
-  sketchHistory: ShotSketchHistoryAsset[];
+  sketchHistory: ShotSketchHistoryRun[];
   scene: {
     index: number;
     title: string;

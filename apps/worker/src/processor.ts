@@ -61,6 +61,10 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
     where: { taskId, status: TaskStatus.QUEUED },
     data: { status: TaskStatus.RUNNING },
   });
+  await prisma.shotSketchRun.updateMany({
+    where: { taskJobId: taskId, status: TaskStatus.QUEUED },
+    data: { status: TaskStatus.RUNNING },
+  });
   metrics.incr('task.start', { type: task.type, provider: task.provider });
 
   // 3. AbortController + cancel poller
@@ -169,6 +173,10 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
         where: { taskId },
         data: { status: TaskStatus.CANCELLED },
       }),
+      prisma.shotSketchRun.updateMany({
+        where: { taskJobId: taskId },
+        data: { status: TaskStatus.CANCELLED },
+      }),
     ]);
     metrics.incr('task.cancel.refunded', {
       type: task.type,
@@ -191,6 +199,13 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
         }),
         prisma.resourceImage.updateMany({
           where: { taskId },
+          data: {
+            status: TaskStatus.QUEUED,
+            error: providerError.message,
+          },
+        }),
+        prisma.shotSketchRun.updateMany({
+          where: { taskJobId: taskId },
           data: {
             status: TaskStatus.QUEUED,
             error: providerError.message,
@@ -225,6 +240,13 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
       }),
       prisma.resourceImage.updateMany({
         where: { taskId },
+        data: {
+          status: TaskStatus.FAILED,
+          error: providerError.message,
+        },
+      }),
+      prisma.shotSketchRun.updateMany({
+        where: { taskJobId: taskId },
         data: {
           status: TaskStatus.FAILED,
           error: providerError.message,
@@ -322,11 +344,28 @@ async function linkShotSketch(
   });
   if (!ta) {
     log.warn({ shotId, taskId }, 'shot sketch task succeeded but produced no asset; skipping link');
+    await prisma.shotSketchRun.updateMany({
+      where: { taskJobId: taskId },
+      data: {
+        status: TaskStatus.SUCCEEDED,
+        error: null,
+      },
+    });
     return;
   }
-  const updated = await prisma.shot.updateMany({
-    where: { id: shotId, sketchTaskId: taskId },
-    data: { sketchAssetId: ta.assetId },
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.shotSketchRun.updateMany({
+      where: { taskJobId: taskId },
+      data: {
+        status: TaskStatus.SUCCEEDED,
+        error: null,
+        outputAssetId: ta.assetId,
+      },
+    });
+    return tx.shot.updateMany({
+      where: { id: shotId, sketchTaskId: taskId },
+      data: { sketchAssetId: ta.assetId },
+    });
   });
   if (updated.count === 0) {
     log.warn({ shotId, taskId, assetId: ta.assetId }, 'shot sketch task is no longer current; skipping link');

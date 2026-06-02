@@ -97,10 +97,21 @@ type ShotSketchReferenceAssetDTO = AssetDTO & {
   removable: boolean;
 };
 
-type ShotSketchHistoryAssetDTO = AssetDTO & {
-  taskId: string;
+type ShotSketchHistoryRunDTO = {
+  id: string;
+  source: string;
+  status: string;
+  error: string | null;
+  taskId: string | null;
+  prompt: string;
+  model: string | null;
+  ratio: string | null;
+  referenceAssetIds: string[];
   createdAt: string;
+  updatedAt: string;
   current: boolean;
+  image: AssetDTO | null;
+  sourceImage: AssetDTO | null;
 };
 
 type CompositionPlanningStateDTO = {
@@ -827,6 +838,21 @@ async function createShotSketchTasks(
           } as Prisma.InputJsonValue,
         },
       });
+      await tx.shotSketchRun.create({
+        data: {
+          projectId,
+          episodeId: episode.id,
+          shotId: item.shotId,
+          source: 'generated',
+          prompt: item.prompt,
+          model: project.imageModel,
+          ratio: project.ratio,
+          referenceAssetIds: item.referenceAssetIds,
+          params: { compositionTaskId } as Prisma.InputJsonValue,
+          status: TaskStatus.QUEUED,
+          taskJobId: job.id,
+        },
+      });
       await tx.shot.update({
         where: { id: item.shotId },
         data: { sketchTaskId: job.id },
@@ -907,7 +933,7 @@ async function createShotSketchTask(
   const ratio = body.ratio ?? project.ratio;
   const provider = providerForImageModel(model);
 
-  const task = await prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     const account = await tx.user.findUnique({
       where: { id: userId },
       select: { credits: true },
@@ -941,20 +967,36 @@ async function createShotSketchTask(
         } as Prisma.InputJsonValue,
       },
     });
+    const run = await tx.shotSketchRun.create({
+      data: {
+        projectId,
+        episodeId: shot.episode.id,
+        shotId: shot.id,
+        source: 'generated',
+        prompt,
+        model,
+        ratio,
+        referenceAssetIds,
+        params: { compositionTaskId } as Prisma.InputJsonValue,
+        status: TaskStatus.QUEUED,
+        taskJobId: job.id,
+      },
+    });
     await tx.shot.update({
       where: { id: shot.id },
       data: { sketchTaskId: job.id },
     });
-    return job;
+    return { task: job, run };
   });
 
-  await enqueueTaskJob(queueForTaskType(TaskType.IMAGE), task.id, {
+  await enqueueTaskJob(queueForTaskType(TaskType.IMAGE), created.task.id, {
     priority: QueueJobPriority.INTERACTIVE_IMAGE,
   });
 
   return {
     compositionTaskId,
-    taskId: task.id,
+    taskId: created.task.id,
+    runId: created.run.id,
     targetShotId: shot.id,
     referenceAssetIds,
   };
@@ -1034,44 +1076,50 @@ async function serializeShotSketchHistory(
   shotId: string,
   currentAssetId: string | null,
   userId: string,
-): Promise<ShotSketchHistoryAssetDTO[]> {
-  const rows = await prisma.task.findMany({
+): Promise<ShotSketchHistoryRunDTO[]> {
+  await reconcileShotSketchTask(prisma, shotId);
+  const rows = await prisma.shotSketchRun.findMany({
     where: {
-      ownerId: userId,
       projectId,
-      type: TaskType.IMAGE,
-      status: TaskStatus.SUCCEEDED,
-      AND: [
-        { input: { path: ['shotSketch'], equals: true } },
-        { input: { path: ['shotId'], equals: shotId } },
-      ],
-      assets: { some: { role: 'output' } },
+      shotId,
+      shot: { episode: { project: { ownerId: userId } } },
     },
     include: {
-      assets: {
-        where: { role: 'output' },
-        include: { asset: true },
-        orderBy: { asset: { createdAt: 'desc' } },
-        take: 1,
-      },
+      outputAsset: true,
+      sourceAsset: true,
     },
     orderBy: { createdAt: 'desc' },
     take: 30,
   });
-  const serialized = await Promise.all(
-    rows.flatMap((row) =>
-      row.assets.map(async (taskAsset) => {
-        const dto = await serializeAsset(taskAsset.asset);
-        return {
-          ...dto,
-          taskId: row.id,
-          createdAt: row.createdAt.toISOString(),
-          current: dto.id === currentAssetId,
-        };
-      }),
-    ),
+  return Promise.all(
+    rows.map(async (row) => {
+      const image = row.outputAsset ? await serializeAsset(row.outputAsset) : null;
+      const sourceImage =
+        row.sourceAsset && row.sourceAssetId !== row.outputAssetId
+          ? await serializeAsset(row.sourceAsset)
+          : image;
+      return {
+        id: row.id,
+        source: row.source,
+        status: row.status,
+        error: row.error,
+        taskId: row.taskJobId,
+        prompt: row.prompt,
+        model: row.model,
+        ratio: row.ratio,
+        referenceAssetIds: normalizeStringArray(row.referenceAssetIds),
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+        current: Boolean(currentAssetId && image?.id === currentAssetId),
+        image,
+        sourceImage,
+      };
+    }),
   );
-  return serialized;
+}
+
+function normalizeStringArray(value: Prisma.JsonValue): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
 async function assertOwnedProject(projectId: string, userId: string) {
