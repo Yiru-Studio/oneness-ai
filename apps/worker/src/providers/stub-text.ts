@@ -28,6 +28,64 @@ async function sleep(ms: number, signal: AbortSignal): Promise<void> {
 export const stubTextProvider: TextProvider = {
   name: 'stub',
   async analyze(input: TextInput, ctx: ProviderContext): Promise<ProviderResult> {
+    if ('analysisType' in input && input.analysisType === 'composition_scene_planning') {
+      await sleep(1500, ctx.abortSignal);
+      const project = await ctx.prisma.project.findFirst({
+        where: { id: input.projectId, ownerId: ctx.ownerId },
+        select: { id: true },
+      });
+      if (!project) throw new Error(`project not found: ${input.projectId}`);
+      const episodes = await ctx.prisma.storyboardEpisode.findMany({
+        where: { projectId: project.id, ...(input.episodeId ? { id: input.episodeId } : {}) },
+        orderBy: { number: 'asc' },
+      });
+      const ids = await ctx.prisma.$transaction(async (tx) => {
+        const out: string[] = [];
+        for (const episode of episodes) {
+          const rawScenes = Array.isArray(episode.scenesJson) ? episode.scenesJson : [];
+          const scenes = rawScenes.length > 0
+            ? rawScenes
+            : [{ index: 0, title: episode.title, content: episode.content, environment: '' }];
+          for (const [fallbackIndex, item] of scenes.entries()) {
+            const obj = item && typeof item === 'object' ? item as Record<string, unknown> : {};
+            const sceneIndex = typeof obj.index === 'number' ? obj.index : fallbackIndex;
+            const titleText = typeof obj.title === 'string' && obj.title.trim()
+              ? obj.title.trim()
+              : `场景 ${sceneIndex + 1}`;
+            const content = typeof obj.content === 'string' ? obj.content : episode.content;
+            const row = await tx.compositionTask.upsert({
+              where: { episodeId_sceneIndex: { episodeId: episode.id, sceneIndex } },
+              create: {
+                projectId: project.id,
+                episodeId: episode.id,
+                sceneIndex,
+                title: `第${episode.number}集 · ${titleText}`,
+                scriptExcerpt: content.slice(0, 180),
+                prompt: `（stub）场景图：${titleText}。${content.slice(0, 260)}`,
+              },
+              update: {
+                title: `第${episode.number}集 · ${titleText}`,
+                scriptExcerpt: content.slice(0, 180),
+              },
+              select: { id: true },
+            });
+            out.push(row.id);
+          }
+        }
+        return out;
+      });
+      return {
+        outputJson: {
+          kind: 'stub-text',
+          analysisType: 'composition_scene_planning',
+          projectId: project.id,
+          episodeId: input.episodeId ?? null,
+          taskCount: ids.length,
+          compositionTaskIds: ids,
+        },
+      };
+    }
+
     if ('subjectType' in input) {
       ctx.log.info(
         { episodeId: input.episodeId, subjectType: input.subjectType },

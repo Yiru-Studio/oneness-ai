@@ -109,6 +109,12 @@ export type TextInput =
       sceneIndex: number;
       analysisType: 'shot_breakdown';
       model?: string;
+    }
+  | {
+      projectId: string;
+      episodeId?: string;
+      analysisType: 'composition_scene_planning';
+      model?: string;
     };
 
 /** Convenience union — used by worker's registry. */

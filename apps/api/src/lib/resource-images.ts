@@ -237,7 +237,7 @@ export async function linkResourceImageTaskResult(
       data: {
         status,
         ...(firstOutputAssetId ? { assetId: firstOutputAssetId } : {}),
-        ...(error !== undefined ? { error } : {}),
+        ...(status === TaskStatus.SUCCEEDED ? { error: null } : error !== undefined ? { error } : {}),
       },
     });
     if (status === TaskStatus.SUCCEEDED && firstOutputAssetId && entityId) {
@@ -246,5 +246,46 @@ export async function linkResourceImageTaskResult(
         await setCurrentResourceAsset(db, kind, entityId, firstOutputAssetId);
       }
     }
+  }
+}
+
+export async function reconcileResourceImagesForTarget(
+  db: Db,
+  kind: ResourceImageKind,
+  entityId: string,
+  userId: string,
+) {
+  const rows = await db.resourceImage.findMany({
+    where: {
+      ownerId: userId,
+      kind,
+      ...resourceImageEntityWhere(kind, entityId),
+      taskId: { not: null },
+    },
+    select: {
+      taskId: true,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  });
+  const taskIds = Array.from(new Set(rows.map((row) => row.taskId).filter((id): id is string => Boolean(id))));
+  if (taskIds.length === 0) return;
+  const tasks = await db.task.findMany({
+    where: { id: { in: taskIds }, ownerId: userId },
+    include: { assets: { where: { role: 'output' }, include: { asset: true } } },
+  });
+  for (const task of tasks) {
+    if (
+      task.status !== TaskStatus.SUCCEEDED &&
+      task.status !== TaskStatus.FAILED &&
+      task.status !== TaskStatus.CANCELLED
+    ) continue;
+    await linkResourceImageTaskResult(
+      db,
+      task.id,
+      task.status,
+      task.assets.map((item) => item.assetId),
+      task.error,
+    );
   }
 }

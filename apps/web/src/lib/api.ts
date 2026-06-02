@@ -577,6 +577,12 @@ export type ShotSketchReferenceAsset = AssetDTO & {
   removable: boolean;
 };
 
+export type ShotSketchHistoryAsset = AssetDTO & {
+  taskId: string;
+  createdAt: string;
+  current: boolean;
+};
+
 export type ShotSketchContext = {
   compositionTaskId: string;
   prompt: string;
@@ -584,11 +590,20 @@ export type ShotSketchContext = {
   ratio: string;
   referenceAssetIds: string[];
   referenceAssets: ShotSketchReferenceAsset[];
+  sketchHistory: ShotSketchHistoryAsset[];
   scene: {
     index: number;
     title: string;
     environment: string;
   };
+};
+
+export type CompositionPlanningState = {
+  taskId: string | null;
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | null;
+  error: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
 };
 
 export async function getShotSketchContext(
@@ -607,11 +622,17 @@ export async function getCompositionTasks(projectId: string): Promise<Compositio
   return await apiFetch<CompositionTaskDTO[]>(`/api/projects/${projectId}/composition-tasks`);
 }
 
+export async function getCompositionPlanningState(projectId: string): Promise<CompositionPlanningState> {
+  return await apiFetch<CompositionPlanningState>(
+    `/api/projects/${projectId}/composition-tasks/planning-state`,
+  );
+}
+
 export async function analyzeCompositionTasks(
   projectId: string,
   body: { episodeId?: string } = {},
-): Promise<CompositionTask[]> {
-  return await apiFetch<CompositionTaskDTO[]>(
+): Promise<CompositionPlanningState> {
+  return await apiFetch<CompositionPlanningState>(
     `/api/projects/${projectId}/composition-tasks/analyze`,
     { method: 'POST', body },
   );

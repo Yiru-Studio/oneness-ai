@@ -16,6 +16,21 @@ import {
   normalizeExtractedItems,
   normalizeExtractedScenes,
 } from '@oneness/shared/resource-prompts';
+import {
+  buildReferenceBindingMessages,
+  buildSceneImageCompositionPrompt,
+  buildSceneImagePlanningMessages,
+  canRefreshSceneImageTaskDraft,
+  cleanSceneImageSummary,
+  normalizeSceneImagePlans,
+  parseSceneImagePlanResponse,
+  parseSceneImageReferenceBindingResponse,
+  referenceLibraryIdSets,
+  sanitizeReferenceBinding,
+  type EpisodeScene,
+  type ReferenceLibraryForPlanning,
+  type SceneImageReferenceIds,
+} from '@oneness/shared/composition-planning';
 
 /**
  * System prompt scaled to the requested analysis depth. Both modes ask for
@@ -302,6 +317,10 @@ export const openaiTextProvider: TextProvider = {
     const client = getOpenAIClient();
     const model = input.model || config.OPENAI_TEXT_MODEL;
 
+    if ('analysisType' in input && input.analysisType === 'composition_scene_planning') {
+      return planCompositionSceneTasks({ client, model, input, ctx });
+    }
+
     const ep = await ctx.prisma.storyboardEpisode.findUnique({
       where: { id: input.episodeId },
       select: { number: true, title: true, content: true, projectId: true, scenesJson: true },
@@ -460,6 +479,346 @@ export const openaiTextProvider: TextProvider = {
     }
   },
 };
+
+async function planCompositionSceneTasks(args: {
+  client: OpenAI;
+  model: string;
+  input: Extract<TextInput, { analysisType: 'composition_scene_planning' }>;
+  ctx: ProviderContext;
+}): Promise<ProviderResult> {
+  const { client, model, input, ctx } = args;
+  const project = await ctx.prisma.project.findFirst({
+    where: { id: input.projectId, ownerId: ctx.ownerId },
+    select: { id: true, ratio: true, stylePrompt: true },
+  });
+  if (!project) throw new Error(`project not found: ${input.projectId}`);
+
+  const episodes = await ctx.prisma.storyboardEpisode.findMany({
+    where: { projectId: project.id, ...(input.episodeId ? { id: input.episodeId } : {}) },
+    orderBy: { number: 'asc' },
+  });
+  if (episodes.length === 0) throw new Error('请先上传或创建剧集');
+
+  const library = await loadCompositionReferenceLibrary(ctx, project.id);
+  const createdOrUpdatedIds: string[] = [];
+
+  for (const episode of episodes) {
+    const fallbackScenes = compositionScenesForEpisode(episode, library.scenes);
+    const plannedScenes = await planCompositionScenesWithAI({
+      client,
+      model,
+      project,
+      episode,
+      fallbackScenes,
+      ctx,
+    });
+    const refsBySceneIndex = await bindCompositionReferencesWithAI({
+      client,
+      model,
+      project,
+      episode,
+      scenes: plannedScenes,
+      library,
+      ctx,
+    });
+    const ids = await upsertCompositionSceneTasks({
+      ctx,
+      project,
+      episode,
+      scenes: plannedScenes,
+      refsBySceneIndex,
+      library,
+    });
+    createdOrUpdatedIds.push(...ids);
+  }
+
+  return {
+    outputJson: {
+      provider: 'openai',
+      model,
+      analysisType: 'composition_scene_planning',
+      projectId: project.id,
+      episodeId: input.episodeId ?? null,
+      taskCount: createdOrUpdatedIds.length,
+      compositionTaskIds: createdOrUpdatedIds,
+    },
+  };
+}
+
+async function planCompositionScenesWithAI(args: {
+  client: OpenAI;
+  model: string;
+  project: { ratio: string; stylePrompt: string };
+  episode: { number: number; title: string; content: string };
+  fallbackScenes: EpisodeScene[];
+  ctx: ProviderContext;
+}): Promise<EpisodeScene[]> {
+  const { systemPrompt, userPrompt } = buildSceneImagePlanningMessages(args);
+  try {
+    const resp = await args.client.chat.completions.create(
+      {
+        model: args.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+      },
+      { signal: args.ctx.abortSignal },
+    );
+    const raw = resp.choices[0]?.message?.content ?? '{}';
+    return normalizeSceneImagePlans(parseSceneImagePlanResponse(raw), args.fallbackScenes);
+  } catch (err) {
+    args.ctx.log.warn({ err: (err as Error).message }, 'composition scene planning fell back to episode scenes');
+    return args.fallbackScenes;
+  }
+}
+
+async function bindCompositionReferencesWithAI(args: {
+  client: OpenAI;
+  model: string;
+  project: { ratio: string; stylePrompt: string };
+  episode: { number: number; title: string };
+  scenes: EpisodeScene[];
+  library: ReferenceLibraryForPlanning;
+  ctx: ProviderContext;
+}): Promise<Map<number, SceneImageReferenceIds>> {
+  const fallback = new Map<number, SceneImageReferenceIds>(
+    args.scenes.map((scene) => [scene.index, prefillCompositionReferences(scene, args.library)]),
+  );
+  try {
+    const { systemPrompt, userPrompt } = buildReferenceBindingMessages(args);
+    const resp = await args.client.chat.completions.create(
+      {
+        model: args.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+      },
+      { signal: args.ctx.abortSignal },
+    );
+    const raw = resp.choices[0]?.message?.content ?? '{}';
+    const validIds = referenceLibraryIdSets(args.library);
+    const knownSceneIndexes = new Set(args.scenes.map((scene) => scene.index));
+    const next = new Map<number, SceneImageReferenceIds>();
+    for (const binding of parseSceneImageReferenceBindingResponse(raw)) {
+      if (!knownSceneIndexes.has(binding.sceneIndex)) continue;
+      next.set(binding.sceneIndex, sanitizeReferenceBinding(binding, validIds));
+    }
+    return next.size > 0 ? next : fallback;
+  } catch (err) {
+    args.ctx.log.warn({ err: (err as Error).message }, 'composition reference binding fell back to text matching');
+    return fallback;
+  }
+}
+
+async function upsertCompositionSceneTasks(args: {
+  ctx: ProviderContext;
+  project: { id: string; ratio: string; stylePrompt: string };
+  episode: { id: string; number: number };
+  scenes: EpisodeScene[];
+  refsBySceneIndex: Map<number, SceneImageReferenceIds>;
+  library: ReferenceLibraryForPlanning;
+}): Promise<string[]> {
+  const ids: string[] = [];
+  await args.ctx.prisma.$transaction(async (tx) => {
+    for (const scene of args.scenes) {
+      const refs = args.refsBySceneIndex.get(scene.index) ?? prefillCompositionReferences(scene, args.library);
+      const title = `第${args.episode.number}集 · ${scene.title || `场景 ${scene.index + 1}`}`;
+      const where = { episodeId_sceneIndex: { episodeId: args.episode.id, sceneIndex: scene.index } };
+      const existing = await tx.compositionTask.findUnique({
+        where,
+        select: {
+          id: true,
+          status: true,
+          currentImageRunId: true,
+          imageAssetId: true,
+          imageTaskId: true,
+        },
+      });
+      const sceneSummary = cleanSceneImageSummary(scene.content);
+      const sceneForPrompt = { ...scene, content: sceneSummary };
+      const prompt = buildCompositionPrompt(args.project, sceneForPrompt, refs, args.library);
+      if (!existing) {
+        const created = await tx.compositionTask.create({
+          data: {
+            projectId: args.project.id,
+            episodeId: args.episode.id,
+            sceneIndex: scene.index,
+            title,
+            scriptExcerpt: sceneSummary,
+            prompt,
+            characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
+            sceneIds: refs.sceneIds as Prisma.InputJsonValue,
+            itemIds: refs.itemIds as Prisma.InputJsonValue,
+          },
+          select: { id: true },
+        });
+        ids.push(created.id);
+        continue;
+      }
+
+      await tx.compositionTask.update({
+        where: { id: existing.id },
+        data: {
+          projectId: args.project.id,
+          episodeId: args.episode.id,
+          sceneIndex: scene.index,
+          title,
+          scriptExcerpt: sceneSummary,
+          ...(canRefreshSceneImageTaskDraft(existing)
+            ? {
+                prompt,
+                characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
+                sceneIds: refs.sceneIds as Prisma.InputJsonValue,
+                itemIds: refs.itemIds as Prisma.InputJsonValue,
+              }
+            : {}),
+        },
+      });
+      ids.push(existing.id);
+    }
+  });
+  return ids;
+}
+
+async function loadCompositionReferenceLibrary(
+  ctx: ProviderContext,
+  projectId: string,
+): Promise<ReferenceLibraryForPlanning> {
+  const [characters, scenes, items] = await Promise.all([
+    ctx.prisma.character.findMany({
+      where: { projectId },
+      include: { styles: { orderBy: { createdAt: 'asc' } } },
+      orderBy: { createdAt: 'asc' },
+    }),
+    ctx.prisma.scene.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } }),
+    ctx.prisma.item.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } }),
+  ]);
+  return { characters, scenes, items };
+}
+
+function compositionScenesForEpisode(
+  episode: { id: string; title: string; content: string; scenesJson: Prisma.JsonValue },
+  fallbackScenes: ReferenceLibraryForPlanning['scenes'],
+): EpisodeScene[] {
+  const raw = Array.isArray(episode.scenesJson) ? episode.scenesJson : [];
+  const parsed = raw
+    .map((item, fallbackIndex): EpisodeScene | null => {
+      if (!item || typeof item !== 'object') return null;
+      const obj = item as Record<string, unknown>;
+      return {
+        index: typeof obj.index === 'number' ? obj.index : fallbackIndex,
+        title: typeof obj.title === 'string' && obj.title.trim() ? obj.title : `${episode.title} ${fallbackIndex + 1}`,
+        content: typeof obj.content === 'string' ? obj.content : episode.content,
+        characters: Array.isArray(obj.characters)
+          ? obj.characters.filter((v): v is string => typeof v === 'string')
+          : [],
+        environment: typeof obj.environment === 'string' ? obj.environment : '',
+      };
+    })
+    .filter((item): item is EpisodeScene => Boolean(item));
+  if (parsed.length > 0) return parsed;
+  if (fallbackScenes.length > 0) {
+    return fallbackScenes.map((scene, index) => ({
+      index,
+      title: scene.name,
+      content: fallbackSceneContent(episode.content, scene),
+      characters: [],
+      environment: scene.name,
+      referenceSceneId: scene.id,
+    }));
+  }
+  return [{
+    index: 0,
+    title: episode.title,
+    content: episode.content,
+    characters: [],
+    environment: '',
+  }];
+}
+
+function fallbackSceneContent(script: string, scene: ReferenceLibraryForPlanning['scenes'][number]): string {
+  const description = scene.description.trim();
+  const excerpt = excerptForScene(script, scene.name);
+  if (!description) return excerpt;
+  if (!excerpt.trim()) return description;
+  return `${description}\n\n${excerpt}`;
+}
+
+function excerptForScene(script: string, sceneName: string): string {
+  const idx = sceneSearchTerms(sceneName)
+    .map((term) => script.indexOf(term))
+    .filter((index) => index >= 0)
+    .sort((a, b) => a - b)[0] ?? -1;
+  if (idx < 0) return script.slice(0, 1800);
+  return script.slice(idx, idx + 1800);
+}
+
+function sceneSearchTerms(sceneName: string): string[] {
+  const trimmed = sceneName.trim();
+  const terms = [trimmed];
+  const withoutScenePrefix = trimmed
+    .replace(/^(?:INT\.\/EXT|EXT\.\/INT|INT|EXT)\.\s*/i, '')
+    .replace(/\s*[-－—]\s*(?:清晨|上午|中午|下午|傍晚|黄昏|夜晚|晚上|深夜|凌晨)\s*$/u, '')
+    .trim();
+  if (withoutScenePrefix && withoutScenePrefix !== trimmed) terms.push(withoutScenePrefix);
+  return Array.from(new Set(terms.filter(Boolean)));
+}
+
+function prefillCompositionReferences(
+  scene: EpisodeScene,
+  library: ReferenceLibraryForPlanning,
+): SceneImageReferenceIds {
+  const haystack = [scene.title, scene.content, scene.environment, ...scene.characters].join('\n');
+  const characterStyleIds = library.characters
+    .filter((character) => textMentions(haystack, character.name) || scene.characters.some((name) => textMentions(character.name, name)))
+    .map((character) => character.styles.find((style) => style.assetId)?.id ?? character.styles[0]?.id)
+    .filter((id): id is string => Boolean(id));
+  const sceneIds = library.scenes
+    .filter((item) => textMentions(haystack, item.name) || textMentions(item.name, scene.environment))
+    .map((item) => item.id);
+  if (scene.referenceSceneId && !sceneIds.includes(scene.referenceSceneId)) {
+    sceneIds.unshift(scene.referenceSceneId);
+  }
+  const itemIds = library.items
+    .filter((item) => textMentions(haystack, item.name))
+    .map((item) => item.id);
+  return { characterStyleIds, sceneIds, itemIds };
+}
+
+function buildCompositionPrompt(
+  project: { stylePrompt: string; ratio: string },
+  scene: EpisodeScene,
+  refs: SceneImageReferenceIds,
+  library: ReferenceLibraryForPlanning,
+): string {
+  const characterStyleLabels = library.characters.flatMap((character) =>
+    character.styles
+      .filter((style) => refs.characterStyleIds.includes(style.id))
+      .map((style) => `${character.name} - ${style.name}`),
+  );
+  const sceneLabels = library.scenes
+    .filter((item) => refs.sceneIds.includes(item.id))
+    .map((item) => item.name);
+  const itemLabels = library.items
+    .filter((item) => refs.itemIds.includes(item.id))
+    .map((item) => item.name);
+  return buildSceneImageCompositionPrompt(project, scene, {
+    ...refs,
+    characterStyleLabels,
+    sceneLabels,
+    itemLabels,
+  });
+}
+
+function textMentions(text: string, term: string): boolean {
+  const needle = term.trim();
+  if (!needle) return false;
+  return text.includes(needle) || needle.includes(text.trim());
+}
 
 async function persistExtractedEntities(
   ctx: ProviderContext,

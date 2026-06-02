@@ -251,6 +251,19 @@ export function EntityDetailDrawer({
   }, [open, resourceKind, entity.id, history]);
 
   useEffect(() => {
+    const latest = history[0];
+    if (latest?.status !== 'SUCCEEDED' || !latest.assetId) return;
+    setError(null);
+    clearError(kind, entity.id);
+    if (generationPhase === 'failed') setGenerationPhase('idle');
+    if (latest.image && !image && (!assetId || assetId === latest.assetId)) {
+      setAssetId(latest.assetId);
+      setImage(latest.image);
+      void onSave({ assetId: latest.assetId }).catch(() => {});
+    }
+  }, [assetId, clearError, entity.id, generationPhase, history, image, kind, onSave]);
+
+  useEffect(() => {
     if (!open || !allowBackgroundInteraction || previewOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -385,13 +398,23 @@ export function EntityDetailDrawer({
         );
         if (isActiveGeneration()) setGenerationPhase(phaseForTaskStatus(task.status));
         if (generationResourceKind) await refreshHistory(generationResourceKind, generationEntityId);
-        const final = await pollTaskUntilDone(task.id, {
-          intervalMs: 2000,
-          onTick: (tick) => {
-            if (isActiveGeneration()) setGenerationPhase(phaseForTaskStatus(tick.status));
-            if (generationResourceKind) void refreshHistory(generationResourceKind, generationEntityId);
-          },
-        });
+        let final: TaskDTO | null = null;
+        try {
+          final = await pollTaskUntilDone(task.id, {
+            intervalMs: 2000,
+            onTick: (tick) => {
+              if (isActiveGeneration()) setGenerationPhase(phaseForTaskStatus(tick.status));
+              if (generationResourceKind) void refreshHistory(generationResourceKind, generationEntityId);
+            },
+          });
+        } catch (e) {
+          if (e instanceof Error && e.message === 'task polling timeout') {
+            if (generationResourceKind) await refreshHistory(generationResourceKind, generationEntityId);
+            if (isActiveGeneration()) setGenerationPhase('running');
+            return;
+          }
+          throw e;
+        }
         if (generationResourceKind) await refreshHistory(generationResourceKind, generationEntityId);
         if (final.status !== 'SUCCEEDED' || !final.outputAssets?.[0]) {
           throw new Error(final.error || '生成失败');

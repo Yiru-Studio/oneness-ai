@@ -250,6 +250,7 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
   } else if (task.type === 'IMAGE') {
     const shotId = readShotSketchId(task.input);
     if (shotId) await linkShotSketch(shotId, taskId, taskLog);
+    await linkCompositionImageOutputs(taskId, taskLog);
   }
   metrics.incr('task.success', { type: task.type, provider: task.provider });
   taskLog.info(
@@ -332,6 +333,63 @@ async function linkShotSketch(
     return;
   }
   log.info({ shotId, assetId: ta.assetId }, 'shot.sketchAssetId updated');
+}
+
+async function linkCompositionImageOutputs(
+  taskId: string,
+  log: import('@oneness/shared/logger').Logger,
+) {
+  const output = await prisma.taskAsset.findFirst({
+    where: { taskId, role: 'output' },
+    select: { assetId: true },
+  });
+  if (!output) return;
+
+  const imageRuns = await prisma.compositionImageRun.findMany({
+    where: { taskJobId: taskId },
+    select: { id: true, taskId: true, task: { select: { currentImageRunId: true } } },
+  });
+  for (const run of imageRuns) {
+    await prisma.compositionImageRun.update({
+      where: { id: run.id },
+      data: { outputAssetId: output.assetId, status: 'SUCCEEDED', error: null },
+    });
+    if (run.task.currentImageRunId === run.id) {
+      await prisma.compositionTask.update({
+        where: { id: run.taskId },
+        data: {
+          imageAssetId: output.assetId,
+          imageTaskId: taskId,
+          status: 'IMAGE_READY',
+          error: null,
+        },
+      });
+      log.info({ compositionTaskId: run.taskId, assetId: output.assetId }, 'composition image run linked');
+    }
+  }
+
+  const gridRuns = await prisma.compositionGridRun.findMany({
+    where: { taskJobId: taskId },
+    select: { id: true, taskId: true, task: { select: { currentGridRunId: true } } },
+  });
+  for (const run of gridRuns) {
+    await prisma.compositionGridRun.update({
+      where: { id: run.id },
+      data: { gridAssetId: output.assetId, status: 'READY', error: null },
+    });
+    if (run.task.currentGridRunId === run.id) {
+      await prisma.compositionTask.update({
+        where: { id: run.taskId },
+        data: {
+          gridAssetId: output.assetId,
+          gridTaskId: taskId,
+          status: 'GRID_READY',
+          error: null,
+        },
+      });
+      log.info({ compositionTaskId: run.taskId, assetId: output.assetId }, 'composition grid run linked');
+    }
+  }
 }
 
 async function linkShotVideo(
@@ -486,6 +544,7 @@ async function linkResourceImageOutputs(
       where: { id: row.id },
       data: {
         status: TaskStatus.SUCCEEDED,
+        error: null,
         ...(firstOutputAssetId ? { assetId: firstOutputAssetId } : {}),
       },
     });

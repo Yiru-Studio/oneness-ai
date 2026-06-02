@@ -81,6 +81,12 @@ const TextInputSchema = z.union([
     analysisType: z.literal('shot_breakdown'),
     model: z.string().min(1).max(80).optional(),
   }),
+  z.object({
+    projectId: CuidSchema,
+    episodeId: CuidSchema.optional(),
+    analysisType: z.literal('composition_scene_planning'),
+    model: z.string().min(1).max(80).optional(),
+  }),
 ]);
 
 export const CreateTaskSchema = z.discriminatedUnion('type', [

@@ -38,6 +38,7 @@ import {
   applyCompositionGridToShots,
   generateCompositionGrid,
   generateCompositionImage,
+  getCompositionPlanningState,
   getCompositionTaskRuns,
   getCompositionTasks,
   setCurrentCompositionGridRun,
@@ -46,6 +47,7 @@ import {
   updateCompositionTask,
   updateItem,
   updateScene,
+  type CompositionPlanningState,
   type CompositionImageGenerationSettings,
 } from '@/lib/api';
 import { IMAGE_MODEL_OPTIONS, imageModelLabel } from '@/data/style-presets';
@@ -257,6 +259,7 @@ export function CompositionShotsTabContent({
   const [runsByTask, setRunsByTask] = useState<Record<string, CompositionTaskRuns>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [planningState, setPlanningState] = useState<CompositionPlanningState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [promptDrafts, setPromptDrafts] = useState<Record<string, string>>({});
   const [imageSettingsByTask, setImageSettingsByTask] = useState<Record<string, ImageSettings>>({});
@@ -378,6 +381,7 @@ export function CompositionShotsTabContent({
     () => getCompositionGate(project, episodes, scenes),
     [project, episodes, scenes],
   );
+  const planningRunning = planningState?.status === 'QUEUED' || planningState?.status === 'RUNNING';
 
   useEffect(() => {
     const stored = window.localStorage.getItem(`oneness:composition-view-mode:${project.id}`);
@@ -416,10 +420,11 @@ export function CompositionShotsTabContent({
 
   useEffect(() => {
     let cancelled = false;
-    getCompositionTasks(project.id)
-      .then((fresh) => {
+    Promise.all([getCompositionTasks(project.id), getCompositionPlanningState(project.id)])
+      .then(([fresh, planning]) => {
         if (cancelled) return;
         setTasks(fresh);
+        setPlanningState(planning);
         setSelectedId(fresh[0]?.id ?? null);
       })
       .catch((e) => {
@@ -448,6 +453,21 @@ export function CompositionShotsTabContent({
       cancelled = true;
     };
   }, [selectedTaskId]);
+
+  useEffect(() => {
+    if (!planningRunning) return;
+    const timer = window.setInterval(() => {
+      getCompositionPlanningState(project.id)
+        .then((next) => {
+          setPlanningState(next);
+          if (next.status !== 'QUEUED' && next.status !== 'RUNNING') {
+            void reloadTasks().catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [planningRunning, project.id, reloadTasks]);
 
   useEffect(() => {
     const inFlight =
@@ -485,9 +505,9 @@ export function CompositionShotsTabContent({
     setBusy('analyze');
     setError(null);
     try {
-      const fresh = await analyzeCompositionTasks(project.id);
-      setTasks(fresh);
-      setSelectedId(fresh[0]?.id ?? null);
+      const planning = await analyzeCompositionTasks(project.id);
+      setPlanningState(planning);
+      void reloadTasks().catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成场景图任务失败');
     } finally {
@@ -705,12 +725,15 @@ export function CompositionShotsTabContent({
           </div>
           <button
             onClick={handleAnalyze}
-            disabled={busy === 'analyze' || (!compositionGate.ready && !compositionGate.tab)}
+            disabled={busy === 'analyze' || planningRunning || (!compositionGate.ready && !compositionGate.tab)}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[var(--color-primary)] text-white text-sm font-medium hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
           >
-            {busy === 'analyze' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {busy === 'analyze' ? '正在规划场景图任务并匹配参考图...' : compositionGate.actionLabel}
+            {busy === 'analyze' || planningRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {busy === 'analyze' || planningRunning ? '正在规划场景图任务并匹配参考图...' : compositionGate.actionLabel}
           </button>
+          {planningState?.status === 'FAILED' && planningState.error && (
+            <div className="text-xs text-red-500 mt-3">{planningState.error}</div>
+          )}
           {!compositionGate.ready && (
             <div className="text-xs text-red-500 mt-3">{compositionGate.title}</div>
           )}
@@ -752,12 +775,12 @@ export function CompositionShotsTabContent({
           </div>
           <button
             onClick={handleAnalyze}
-            disabled={busy === 'analyze' || !compositionGate.ready}
+            disabled={busy === 'analyze' || planningRunning || !compositionGate.ready}
             title={compositionGate.ready ? '重新生成场景图任务' : compositionGate.title}
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
           >
-            {busy === 'analyze' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
-            {busy === 'analyze' ? '正在规划任务...' : '重新生成任务'}
+            {busy === 'analyze' || planningRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
+            {busy === 'analyze' || planningRunning ? '正在规划任务...' : '重新生成任务'}
           </button>
         </div>
       </div>

@@ -10,8 +10,6 @@ import {
   Loader2,
   Plus,
   RefreshCcw,
-  Trash2,
-  Wand2,
   X,
 } from 'lucide-react';
 import { Character, CompositionCandidate, CompositionTask, CompositionTaskRuns, Item, Project, Scene, Shot, ShotAssetRef } from '@/types';
@@ -36,6 +34,14 @@ type ExistingImage = {
   label: string;
   sublabel: string;
   selected?: boolean;
+};
+
+type SketchHistoryItem = {
+  id: string;
+  url: string;
+  taskId: string;
+  createdAt: string;
+  current: boolean;
 };
 
 interface Props {
@@ -138,6 +144,8 @@ export function ShotSketchDrawer({
   const [runs, setRuns] = useState<CompositionTaskRuns | null>(null);
   const [runsLoading, setRunsLoading] = useState(false);
   const [localBusy, setLocalBusy] = useState(false);
+  const [generateSubmitting, setGenerateSubmitting] = useState(false);
+  const [optimisticSketchTaskId, setOptimisticSketchTaskId] = useState<string | null>(null);
   const [promptDraft, setPromptDraft] = useState(shot.prompt);
   const [model, setModel] = useState(project.imageModel);
   const [ratio, setRatio] = useState(project.ratio);
@@ -153,6 +161,7 @@ export function ShotSketchDrawer({
     [compositionTasks, shot.episodeId, shot.sceneIndex],
   );
   const isGenerating = shot.sketchTaskStatus === 'QUEUED' || shot.sketchTaskStatus === 'RUNNING';
+  const previewGenerating = generateSubmitting || isGenerating || Boolean(optimisticSketchTaskId);
   const sketchFailed = shot.sketchTaskStatus === 'FAILED' && !shot.sketch;
   const disabled = busy || localBusy || isGenerating;
   const contextTaskId = context?.compositionTaskId ?? compositionTask?.id ?? null;
@@ -163,6 +172,20 @@ export function ShotSketchDrawer({
     () => (context?.referenceAssets ?? []).filter((reference) => reference.scope !== 'locked'),
     [context?.referenceAssets],
   );
+  const sketchHistory = useMemo<SketchHistoryItem[]>(() => {
+    const history = context?.sketchHistory ?? [];
+    if (!shot.sketch || history.some((item) => item.id === shot.sketch?.id)) return history;
+    return [
+      {
+        id: shot.sketch.id,
+        url: shot.sketch.url,
+        taskId: 'current-applied',
+        createdAt: shot.updatedAt,
+        current: true,
+      },
+      ...history,
+    ];
+  }, [context?.sketchHistory, shot.sketch, shot.updatedAt]);
   const promptDirty = promptDraft !== shot.prompt;
   const hasPrompt = promptDraft.trim().length > 0;
 
@@ -174,10 +197,23 @@ export function ShotSketchDrawer({
     setTab('scene');
     setRuns(null);
     setContext(null);
+    setGenerateSubmitting(false);
+    setOptimisticSketchTaskId(null);
     activeContextShotRef.current = shot.id;
     void loadContextAndRuns();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, shot.id]);
+
+  useEffect(() => {
+    if (
+      optimisticSketchTaskId &&
+      shot.sketchTaskId === optimisticSketchTaskId &&
+      shot.sketchTaskStatus !== 'QUEUED' &&
+      shot.sketchTaskStatus !== 'RUNNING'
+    ) {
+      setOptimisticSketchTaskId(null);
+    }
+  }, [optimisticSketchTaskId, shot.sketchTaskId, shot.sketchTaskStatus]);
 
   const loadContextAndRuns = async () => {
     setContextLoading(true);
@@ -217,6 +253,7 @@ export function ShotSketchDrawer({
 
   const handleGenerate = async () => {
     setLocalBusy(true);
+    setGenerateSubmitting(true);
     try {
       await savePromptIfNeeded();
       const result = await generateShotSketch(project.id, {
@@ -225,18 +262,17 @@ export function ShotSketchDrawer({
         model,
         ratio,
       });
+      setOptimisticSketchTaskId(result.taskId);
       await Promise.all([onRefreshShots(), onRefreshCompositionTasks()]);
       await refreshRuns(result.compositionTaskId);
       await loadContextAndRuns();
     } catch (error) {
+      setOptimisticSketchTaskId(null);
       onError(error instanceof Error ? error.message : '生成分镜图失败');
     } finally {
+      setGenerateSubmitting(false);
       setLocalBusy(false);
     }
-  };
-
-  const handleAutoFill = () => {
-    if (context?.prompt) setPromptDraft(context.prompt);
   };
 
   const handleSelect = async (assetId: string) => {
@@ -244,20 +280,9 @@ export function ShotSketchDrawer({
     try {
       await setShotSketch(shot.id, { assetId });
       await onRefreshShots();
+      await loadContextAndRuns();
     } catch (error) {
       onError(error instanceof Error ? error.message : '设置主分镜图失败');
-    } finally {
-      setLocalBusy(false);
-    }
-  };
-
-  const handleRemove = async () => {
-    setLocalBusy(true);
-    try {
-      await setShotSketch(shot.id, { assetId: null });
-      await onRefreshShots();
-    } catch (error) {
-      onError(error instanceof Error ? error.message : '移除主分镜图失败');
     } finally {
       setLocalBusy(false);
     }
@@ -319,25 +344,13 @@ export function ShotSketchDrawer({
         aria-label="关闭分镜图设置"
       />
       <aside className="relative z-10 flex h-full w-full max-w-[760px] bg-white shadow-2xl">
-        <div className="w-[70px] shrink-0 border-r border-[var(--color-border)] bg-white px-3 py-4">
-          <button
-            type="button"
-            className="relative h-12 w-12 overflow-hidden rounded-lg border border-[var(--color-border)] bg-gray-50"
-            aria-label="当前主分镜图缩略图"
-          >
-            {shot.sketch?.url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={shot.sketch.url} alt="主分镜图缩略图" className="h-full w-full object-cover" />
-            ) : (
-              <ImageIcon className="absolute inset-0 m-auto h-5 w-5 text-gray-400" />
-            )}
-            {shot.sketch && (
-              <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-primary)] text-white">
-                <Check className="h-3 w-3" />
-              </span>
-            )}
-          </button>
-        </div>
+        <SketchHistoryRail
+          history={sketchHistory}
+          currentSketchUrl={shot.sketch?.url ?? null}
+          disabled={disabled}
+          onPreview={(asset) => setPreviewImage({ url: asset.url, label: '主分镜图历史' })}
+          onApply={(asset) => void handleSelect(asset.id)}
+        />
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex items-start gap-3 border-b border-[var(--color-border)] px-5 py-4">
@@ -365,50 +378,16 @@ export function ShotSketchDrawer({
               <div className="bg-gray-50 px-4 py-3">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <span className="text-sm font-semibold text-gray-900">当前分镜图</span>
-                  <StatusBadge shot={shot} isGenerating={isGenerating} sketchFailed={sketchFailed} />
+                  <StatusBadge shot={shot} isGenerating={previewGenerating} sketchFailed={sketchFailed} />
                 </div>
                 <div className="overflow-hidden rounded-lg bg-gray-100">
                   <div className="aspect-video">
-                    {shot.sketch?.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={shot.sketch.url} alt="当前分镜图" className="h-full w-full object-contain" />
-                    ) : (
-                      <div className="flex h-full items-center justify-center px-6 text-center text-sm text-gray-500">
-                        {isGenerating ? '正在生成主分镜图…' : '待生成或从已有图中选择'}
-                      </div>
-                    )}
+                    <CurrentSketchPreview
+                      imageUrl={shot.sketch?.url ?? null}
+                      generating={previewGenerating}
+                    />
                   </div>
                 </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border)] px-4 py-3">
-                <button
-                  type="button"
-                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 text-sm font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                  disabled={contextLoading}
-                  onClick={() => void loadContextAndRuns()}
-                >
-                  <RefreshCcw className={`h-4 w-4 ${contextLoading ? 'animate-spin' : ''}`} />
-                  参考图
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 text-sm font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-50 disabled:opacity-50"
-                  disabled={!context?.prompt}
-                  onClick={handleAutoFill}
-                >
-                  <Wand2 className="h-4 w-4" />
-                  自动填充
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleRemove()}
-                  disabled={disabled || !shot.sketch}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--color-border)] px-3 text-sm font-medium text-gray-700 hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  移除
-                </button>
               </div>
 
               <div className="border-t border-[var(--color-border)] p-4">
@@ -434,7 +413,7 @@ export function ShotSketchDrawer({
                   rows={6}
                   value={promptDraft}
                   onChange={(event) => setPromptDraft(event.target.value)}
-                  placeholder="描述主分镜图画面。可以点击「自动填充」恢复系统根据 Shot 和场景生成的提示词。"
+                  placeholder="描述主分镜图画面。默认已根据 Shot 和场景预填充，可直接编辑后生成。"
                   className="mt-1.5 w-full resize-none rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 font-mono text-sm leading-relaxed outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
                 />
                 {!hasPrompt && <p className="mt-2 text-xs text-red-500">请先填写提示词。</p>}
@@ -567,14 +546,6 @@ function StatusBadge({
   isGenerating: boolean;
   sketchFailed: boolean;
 }) {
-  if (shot.sketch) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-        <CheckCircle2 className="h-3.5 w-3.5" />
-        已设置
-      </span>
-    );
-  }
   if (isGenerating) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-[var(--color-primary)]">
@@ -583,10 +554,119 @@ function StatusBadge({
       </span>
     );
   }
+  if (shot.sketch) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        已设置
+      </span>
+    );
+  }
   if (sketchFailed) {
     return <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600">生成失败</span>;
   }
   return <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">待选择</span>;
+}
+
+function CurrentSketchPreview({
+  imageUrl,
+  generating,
+}: {
+  imageUrl: string | null;
+  generating: boolean;
+}) {
+  return (
+    <div className="relative h-full w-full">
+      {imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageUrl} alt="当前分镜图" className="h-full w-full object-contain" />
+      ) : (
+        <div className="flex h-full items-center justify-center px-6 text-center text-sm text-gray-500">
+          待生成或从已有图中选择
+        </div>
+      )}
+      {generating && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-white/82 px-6 text-center backdrop-blur-sm">
+          <div className="relative flex h-16 w-16 items-center justify-center">
+            <span className="absolute h-16 w-16 rounded-full border-2 border-blue-100" />
+            <span className="absolute h-16 w-16 animate-spin rounded-full border-2 border-transparent border-t-[var(--color-primary)]" />
+            <ImagePlus className="h-7 w-7 text-[var(--color-primary)]" />
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-gray-900">正在生成新的主分镜图</div>
+            <div className="mt-1 text-xs text-gray-500">完成后会自动更新当前图，并保存在左侧历史栏</div>
+          </div>
+          <div className="h-1.5 w-40 overflow-hidden rounded-full bg-blue-100">
+            <div className="h-full w-1/2 animate-[pulse_1.2s_ease-in-out_infinite] rounded-full bg-[var(--color-primary)]" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SketchHistoryRail({
+  history,
+  currentSketchUrl,
+  disabled,
+  onPreview,
+  onApply,
+}: {
+  history: SketchHistoryItem[];
+  currentSketchUrl: string | null;
+  disabled: boolean;
+  onPreview: (asset: SketchHistoryItem) => void;
+  onApply: (asset: SketchHistoryItem) => void;
+}) {
+  return (
+    <div className="flex w-[86px] shrink-0 flex-col border-r border-[var(--color-border)] bg-white px-3 py-4">
+      <div className="mb-3 text-center text-[11px] font-medium text-gray-500">历史</div>
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+        {history.length === 0 ? (
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50">
+            <ImageIcon className="h-5 w-5 text-gray-400" />
+          </div>
+        ) : (
+          history.map((asset) => {
+            const current = asset.current || asset.url === currentSketchUrl;
+            return (
+              <div key={`${asset.taskId}-${asset.id}`} className="group relative h-14 w-14">
+                <button
+                  type="button"
+                  onClick={() => onPreview(asset)}
+                  className={`relative h-14 w-14 overflow-hidden rounded-lg border bg-gray-50 ${
+                    current ? 'border-[var(--color-primary)] ring-2 ring-blue-100' : 'border-[var(--color-border)]'
+                  }`}
+                  aria-label="查看主分镜图历史"
+                  title="点击放大"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={asset.url} alt="主分镜图历史" className="h-full w-full object-cover" />
+                  {current && (
+                    <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-primary)] text-white">
+                      <Check className="h-3 w-3" />
+                    </span>
+                  )}
+                </button>
+                {!current && (
+                  <button
+                    type="button"
+                    onClick={() => onApply(asset)}
+                    disabled={disabled}
+                    className="absolute -bottom-1 -right-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gray-900 text-white opacity-100 shadow-sm transition-colors hover:bg-[var(--color-primary)] disabled:opacity-40 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100"
+                    aria-label="设为当前主分镜图"
+                    title="设为当前"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
 }
 
 function ReferenceStrip({

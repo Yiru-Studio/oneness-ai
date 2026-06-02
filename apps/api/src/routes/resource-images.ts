@@ -6,6 +6,7 @@ import {
   assertAssetOwned,
   assertTaskOwned,
   loadOwnedResourceTarget,
+  reconcileResourceImagesForTarget,
   resourceImageEntityFields,
   resourceImageEntityWhere,
   setCurrentResourceAsset,
@@ -33,6 +34,7 @@ resourceImageRoutes.get(
     const user = c.var.user!;
     const q = c.req.valid('query');
     await loadOwnedResourceTarget(prisma, q.kind, q.entityId, user.id);
+    await reconcileResourceImagesForTarget(prisma, q.kind, q.entityId, user.id);
     const rows = await prisma.resourceImage.findMany({
       where: {
         ownerId: user.id,

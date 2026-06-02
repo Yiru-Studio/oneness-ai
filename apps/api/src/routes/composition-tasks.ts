@@ -96,6 +96,20 @@ type ShotSketchReferenceAssetDTO = AssetDTO & {
   removable: boolean;
 };
 
+type ShotSketchHistoryAssetDTO = AssetDTO & {
+  taskId: string;
+  createdAt: string;
+  current: boolean;
+};
+
+type CompositionPlanningStateDTO = {
+  taskId: string | null;
+  status: string | null;
+  error: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
 compositionTaskRoutes.get('/projects/:id/composition-tasks', async (c) => {
   const user = c.var.user!;
   const projectId = c.req.param('id');
@@ -109,6 +123,13 @@ compositionTaskRoutes.get('/projects/:id/composition-tasks', async (c) => {
   return c.json(await Promise.all(rows.map(serializeCompositionTask)));
 });
 
+compositionTaskRoutes.get('/projects/:id/composition-tasks/planning-state', async (c) => {
+  const user = c.var.user!;
+  const projectId = c.req.param('id');
+  await assertOwnedProject(projectId, user.id);
+  return c.json(await getCompositionPlanningState(projectId, user.id));
+});
+
 compositionTaskRoutes.post(
   '/projects/:id/composition-tasks/analyze',
   zValidator('json', AnalyzeCompositionTasksSchema),
@@ -117,99 +138,30 @@ compositionTaskRoutes.post(
     const projectId = c.req.param('id');
     const body = c.req.valid('json');
     const project = await assertOwnedProject(projectId, user.id);
-
-    const episodes = await prisma.storyboardEpisode.findMany({
-      where: { projectId, ...(body.episodeId ? { id: body.episodeId } : {}) },
-      orderBy: { number: 'asc' },
-    });
-    if (episodes.length === 0) {
-      throw AppError.badRequest(ErrorCodes.VALIDATION_FAILED, '请先上传或创建剧集');
-    }
-
-    const library = await loadReferenceLibrary(projectId);
-    const plannedEpisodes = new Map<
-      string,
-      { scenes: EpisodeScene[]; refsBySceneIndex: Map<number, SceneImageReferenceIds> }
-    >();
-    for (const episode of episodes) {
-      const fallbackScenes = scenesForEpisode(episode, library.scenes);
-      const plannedScenes = await planSceneImagesForEpisode(project, episode, fallbackScenes);
-      const refsBySceneIndex = await bindReferencesForEpisode(project, episode, plannedScenes, library);
-      plannedEpisodes.set(episode.id, { scenes: plannedScenes, refsBySceneIndex });
-    }
-
-    await prisma.$transaction(async (tx) => {
-      for (const episode of episodes) {
-        const planned = plannedEpisodes.get(episode.id);
-        const scenes = planned?.scenes ?? scenesForEpisode(episode, library.scenes);
-        for (const scene of scenes) {
-          const refs = planned?.refsBySceneIndex.get(scene.index) ?? prefillReferences(scene, library);
-          const title = `第${episode.number}集 · ${scene.title || `场景 ${scene.index + 1}`}`;
-          const where = {
-            episodeId_sceneIndex: {
-              episodeId: episode.id,
-              sceneIndex: scene.index,
-            },
-          };
-          const existing = await tx.compositionTask.findUnique({
-            where,
-            select: {
-              id: true,
-              status: true,
-              currentImageRunId: true,
-              imageAssetId: true,
-              imageTaskId: true,
-            },
-          });
-          const sceneSummary = cleanSceneImageSummary(scene.content);
-          const sceneForPrompt = { ...scene, content: sceneSummary };
-          const prompt = buildCompositionPrompt(project, sceneForPrompt, refs, library);
-          if (!existing) {
-            await tx.compositionTask.create({
-              data: {
-                projectId,
-                episodeId: episode.id,
-                sceneIndex: scene.index,
-                title,
-                scriptExcerpt: sceneSummary,
-                prompt,
-                characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
-                sceneIds: refs.sceneIds as Prisma.InputJsonValue,
-                itemIds: refs.itemIds as Prisma.InputJsonValue,
-              },
-            });
-            continue;
-          }
-
-          const canRefreshDraft = canRefreshSceneImageTaskDraft(existing);
-          await tx.compositionTask.update({
-            where: { id: existing.id },
-            data: {
-              projectId,
-              episodeId: episode.id,
-              sceneIndex: scene.index,
-              title,
-              scriptExcerpt: sceneSummary,
-              ...(canRefreshDraft
-                ? {
-                    prompt,
-                    characterStyleIds: refs.characterStyleIds as Prisma.InputJsonValue,
-                    sceneIds: refs.sceneIds as Prisma.InputJsonValue,
-                    itemIds: refs.itemIds as Prisma.InputJsonValue,
-                  }
-                : {}),
-            },
-          });
-        }
+    if (body.episodeId) {
+      const episode = await prisma.storyboardEpisode.findFirst({
+        where: { id: body.episodeId, projectId },
+        select: { id: true },
+      });
+      if (!episode) throw AppError.notFound(ErrorCodes.NOT_FOUND, 'episode not found');
+    } else {
+      const count = await prisma.storyboardEpisode.count({ where: { projectId } });
+      if (count === 0) {
+        throw AppError.badRequest(ErrorCodes.VALIDATION_FAILED, '请先上传或创建剧集');
       }
-    });
+    }
 
-    const rows = await prisma.compositionTask.findMany({
-      where: { projectId },
-      include: COMPOSITION_INCLUDE,
-      orderBy: [{ episode: { number: 'asc' } }, { sceneIndex: 'asc' }],
+    const active = await findActiveCompositionPlanningTask(projectId, user.id, body.episodeId);
+    if (active) return c.json(await serializeTaskForPlanning(active), 202);
+
+    const task = await createCompositionPlanningTask({
+      projectId,
+      userId: user.id,
+      provider: config.PROVIDER_TEXT || 'openai',
+      model: project.analysisModel,
+      episodeId: body.episodeId,
     });
-    return c.json(await Promise.all(rows.map(serializeCompositionTask)));
+    return c.json(await serializeTaskForPlanning(task), 202);
   },
 );
 
@@ -1045,6 +997,7 @@ async function buildShotSketchContext(
     shot,
     compositionImageAssetId,
   );
+  const sketchHistory = await serializeShotSketchHistory(projectId, shot.id, shot.sketchAssetId, userId);
 
   return {
     compositionTaskId,
@@ -1053,6 +1006,7 @@ async function buildShotSketchContext(
     ratio: project.ratio,
     referenceAssetIds,
     referenceAssets,
+    sketchHistory,
     scene: {
       index: scene.index,
       title: scene.title,
@@ -1061,10 +1015,186 @@ async function buildShotSketchContext(
   };
 }
 
+async function serializeShotSketchHistory(
+  projectId: string,
+  shotId: string,
+  currentAssetId: string | null,
+  userId: string,
+): Promise<ShotSketchHistoryAssetDTO[]> {
+  const rows = await prisma.task.findMany({
+    where: {
+      ownerId: userId,
+      projectId,
+      type: TaskType.IMAGE,
+      status: TaskStatus.SUCCEEDED,
+      AND: [
+        { input: { path: ['shotSketch'], equals: true } },
+        { input: { path: ['shotId'], equals: shotId } },
+      ],
+      assets: { some: { role: 'output' } },
+    },
+    include: {
+      assets: {
+        where: { role: 'output' },
+        include: { asset: true },
+        orderBy: { asset: { createdAt: 'desc' } },
+        take: 1,
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 30,
+  });
+  const serialized = await Promise.all(
+    rows.flatMap((row) =>
+      row.assets.map(async (taskAsset) => {
+        const dto = await serializeAsset(taskAsset.asset);
+        return {
+          ...dto,
+          taskId: row.id,
+          createdAt: row.createdAt.toISOString(),
+          current: dto.id === currentAssetId,
+        };
+      }),
+    ),
+  );
+  return serialized;
+}
+
 async function assertOwnedProject(projectId: string, userId: string) {
   const project = await prisma.project.findFirst({ where: { id: projectId, ownerId: userId } });
   if (!project) throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
   return project;
+}
+
+async function getCompositionPlanningState(
+  projectId: string,
+  userId: string,
+): Promise<CompositionPlanningStateDTO> {
+  const task =
+    await findActiveCompositionPlanningTask(projectId, userId) ??
+    await prisma.task.findFirst({
+      where: {
+        ownerId: userId,
+        projectId,
+        type: TaskType.TEXT_ANALYZE,
+        input: { path: ['analysisType'], equals: 'composition_scene_planning' },
+        status: TaskStatus.FAILED,
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        error: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  if (!task) {
+    return { taskId: null, status: null, error: null, createdAt: null, updatedAt: null };
+  }
+  return {
+    taskId: task.id,
+    status: task.status,
+    error: task.error,
+    createdAt: task.createdAt.toISOString(),
+    updatedAt: task.updatedAt.toISOString(),
+  };
+}
+
+async function findActiveCompositionPlanningTask(
+  projectId: string,
+  userId: string,
+  episodeId?: string,
+) {
+  return prisma.task.findFirst({
+    where: {
+      ownerId: userId,
+      projectId,
+      type: TaskType.TEXT_ANALYZE,
+      status: { in: [TaskStatus.QUEUED, TaskStatus.RUNNING] },
+      input: {
+        path: ['analysisType'],
+        equals: 'composition_scene_planning',
+      },
+      ...(episodeId
+        ? { AND: [{ input: { path: ['episodeId'], equals: episodeId } }] }
+        : {}),
+    },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      status: true,
+      error: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+}
+
+async function createCompositionPlanningTask(args: {
+  projectId: string;
+  userId: string;
+  provider: string;
+  model: string;
+  episodeId?: string;
+}) {
+  const cost = estimateCost(TaskType.TEXT_ANALYZE);
+  const task = await prisma.$transaction(async (tx) => {
+    const account = await tx.user.findUnique({
+      where: { id: args.userId },
+      select: { credits: true },
+    });
+    if (!account) throw AppError.unauthorized();
+    if (account.credits < cost) {
+      throw AppError.badRequest(
+        ErrorCodes.INSUFFICIENT_CREDITS,
+        `requires ${cost} credits, have ${account.credits}`,
+        { required: cost, available: account.credits },
+      );
+    }
+    await tx.user.update({ where: { id: args.userId }, data: { credits: { decrement: cost } } });
+    return tx.task.create({
+      data: {
+        ownerId: args.userId,
+        projectId: args.projectId,
+        type: TaskType.TEXT_ANALYZE,
+        provider: args.provider,
+        status: TaskStatus.QUEUED,
+        costCredits: cost,
+        input: {
+          projectId: args.projectId,
+          episodeId: args.episodeId,
+          analysisType: 'composition_scene_planning',
+          model: args.model,
+        } as Prisma.InputJsonValue,
+      },
+      select: {
+        id: true,
+        status: true,
+        error: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  });
+  await enqueueTaskJob(queueForTaskType(TaskType.TEXT_ANALYZE), task.id);
+  return task;
+}
+
+async function serializeTaskForPlanning(task: {
+  id: string;
+  status: TaskStatus;
+  error: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): Promise<CompositionPlanningStateDTO> {
+  return {
+    taskId: task.id,
+    status: task.status,
+    error: task.error,
+    createdAt: task.createdAt.toISOString(),
+    updatedAt: task.updatedAt.toISOString(),
+  };
 }
 
 async function loadOwnedCompositionTask(id: string, userId: string) {
