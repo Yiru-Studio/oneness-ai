@@ -2,7 +2,7 @@
 
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react';
 import { Item, Project } from '@/types';
-import { Plus, Trash2, Loader2, ImagePlus, X } from 'lucide-react';
+import { Plus, Trash2, Loader2, ImagePlus, X, AlertCircle } from 'lucide-react';
 import {
   createItem,
   deleteItem,
@@ -20,6 +20,29 @@ interface Props {
   onChange: Dispatch<SetStateAction<Item[]>>;
 }
 
+function itemTaskState(
+  item: Item,
+  inSessionGenerating: boolean,
+  inSessionError: string | null,
+): { pending: boolean; failed: boolean; error: string | null; label: string | null; title: string | undefined } {
+  const row = item.itemResourceImage;
+  const queued = row?.status === 'QUEUED';
+  const running = row?.status === 'RUNNING';
+  const pending = inSessionGenerating || queued || running;
+  const persistedError = row?.status === 'FAILED' ? row.error || '道具图生成失败' : null;
+  const error = inSessionError || persistedError;
+  const failed = !pending && Boolean(error);
+  const label = queued
+    ? '排队中'
+    : running || inSessionGenerating
+      ? '生成中'
+      : failed
+        ? '生成失败'
+        : null;
+  const title = label ? `${item.name}：${failed && error ? `${label}，${error}` : label}` : undefined;
+  return { pending, failed, error, label, title };
+}
+
 /**
  * Items tab — grid of cards. Clicking a card opens the secondary detail
  * drawer (matches likeai.pro). Inline hover controls reduced to delete only.
@@ -33,7 +56,7 @@ export function ItemsTabContent({ items, project, scriptContent, onChange }: Pro
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { isGenerating } = useGeneration();
+  const { isGenerating, getError } = useGeneration();
 
   const clearBusy = (key: string) => {
     setBusy((current) => (current === key ? null : current));
@@ -75,6 +98,20 @@ export function ItemsTabContent({ items, project, scriptContent, onChange }: Pro
 
   const opened = openId ? items.find((i) => i.id === openId) ?? null : null;
 
+  useEffect(() => {
+    const hasPendingItems = items.some((item) =>
+      isGenerating('item', item.id) ||
+      item.itemResourceImage?.status === 'QUEUED' ||
+      item.itemResourceImage?.status === 'RUNNING',
+    );
+    if (!hasPendingItems) return;
+
+    const timer = window.setInterval(() => {
+      void getProjectItems(project.id).then(onChange).catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [items, isGenerating, onChange, project.id]);
+
   const buildAutoPrompt = (item: Item): string => {
     const ctxLines = scriptContent
       ? scriptContent
@@ -105,51 +142,69 @@ export function ItemsTabContent({ items, project, scriptContent, onChange }: Pro
           <span className="text-sm">添加物品</span>
         </button>
 
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className="group relative rounded-xl overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => setOpenId(item.id)}
-          >
-            <div className="aspect-square flex items-center justify-center relative">
-              {item.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="flex flex-col items-center text-gray-400">
-                  <ImagePlus className="w-8 h-8" />
-                  <span className="text-xs mt-1">点击编辑</span>
-                </div>
-              )}
-              {isGenerating('item', item.id) && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                  <Loader2 className="w-6 h-6 text-white animate-spin" />
-                </div>
-              )}
-            </div>
-            <div className="px-3 py-2 bg-gray-700 text-white text-xs text-center truncate" title={item.name}>
-              {item.name}
-            </div>
-
-            <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void handleDelete(item.id);
-                }}
-                disabled={busy === `del-${item.id}`}
-                className="w-7 h-7 rounded-md bg-white/95 text-gray-600 hover:text-red-500 flex items-center justify-center shadow-sm"
-                title="删除"
-              >
-                {busy === `del-${item.id}` ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        {items.map((item) => {
+          const itemTask = itemTaskState(
+            item,
+            isGenerating('item', item.id),
+            getError('item', item.id),
+          );
+          const displayImage = item.image || item.itemResourceImage?.image || '';
+          return (
+            <div
+              key={item.id}
+              title={itemTask.title}
+              className="group relative rounded-xl overflow-hidden bg-[var(--color-bg-card)] border border-[var(--color-border)] cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => setOpenId(item.id)}
+            >
+              <div className="aspect-square flex items-center justify-center relative">
+                {displayImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={displayImage} alt={item.name} className="w-full h-full object-cover" />
                 ) : (
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <div className="flex flex-col items-center text-gray-400">
+                    <ImagePlus className="w-8 h-8" />
+                    <span className="text-xs mt-1">{itemTask.label || '点击编辑'}</span>
+                  </div>
                 )}
-              </button>
+                {itemTask.pending && (
+                  <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-2 text-white">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <span className="text-xs font-medium">{itemTask.label}</span>
+                  </div>
+                )}
+                {itemTask.failed && (
+                  <div
+                    className="absolute right-2 top-2 w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center shadow-sm"
+                    title={itemTask.error ?? undefined}
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                  </div>
+                )}
+              </div>
+              <div className="px-3 py-2 bg-gray-700 text-white text-xs text-center truncate" title={item.name}>
+                {item.name}
+              </div>
+
+              <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleDelete(item.id);
+                  }}
+                  disabled={busy === `del-${item.id}`}
+                  className="w-7 h-7 rounded-md bg-white/95 text-gray-600 hover:text-red-500 flex items-center justify-center shadow-sm"
+                  title="删除"
+                >
+                  {busy === `del-${item.id}` ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {error && <div className="text-sm text-red-600 mt-4">{error}</div>}
@@ -160,7 +215,11 @@ export function ItemsTabContent({ items, project, scriptContent, onChange }: Pro
         <EntityDetailDrawer
           open
           kind="item"
-          entity={opened}
+          entity={{
+            ...opened,
+            image: opened.image || opened.itemResourceImage?.image || '',
+            assetId: opened.assetId ?? opened.itemResourceImage?.assetId ?? null,
+          }}
           project={project}
           buildAutoPrompt={() => buildAutoPrompt(opened)}
           onSave={async (patch) => {
@@ -192,13 +251,12 @@ function AddItemModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isOpen) {
-      setName('');
-      setBusy(false);
-      setError(null);
-    }
-  }, [isOpen]);
+  const closeAndReset = () => {
+    setName('');
+    setBusy(false);
+    setError(null);
+    onClose();
+  };
 
   const handleConfirm = async () => {
     if (!name.trim()) {
@@ -209,7 +267,7 @@ function AddItemModal({
     setError(null);
     try {
       await onCreate({ name: name.trim() });
-      onClose();
+      closeAndReset();
     } catch (e) {
       setError(e instanceof Error ? e.message : '保存失败');
     } finally {
@@ -220,14 +278,14 @@ function AddItemModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40" onClick={closeAndReset}>
       <div
         className="bg-white rounded-xl p-6 w-[420px] relative shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold">添加物品</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={closeAndReset} className="text-gray-400 hover:text-gray-600">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -255,7 +313,7 @@ function AddItemModal({
 
           <div className="flex justify-end gap-2 pt-2">
             <button
-              onClick={onClose}
+              onClick={closeAndReset}
               className="px-4 py-1.5 rounded-lg border border-[var(--color-border)] text-sm hover:bg-gray-50"
             >
               取消

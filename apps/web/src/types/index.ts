@@ -66,6 +66,7 @@ export interface Item {
   ratio?: string | null;
   assetId?: string | null;
   image: string;
+  itemResourceImage?: ResourceImage | null;
 }
 
 export interface Scene {

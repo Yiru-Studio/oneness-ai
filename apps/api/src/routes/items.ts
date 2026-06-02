@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { Prisma } from '@prisma/client';
 import { zValidator } from '../middleware/validator';
 import { prisma } from '../lib/prisma.js';
 import { tryReadUser, requireUser } from '../middleware/auth.js';
@@ -11,6 +12,17 @@ import {
 } from '@oneness/shared/schemas';
 
 export const itemRoutes = new Hono();
+
+const itemInclude = {
+  asset: true,
+  resourceImages: {
+    where: { kind: 'item' },
+    include: { asset: true, task: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: 1,
+  },
+} satisfies Prisma.ItemInclude;
+
 itemRoutes.use('/projects/:id/items', tryReadUser, requireUser);
 itemRoutes.use('/items/:id', tryReadUser, requireUser);
 
@@ -29,7 +41,7 @@ itemRoutes.get(
     }
     const items = await prisma.item.findMany({
       where: { projectId },
-      include: { asset: true },
+      include: itemInclude,
       orderBy: { createdAt: 'asc' },
     });
     return c.json(await Promise.all(items.map(serializeItem)));
@@ -62,7 +74,7 @@ itemRoutes.post(
         ratio: body.ratio ?? null,
         assetId: body.assetId ?? null,
       },
-      include: { asset: true },
+      include: itemInclude,
     });
     return c.json(await serializeItem(created), 201);
   },
@@ -90,7 +102,7 @@ itemRoutes.patch(
     const updated = await prisma.item.update({
       where: { id: existing.id },
       data,
-      include: { asset: true },
+      include: itemInclude,
     });
     return c.json(await serializeItem(updated));
   },
@@ -111,7 +123,7 @@ itemRoutes.delete(
 async function loadOwnedItem(id: string, userId: string) {
   const row = await prisma.item.findFirst({
     where: { id, project: { ownerId: userId } },
-    include: { asset: true },
+    include: itemInclude,
   });
   if (!row) throw AppError.notFound(ErrorCodes.ITEM_NOT_FOUND, 'item not found');
   return row;
