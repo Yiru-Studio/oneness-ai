@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Trash2, Loader2, Play, Image as ImageIcon, Plus, RotateCcw, X } from 'lucide-react';
+import { Trash2, Loader2, Play, Image as ImageIcon, ImagePlus, Plus, RotateCcw, X } from 'lucide-react';
 import { Shot, Character, Scene, Item, CompositionTask, Project } from '@/types';
 import { ImagePreview } from '@/components/ImagePreview';
 import { ReferencePickerDialog } from './ReferencePickerDialog';
+import { ShotSketchDrawer } from './ShotSketchDrawer';
 
 // Models we actually have registered in the worker registry. Adding more is
 // a backend change — DO NOT add cosmetic-only options here.
@@ -44,6 +45,9 @@ interface Props {
   onDelete: (id: string) => Promise<void>;
   onGenerate: (id: string, beforeGeneratePatch?: Partial<Shot>) => Promise<void>;
   onRefreshReferences: () => Promise<void>;
+  onRefreshShots: () => Promise<Shot[]>;
+  onRefreshCompositionTasks: () => Promise<CompositionTask[]>;
+  onError: (message: string) => void;
 }
 
 type ResourceThumb = { key: string; label: string; url: string | null };
@@ -61,6 +65,9 @@ export function ShotCard({
   onDelete,
   onGenerate,
   onRefreshReferences,
+  onRefreshShots,
+  onRefreshCompositionTasks,
+  onError,
 }: Props) {
   const [promptDraft, setPromptDraft] = useState(() => ({
     shotId: shot.id,
@@ -68,6 +75,7 @@ export function ShotCard({
     value: shot.prompt,
   }));
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [sketchDrawerOpen, setSketchDrawerOpen] = useState(false);
   const [previewThumb, setPreviewThumb] = useState<{ src: string; alt: string } | null>(null);
   const prompt =
     promptDraft.shotId === shot.id && promptDraft.sourcePrompt === shot.prompt
@@ -88,19 +96,16 @@ export function ShotCard({
     });
   };
 
-  // Build the list of resource thumbnails (sketch + composition shots + resources).
-  const resourceThumbs = buildResourceThumbs(shot, characters, scenes, items, compositionTasks);
-  const hasSelectedReference = resourceThumbs.length > 0;
-  const hasVideoReference = resourceThumbs.some((r) => Boolean(r.url));
+  const referenceThumbs = buildReferenceThumbs(shot, characters, scenes, items, compositionTasks);
+  const hasSelectedReference = Boolean(shot.sketch) || referenceThumbs.length > 0;
+  const hasVideoReference = Boolean(shot.sketch?.url) || referenceThumbs.some((r) => Boolean(r.url));
   const videoDisabledReason = !promptReady
     ? '请先填写视频提示词'
     : !hasSelectedReference
-      ? '请先选择草图或参考资产'
+      ? '请先选择或生成主分镜图，也可补充参考资产'
       : !hasVideoReference
         ? '请选择带图片的参考资产'
       : null;
-  const sketchThumb = resourceThumbs.find((r) => r.key === `sketch-${shot.id}`) ?? null;
-  const referenceThumbs = resourceThumbs.filter((r) => r.key !== `sketch-${shot.id}`);
   const editingDisabled = busy || isGenerating;
   const handleRemoveReference = (thumb: ResourceThumb) => {
     if (editingDisabled) return;
@@ -168,11 +173,12 @@ export function ShotCard({
           />
 
           <ReferenceAssetCards
-            sketchThumb={sketchThumb}
+            shot={shot}
             referenceThumbs={referenceThumbs}
             isSketchGenerating={isSketchGenerating}
             sketchFailed={sketchFailed}
             busy={editingDisabled}
+            onOpenSketchDrawer={() => setSketchDrawerOpen(true)}
             onAddReference={() => setPickerOpen(true)}
             onPreview={(thumb) => setPreviewThumb({ src: thumb.url!, alt: thumb.label })}
             onRemoveReference={handleRemoveReference}
@@ -204,6 +210,20 @@ export function ShotCard({
         }}
         onRefreshReferences={onRefreshReferences}
         onConfirm={(next) => onUpdate(shot.id, next, { rethrow: true })}
+      />
+      <ShotSketchDrawer
+        open={sketchDrawerOpen}
+        onClose={() => setSketchDrawerOpen(false)}
+        project={project}
+        shot={shot}
+        characters={characters}
+        scenes={scenes}
+        items={items}
+        compositionTasks={compositionTasks}
+        busy={editingDisabled}
+        onError={onError}
+        onRefreshShots={onRefreshShots}
+        onRefreshCompositionTasks={onRefreshCompositionTasks}
       />
       <ImagePreview
         src={previewThumb?.src ?? ''}
@@ -329,56 +349,34 @@ function ShotControlBar({
 }
 
 function ReferenceAssetCards({
-  sketchThumb,
+  shot,
   referenceThumbs,
   isSketchGenerating,
   sketchFailed,
   busy,
+  onOpenSketchDrawer,
   onAddReference,
   onPreview,
   onRemoveReference,
 }: {
-  sketchThumb: ResourceThumb | null;
+  shot: Shot;
   referenceThumbs: ResourceThumb[];
   isSketchGenerating: boolean;
   sketchFailed: boolean;
   busy: boolean;
+  onOpenSketchDrawer: () => void;
   onAddReference: () => void;
   onPreview: (thumb: ResourceThumb) => void;
   onRemoveReference: (thumb: ResourceThumb) => void;
 }) {
   return (
     <div className="flex flex-wrap gap-3">
-      <button
-        type="button"
-        onClick={() => {
-          if (sketchThumb?.url) onPreview(sketchThumb);
-        }}
-        disabled={!sketchThumb?.url}
-        className="group relative h-[136px] w-[136px] overflow-hidden rounded-[18px] border border-[var(--color-border)] bg-gray-50 text-gray-500 transition-colors enabled:cursor-zoom-in enabled:hover:border-[var(--color-primary)] disabled:cursor-default"
-        aria-label={sketchThumb?.url ? '查看分镜图' : '分镜图未生成'}
-      >
-        {sketchThumb?.url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={sketchThumb.url} alt="分镜图" className="h-full w-full object-cover" />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center px-3 text-sm font-medium">
-            {isSketchGenerating ? (
-              <span className="inline-flex items-center gap-2 text-[var(--color-primary)]">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                生成中
-              </span>
-            ) : sketchFailed ? (
-              <span className="text-red-500">未生成</span>
-            ) : (
-              '未生成'
-            )}
-          </div>
-        )}
-        <span className="absolute inset-x-0 bottom-0 bg-black/70 px-3 py-2 text-center text-sm font-semibold text-white">
-          分镜图
-        </span>
-      </button>
+      <ShotSketchCard
+        shot={shot}
+        isSketchGenerating={isSketchGenerating}
+        sketchFailed={sketchFailed}
+        onOpen={onOpenSketchDrawer}
+      />
 
       {referenceThumbs.map((thumb) => (
         <div
@@ -428,6 +426,51 @@ function ReferenceAssetCards({
         <Plus className="h-8 w-8" />
       </button>
     </div>
+  );
+}
+
+function ShotSketchCard({
+  shot,
+  isSketchGenerating,
+  sketchFailed,
+  onOpen,
+}: {
+  shot: Shot;
+  isSketchGenerating: boolean;
+  sketchFailed: boolean;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group relative h-[136px] w-[136px] overflow-hidden rounded-[18px] border border-[var(--color-border)] bg-gray-50 text-gray-500 transition-colors hover:border-[var(--color-primary)]"
+      aria-label="打开分镜图设置"
+    >
+      {shot.sketch?.url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={shot.sketch.url} alt="主分镜图" className="h-full w-full object-cover" />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-sm font-medium">
+          {isSketchGenerating ? (
+            <span className="inline-flex items-center gap-2 text-[var(--color-primary)]">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              生成中
+            </span>
+          ) : sketchFailed ? (
+            <span className="text-red-500">生成失败</span>
+          ) : (
+            <span className="inline-flex flex-col items-center gap-2 text-gray-500">
+              <ImagePlus className="h-7 w-7" />
+              选择或生成分镜图
+            </span>
+          )}
+        </div>
+      )}
+      <span className="absolute inset-x-0 bottom-0 bg-black/70 px-3 py-2 text-center text-sm font-semibold text-white">
+        主分镜图
+      </span>
+    </button>
   );
 }
 
@@ -540,7 +583,7 @@ function Select<T extends string | number>({
   );
 }
 
-function buildResourceThumbs(
+function buildReferenceThumbs(
   shot: Shot,
   characters: Character[],
   scenes: Scene[],
@@ -548,9 +591,6 @@ function buildResourceThumbs(
   compositionTasks: CompositionTask[],
 ): ResourceThumb[] {
   const out: ResourceThumb[] = [];
-  if (shot.sketch) {
-    out.push({ key: `sketch-${shot.id}`, label: '分镜首帧', url: shot.sketch.url });
-  }
   for (const taskId of shot.compositionTaskIds) {
     const task = compositionTasks.find((t) => t.id === taskId);
     if (task) {

@@ -458,6 +458,16 @@ export async function updateShot(shotId: string, body: UpdateShotInput): Promise
   });
 }
 
+export async function setShotSketch(
+  shotId: string,
+  body: { assetId: string | null },
+): Promise<Shot> {
+  return await apiFetch<ShotDTO>(`/api/shots/${shotId}/sketch`, {
+    method: 'PATCH',
+    body,
+  });
+}
+
 export async function deleteShot(shotId: string): Promise<void> {
   await apiFetch<void>(`/api/shots/${shotId}`, { method: 'DELETE' });
 }
@@ -538,6 +548,23 @@ export async function generateShotSketches(
 ): Promise<GenerateShotSketchesResult> {
   return await apiFetch<GenerateShotSketchesResult>(
     `/api/projects/${projectId}/composition-tasks/generate-shot-sketches`,
+    { method: 'POST', body },
+  );
+}
+
+export type GenerateShotSketchResult = {
+  compositionTaskId: string;
+  taskId: string;
+  targetShotId: string;
+  referenceAssetIds: string[];
+};
+
+export async function generateShotSketch(
+  projectId: string,
+  body: { shotId: string; force?: boolean },
+): Promise<GenerateShotSketchResult> {
+  return await apiFetch<GenerateShotSketchResult>(
+    `/api/projects/${projectId}/composition-tasks/generate-shot-sketch`,
     { method: 'POST', body },
   );
 }

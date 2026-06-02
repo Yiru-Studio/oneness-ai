@@ -14,7 +14,7 @@ interface Props {
   sceneShotCount: number;
   /** Batch-generation lifecycle for the selected scene. */
   batchStatus: 'idle' | 'running' | 'done';
-  /** Shot-level first-frame sketch generation lifecycle for the selected scene. */
+  /** Shot-level main sketch selection/generation lifecycle for the selected scene. */
   sketchStatus: 'idle' | 'running' | 'done' | 'failed';
   /** Triggers AI-assist shot generation for the selected scene. */
   onGenerate: () => void;
@@ -69,23 +69,23 @@ export function AnalysisProgressPanel({
         )}
       </Row>
 
-      <Row done={sketchStatus === 'done'} running={sketchStatus === 'running'} label="生成分镜首帧">
+      <Row done={sketchStatus === 'done'} running={sketchStatus === 'running'} label="确认分镜图">
         {sketchStatus === 'running' ? (
           <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-primary)]">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
             生成中…
           </span>
         ) : sketchStatus === 'done' ? (
-          <span className="text-xs text-gray-500">已写入 Shot 草图</span>
+          <span className="text-xs text-gray-500">已设置主分镜图</span>
         ) : sketchStatus === 'failed' ? (
           <span className="text-xs text-red-500">生成失败</span>
         ) : (
-          <span className="text-xs text-gray-400">等待分镜生成</span>
+          <span className="text-xs text-gray-400">等待选择或生成</span>
         )}
       </Row>
       <Row done={sketchStatus === 'done'} label="接入视频参考">
         <span className="text-xs text-gray-500">
-          {sketchStatus === 'done' ? '可生成视频' : '等待分镜首帧'}
+          {sketchStatus === 'done' ? '可生成视频' : '等待主分镜图'}
         </span>
       </Row>
     </div>

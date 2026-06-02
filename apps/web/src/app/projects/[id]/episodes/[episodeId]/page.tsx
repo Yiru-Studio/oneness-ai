@@ -26,7 +26,6 @@ import {
   deleteShot,
   generateShotVideo,
   generateSceneShots,
-  generateShotSketches,
   pollTaskUntilDone,
 } from '@/lib/api';
 import { TopBar } from '@/components/layout/TopBar';
@@ -101,6 +100,12 @@ function StoryboardEpisodeContent() {
     setCharacters(chars);
     setItems(itms);
     setScenes(scns);
+  }, [projectId]);
+
+  const reloadCompositionTasks = useCallback(async () => {
+    const fresh = await getCompositionTasks(projectId);
+    setCompositionTasks(fresh);
+    return fresh;
   }, [projectId]);
 
   const persistShotPatch = useCallback(async (id: string, patch: Partial<Shot>) => {
@@ -250,17 +255,6 @@ function StoryboardEpisodeContent() {
         throw new Error(done.error || '智能分镜生成失败');
       }
       await reloadShots();
-      try {
-        await generateShotSketches(projectId, { episodeId, sceneIndex });
-        setCompositionTasks(await getCompositionTasks(projectId));
-        await reloadShots();
-      } catch (sketchError) {
-        setError(
-          `分镜已生成，但分镜首帧生成失败：${
-            sketchError instanceof Error ? sketchError.message : '请稍后重试'
-          }`,
-        );
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : '智能分镜生成失败');
     } finally {
@@ -439,6 +433,9 @@ function StoryboardEpisodeContent() {
                     onDelete={handleDelete}
                     onGenerate={handleGenerate}
                     onRefreshReferences={reloadReferenceAssets}
+                    onRefreshShots={reloadShots}
+                    onRefreshCompositionTasks={reloadCompositionTasks}
+                    onError={setError}
                   />
                   <InsertSeparator
                     onInsert={() => handleCreate(shot.displayId)}

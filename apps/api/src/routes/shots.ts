@@ -9,6 +9,7 @@ import { AppError, ErrorCodes } from '@oneness/shared/errors';
 import { config } from '../config.js';
 import {
   CreateShotSchema,
+  SetShotSketchSchema,
   UpdateShotSchema,
   IdParamSchema,
 } from '@oneness/shared/schemas';
@@ -48,6 +49,31 @@ async function ownedShot(shotId: string, userId: string) {
   });
   if (!shot) throw AppError.notFound(ErrorCodes.SHOT_NOT_FOUND, 'shot not found');
   return shot;
+}
+
+async function assertAccessibleProjectAsset(assetId: string, projectId: string, userId: string) {
+  const asset = await prisma.asset.findFirst({
+    where: {
+      id: assetId,
+      ownerId: userId,
+      OR: [
+        { taskAssets: { some: { task: { projectId } } } },
+        { resourceImages: { some: { projectId } } },
+        { characterAvatars: { some: { projectId } } },
+        { characterIdentities: { some: { projectId } } },
+        { characterStyles: { some: { character: { projectId } } } },
+        { scenes: { some: { projectId } } },
+        { items: { some: { projectId } } },
+        { compositionTaskImages: { some: { projectId } } },
+        { compositionTaskGrids: { some: { projectId } } },
+        { compositionImageRunOutputs: { some: { task: { projectId } } } },
+        { compositionGridRunOutputs: { some: { task: { projectId } } } },
+        { compositionCandidates: { some: { task: { projectId } } } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (!asset) throw AppError.notFound(ErrorCodes.ASSET_NOT_FOUND, 'asset not found');
 }
 
 // GET /api/projects/:id/episodes/:episodeId/shots
@@ -135,6 +161,33 @@ shotRoutes.post(
   },
 );
 
+// PATCH /api/shots/:id/sketch
+shotRoutes.patch(
+  '/shots/:id/sketch',
+  zValidator('param', IdParamSchema),
+  zValidator('json', SetShotSketchSchema),
+  async (c) => {
+    const user = c.var.user!;
+    const { id } = c.req.valid('param');
+    const body = c.req.valid('json');
+    const shot = await ownedShot(id, user.id);
+
+    if (body.assetId) {
+      await assertAccessibleProjectAsset(body.assetId, shot.episode.projectId, user.id);
+    }
+
+    const updated = await prisma.shot.update({
+      where: { id },
+      data: {
+        sketchAssetId: body.assetId,
+        sketchTaskId: null,
+      },
+      include: SHOT_INCLUDE,
+    });
+    return c.json(await serializeShot(updated));
+  },
+);
+
 // PATCH /api/shots/:id
 shotRoutes.patch(
   '/shots/:id',
@@ -144,7 +197,10 @@ shotRoutes.patch(
     const user = c.var.user!;
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
-    await ownedShot(id, user.id);
+    const shot = await ownedShot(id, user.id);
+    if (body.sketchAssetId) {
+      await assertAccessibleProjectAsset(body.sketchAssetId, shot.episode.projectId, user.id);
+    }
 
     const data: Prisma.ShotUpdateInput = {};
     if (body.shotType !== undefined) data.shotType = body.shotType;

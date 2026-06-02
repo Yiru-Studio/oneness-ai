@@ -76,9 +76,15 @@ export const GenerateShotSketchesSchema = z.object({
   force: z.boolean().default(false),
 });
 
+export const GenerateShotSketchSchema = z.object({
+  shotId: CuidSchema,
+  force: z.boolean().default(false),
+});
+
 export type AnalyzeCompositionTasksInput = z.infer<typeof AnalyzeCompositionTasksSchema>;
 export type UpdateCompositionTaskInput = z.infer<typeof UpdateCompositionTaskSchema>;
 export type GenerateCompositionImageInput = z.infer<typeof GenerateCompositionImageSchema>;
 export type GenerateCompositionGridInput = z.infer<typeof GenerateCompositionGridSchema>;
 export type ApplyCompositionCandidatesInput = z.infer<typeof ApplyCompositionCandidatesSchema>;
 export type GenerateShotSketchesInput = z.infer<typeof GenerateShotSketchesSchema>;
+export type GenerateShotSketchInput = z.infer<typeof GenerateShotSketchSchema>;

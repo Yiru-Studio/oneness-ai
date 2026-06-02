@@ -43,5 +43,10 @@ export const UpdateShotSchema = z
   })
   .partial();
 
+export const SetShotSketchSchema = z.object({
+  assetId: z.string().nullable(),
+});
+
 export type CreateShotInput = z.infer<typeof CreateShotSchema>;
 export type UpdateShotInput = z.infer<typeof UpdateShotSchema>;
+export type SetShotSketchInput = z.infer<typeof SetShotSketchSchema>;

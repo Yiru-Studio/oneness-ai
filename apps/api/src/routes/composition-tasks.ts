@@ -20,12 +20,14 @@ import {
   ApplyCompositionCandidatesSchema,
   GenerateCompositionGridSchema,
   GenerateCompositionImageSchema,
+  GenerateShotSketchSchema,
   GenerateShotSketchesSchema,
   IdParamSchema,
   UpdateCompositionTaskSchema,
   type ApplyCompositionCandidatesInput,
   type GenerateCompositionGridInput,
   type GenerateCompositionImageInput,
+  type GenerateShotSketchInput,
   type GenerateShotSketchesInput,
 } from '@oneness/shared/schemas';
 import { config } from '../config.js';
@@ -202,6 +204,18 @@ compositionTaskRoutes.post(
     const projectId = c.req.param('id');
     const body = c.req.valid('json');
     const result = await createShotSketchTasks(projectId, user.id, body);
+    return c.json(result, 201);
+  },
+);
+
+compositionTaskRoutes.post(
+  '/projects/:id/composition-tasks/generate-shot-sketch',
+  zValidator('json', GenerateShotSketchSchema),
+  async (c) => {
+    const user = c.var.user!;
+    const projectId = c.req.param('id');
+    const body = c.req.valid('json');
+    const result = await createShotSketchTask(projectId, user.id, body);
     return c.json(result, 201);
   },
 );
@@ -855,6 +869,108 @@ async function createShotSketchTasks(
     skippedShotIds,
     createdCount: createdTaskIds.length,
     skippedCount: skippedShotIds.length,
+  };
+}
+
+async function createShotSketchTask(
+  projectId: string,
+  userId: string,
+  body: GenerateShotSketchInput,
+) {
+  const project = await assertOwnedProject(projectId, userId);
+  const shot = await prisma.shot.findFirst({
+    where: {
+      id: body.shotId,
+      episode: { projectId, project: { ownerId: userId } },
+    },
+    include: {
+      sketchTask: true,
+      episode: {
+        select: { id: true, number: true, title: true, content: true, scenesJson: true },
+      },
+    },
+  });
+  if (!shot) throw AppError.notFound(ErrorCodes.SHOT_NOT_FOUND, 'shot not found');
+  if (!shouldCreateShotSketch(shot, body.force)) {
+    if (shot.sketchTask?.status === TaskStatus.QUEUED || shot.sketchTask?.status === TaskStatus.RUNNING) {
+      throw AppError.conflict(
+        ErrorCodes.CONFLICT,
+        'a shot sketch generation task is already in flight for this shot',
+      );
+    }
+    throw AppError.badRequest(
+      ErrorCodes.VALIDATION_FAILED,
+      shot.sketchAssetId ? 'shot already has a sketch; pass force to regenerate' : 'shot prompt is empty',
+    );
+  }
+
+  const library = await loadReferenceLibrary(projectId);
+  const scene = scenesForEpisode(shot.episode, library.scenes).find((item) => item.index === shot.sceneIndex);
+  if (!scene) throw AppError.badRequest(ErrorCodes.VALIDATION_FAILED, 'sceneIndex out of range');
+
+  const compositionTaskId = await ensureCompositionTaskForScene(project, shot.episode, scene, library);
+  const compositionTask = await loadCompositionTask(compositionTaskId);
+  const compositionImageAssetId = currentCompositionImageAssetId(compositionTask);
+  const referenceAssetIds = await buildShotSketchReferenceAssetIds(
+    projectId,
+    compositionTask,
+    shot,
+    compositionImageAssetId,
+  );
+  const prompt = buildShotSketchPrompt(project, scene, shot, Boolean(compositionImageAssetId));
+  const cost = estimateCost(TaskType.IMAGE);
+  const provider = providerForImageModel(project.imageModel);
+
+  const task = await prisma.$transaction(async (tx) => {
+    const account = await tx.user.findUnique({
+      where: { id: userId },
+      select: { credits: true },
+    });
+    if (!account) throw AppError.unauthorized();
+    if (account.credits < cost) {
+      throw AppError.badRequest(
+        ErrorCodes.INSUFFICIENT_CREDITS,
+        `requires ${cost} credits, have ${account.credits}`,
+        { required: cost, available: account.credits },
+      );
+    }
+    await tx.user.update({ where: { id: userId }, data: { credits: { decrement: cost } } });
+    const job = await tx.task.create({
+      data: {
+        ownerId: userId,
+        projectId,
+        type: TaskType.IMAGE,
+        provider,
+        status: TaskStatus.QUEUED,
+        costCredits: cost,
+        input: {
+          prompt,
+          ratio: project.ratio,
+          model: project.imageModel,
+          referenceAssetIds,
+          n: 1,
+          shotSketch: true,
+          shotId: shot.id,
+          compositionTaskId,
+        } as Prisma.InputJsonValue,
+      },
+    });
+    await tx.shot.update({
+      where: { id: shot.id },
+      data: { sketchTaskId: job.id },
+    });
+    return job;
+  });
+
+  await enqueueTaskJob(queueForTaskType(TaskType.IMAGE), task.id, {
+    priority: QueueJobPriority.INTERACTIVE_IMAGE,
+  });
+
+  return {
+    compositionTaskId,
+    taskId: task.id,
+    targetShotId: shot.id,
+    referenceAssetIds,
   };
 }
 
