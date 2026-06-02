@@ -605,8 +605,8 @@ function ReferenceStrip({
 }) {
   if (loading) {
     return (
-      <div className="flex gap-3 overflow-x-auto pb-1">
-        <div className="flex h-[112px] w-[224px] shrink-0 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500">
+      <div className="grid grid-cols-5 gap-3">
+        <div className="col-span-4 flex h-[112px] items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           正在匹配参考图…
         </div>
@@ -615,16 +615,16 @@ function ReferenceStrip({
     );
   }
   return (
-    <div className="flex gap-3 overflow-x-auto pb-1">
+    <div className="grid grid-cols-5 gap-3">
       {references.length === 0 && (
-        <div className="flex h-[112px] w-[224px] shrink-0 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 text-center text-sm text-gray-500">
+        <div className="col-span-4 flex h-[112px] items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 text-center text-sm text-gray-500">
           暂无可管理参考图。
         </div>
       )}
       {references.map((reference) => (
         <div
           key={reference.id}
-          className="group relative h-[112px] w-[112px] shrink-0 overflow-hidden rounded-lg border border-[var(--color-border)] bg-gray-50"
+          className="group relative h-[112px] min-w-0 overflow-hidden rounded-lg border border-[var(--color-border)] bg-gray-50"
           title={`${SOURCE_LABEL[reference.source]} · ${reference.label}`}
         >
           <button
@@ -674,7 +674,7 @@ function AddReferenceButton({ disabled, onClick }: { disabled: boolean; onClick:
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex h-[112px] w-[112px] shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 text-gray-600 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
+      className="flex h-[112px] min-w-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-2 text-gray-600 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
       aria-label="添加生成参考图"
       title="添加生成参考图"
     >
