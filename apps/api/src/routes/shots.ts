@@ -302,6 +302,7 @@ shotRoutes.post(
     const references: VideoReference[] = await resolveReferences(shot);
 
     const provider = pickVideoProvider(shot.model);
+    assertVideoProviderConfigured(provider);
     const cost = estimateCost(TaskType.VIDEO);
 
     const updatedShot = await prisma.$transaction(async (tx) => {
@@ -496,6 +497,15 @@ function pickVideoProvider(uiModel: string): string {
     case 'seedance':
     default:
       return 'apisweet-seedance';
+  }
+}
+
+function assertVideoProviderConfigured(provider: string) {
+  if (provider === 'apisweet-seedance' && !process.env.APISWEET_API_KEY?.trim()) {
+    throw AppError.badRequest(
+      ErrorCodes.VALIDATION_FAILED,
+      'APISWEET_API_KEY is not set; configure API Sweet before generating video',
+    );
   }
 }
 

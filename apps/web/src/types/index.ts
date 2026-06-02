@@ -155,8 +155,10 @@ export interface Shot {
   lastFrame: ShotAssetRef | null;
   sketchTaskId: string | null;
   sketchTaskStatus: ShotVideoTaskStatus | null;
+  sketchTaskError: string | null;
   videoTaskId: string | null;
   videoTaskStatus: ShotVideoTaskStatus | null;
+  videoTaskError: string | null;
   characterStyleIds: string[];
   sceneIds: string[];
   itemIds: string[];

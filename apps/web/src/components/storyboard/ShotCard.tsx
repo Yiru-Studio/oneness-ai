@@ -494,6 +494,9 @@ function VideoGeneratePanel({
 }) {
   const disabled = busy || isGenerating || Boolean(videoDisabledReason);
   const isFailed = shot.videoTaskStatus === 'FAILED';
+  const failedMessage = shot.videoTaskError
+    ? `生成失败：${shot.videoTaskError}`
+    : '上次生成失败，可重试。';
   const label = shot.video?.url ? '重新生成' : '点击生成';
 
   return (
@@ -548,7 +551,9 @@ function VideoGeneratePanel({
         </div>
       )}
       {isFailed && (
-        <div className="mt-3 text-center text-xs text-red-600">上次生成失败，可重试。</div>
+        <div className="mt-3 whitespace-pre-wrap break-words text-center text-xs text-red-600">
+          {failedMessage}
+        </div>
       )}
     </div>
   );

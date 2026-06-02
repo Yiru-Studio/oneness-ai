@@ -28,8 +28,10 @@ export type ShotDTO = {
   lastFrame: AssetDTO | null;
   sketchTaskId: string | null;
   sketchTaskStatus: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | null;
+  sketchTaskError: string | null;
   videoTaskId: string | null;
   videoTaskStatus: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | null;
+  videoTaskError: string | null;
   characterStyleIds: string[];
   sceneIds: string[];
   itemIds: string[];
@@ -68,8 +70,10 @@ export async function serializeShot(s: ShotWithAssets): Promise<ShotDTO> {
     lastFrame,
     sketchTaskId: s.sketchTaskId,
     sketchTaskStatus: (s.sketchTask?.status as ShotDTO['sketchTaskStatus']) ?? null,
+    sketchTaskError: s.sketchTask?.error ?? null,
     videoTaskId: s.videoTaskId,
     videoTaskStatus: (s.videoTask?.status as ShotDTO['videoTaskStatus']) ?? null,
+    videoTaskError: s.videoTask?.error ?? null,
     characterStyleIds: jsonArray(s.characterStyleIds),
     sceneIds: jsonArray(s.sceneIds),
     itemIds: jsonArray(s.itemIds),
