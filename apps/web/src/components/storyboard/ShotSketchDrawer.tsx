@@ -409,15 +409,6 @@ export function ShotSketchDrawer({
                   <Trash2 className="h-4 w-4" />
                   移除
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void handleGenerate()}
-                  disabled={disabled || !hasPrompt}
-                  className="ml-auto inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
-                >
-                  {localBusy || isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-                  {shot.sketch ? '重新生成' : '生成分镜图'}
-                </button>
               </div>
 
               <div className="border-t border-[var(--color-border)] p-4">
@@ -478,6 +469,18 @@ export function ShotSketchDrawer({
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="flex items-center justify-end border-t border-[var(--color-border)] px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => void handleGenerate()}
+                  disabled={disabled || !hasPrompt}
+                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50"
+                >
+                  {localBusy || isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                  {shot.sketch ? '重新生成' : '生成分镜图'}
+                </button>
               </div>
             </section>
 
