@@ -1,17 +1,8 @@
-'use client';
-
-import { useRouter } from 'next/navigation';
 import { FloatingKnowledgeButton } from '@/components/layout/FloatingKnowledgeButton';
 import { ParticleBackground } from '@/components/home/ParticleBackground';
 import { Play } from 'lucide-react';
 
 export default function HomePage() {
-  const router = useRouter();
-
-  const enterWorkspace = () => {
-    router.push('/projects');
-  };
-
   return (
     <main className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
       <ParticleBackground />
@@ -21,12 +12,12 @@ export default function HomePage() {
           <img src="/yiru_logo_bw.png" alt="一如创影" width={28} height={28} className="object-contain" />
           <span className="text-lg font-semibold">一如创影</span>
         </div>
-        <button
-          onClick={enterWorkspace}
+        <a
+          href="/projects"
           className="text-sm text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors"
         >
           进入项目
-        </button>
+        </a>
       </div>
 
       <div className="relative z-10 text-center">
@@ -36,13 +27,15 @@ export default function HomePage() {
         <p className="text-lg text-[var(--color-text-secondary)] mb-8">
           专业 AI 影视创作
         </p>
-        <button
-          onClick={enterWorkspace}
-          className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-8 py-3.5 rounded-full font-medium hover:bg-[var(--color-primary-hover)] hover:scale-105 transition-all shadow-lg shadow-blue-500/25"
-        >
-          <span>立即创作</span>
-          <Play className="w-4 h-4 fill-current" />
-        </button>
+        <form action="/projects">
+          <button
+            type="submit"
+            className="inline-flex items-center gap-2 bg-[var(--color-primary)] text-white px-8 py-3.5 rounded-full font-medium hover:bg-[var(--color-primary-hover)] hover:scale-105 transition-all shadow-lg shadow-blue-500/25"
+          >
+            <span>立即创作</span>
+            <Play className="w-4 h-4 fill-current" />
+          </button>
+        </form>
       </div>
 
       <FloatingKnowledgeButton />
