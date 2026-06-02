@@ -92,7 +92,7 @@ describe('composition AI planning helpers', () => {
         sceneIds: ['scene-1'],
         itemIds: ['item-1'],
         characterStyleLabels: ['司机 · 夜雨驾驶造型', '我 · 后座乘客造型'],
-        sceneLabels: ['小区雨夜路口'],
+        sceneLabels: ['路口红绿灯'],
         itemLabels: ['网约车'],
       },
     );
@@ -101,12 +101,46 @@ describe('composition AI planning helpers', () => {
     expect(prompt).toContain('构图要求：单张电影剧照');
     expect(prompt).toContain('不要拼贴、分屏、字幕、编号、水印、logo 或说明文字');
     expect(prompt).toContain('参考要求：保持已选角色造型（司机 · 夜雨驾驶造型、我 · 后座乘客造型）的身份、服装、面部和气质一致。');
-    expect(prompt).toContain('参考场景素材（小区雨夜路口）用于空间结构、时间氛围和光线关系。');
+    expect(prompt).toContain('参考场景素材（路口红绿灯）用于空间结构、时间氛围和光线关系。');
     expect(prompt).toContain('道具参考（网约车）只在画面需要时自然出现，不要堆砌。');
     expect(prompt).toContain('风格要求：cinematic lighting。画幅比例 16:9。');
     expect(prompt).not.toContain('参考数量');
     expect(prompt).not.toContain('《遇见》');
     expect(prompt).not.toContain('1场 小区');
+  });
+
+  it('filters overly broad historical references from scene image prompts', () => {
+    const prompt = buildSceneImageCompositionPrompt(
+      { ratio: '16:9', stylePrompt: 'cinematic lighting' },
+      {
+        index: 0,
+        title: '小区 夜 外',
+        content: '初夏傍晚，闷热潮湿，夜雨淅淅沥沥地下个不停。我坐上网约车后座，刚上车就感到司机满心烦躁。',
+        characters: ['我', '司机'],
+        environment: '小区门口被潮湿夜雨笼罩，路灯在雨幕中发黄，车内空气闷热压抑。',
+      },
+      {
+        characterStyleIds: ['style-1', 'style-2', 'style-3'],
+        sceneIds: ['scene-1'],
+        itemIds: ['item-1', 'item-2', 'item-3'],
+        characterStyleLabels: [
+          '我 · 高铁站雨夜进站出行造型',
+          '司机 · 雨夜网约车司机接单造型',
+          '我爷爷 · 抗美援朝年轻夜行军棉军装造型',
+          '小战士 · 夜行军志愿军棉服造型',
+        ],
+        sceneLabels: ['EXT. 小区 - 夜'],
+        itemLabels: ['网约车', '手机', '铁锅', '侦察机', '日记本'],
+      },
+    );
+
+    expect(prompt).toContain('保持已选角色造型（我 · 高铁站雨夜进站出行造型、司机 · 雨夜网约车司机接单造型）');
+    expect(prompt).toContain('道具参考（网约车）');
+    expect(prompt).not.toContain('我爷爷');
+    expect(prompt).not.toContain('小战士');
+    expect(prompt).not.toContain('铁锅');
+    expect(prompt).not.toContain('侦察机');
+    expect(prompt).not.toContain('日记本');
   });
 
   it('builds a clear fallback reference rule when no assets are selected', () => {

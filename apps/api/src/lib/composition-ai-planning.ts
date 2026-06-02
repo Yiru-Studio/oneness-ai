@@ -246,13 +246,13 @@ export function buildSceneImageCompositionPrompt(
   const characters = uniqueStrings(scene.characters.map((item) => item.trim()));
   const visualDescription = [
     summary,
-    scene.environment ? `画面环境应体现${scene.environment}。` : '',
+    scene.environment ? `画面环境应体现${stripSentenceEnd(scene.environment)}。` : '',
   ].filter(Boolean).join(' ');
   return [
     `场景图：${buildSceneImageGoal(sceneTitle, characters)}`,
     `画面描述：${visualDescription}`,
     `构图要求：${buildSceneImageCompositionRules(characters)}`,
-    `参考要求：${buildSceneImageReferenceRules(refs)}`,
+    `参考要求：${buildSceneImageReferenceRules(refs, scene, summary)}`,
     `风格要求：${buildSceneImageStyleRules(project)}`,
   ].filter(Boolean).join('\n\n');
 }
@@ -273,7 +273,7 @@ function buildSceneImageGoal(sceneTitle: string, characters: string[]): string {
 
 function buildSceneImageCompositionRules(characters: string[]): string {
   const characterRule = characters.length > 0
-    ? `让${characters.join('、')}的站位、视线或动作关系清晰可读。`
+    ? `让出场人物（${characters.join('、')}）的站位、视线或动作关系清晰可读。`
     : '让画面主体、环境和关键道具关系清晰可读。';
   return [
     '单张电影剧照，不要拼贴、分屏、字幕、编号、水印、logo 或说明文字。',
@@ -282,10 +282,15 @@ function buildSceneImageCompositionRules(characters: string[]): string {
   ].join('');
 }
 
-function buildSceneImageReferenceRules(refs: SceneImagePromptReferences): string {
-  const characterLabels = uniqueStrings(refs.characterStyleLabels ?? []);
-  const sceneLabels = uniqueStrings(refs.sceneLabels ?? []);
-  const itemLabels = uniqueStrings(refs.itemLabels ?? []);
+function buildSceneImageReferenceRules(
+  refs: SceneImagePromptReferences,
+  scene: EpisodeScene,
+  summary: string,
+): string {
+  const haystack = [scene.title, scene.environment, summary].join('\n');
+  const characterLabels = relevantCharacterStyleLabels(refs.characterStyleLabels ?? [], scene.characters);
+  const sceneLabels = relevantReferenceLabels(refs.sceneLabels ?? [], haystack).slice(0, 2);
+  const itemLabels = relevantReferenceLabels(refs.itemLabels ?? [], haystack).slice(0, 4);
   const rules = [
     characterLabels.length > 0
       ? `保持已选角色造型（${characterLabels.join('、')}）的身份、服装、面部和气质一致。`
@@ -304,6 +309,46 @@ function buildSceneImageReferenceRules(refs: SceneImagePromptReferences): string
 function buildSceneImageStyleRules(project: { stylePrompt: string; ratio: string }): string {
   const style = project.stylePrompt.trim();
   return `${style ? `${style}。` : '电影感、真实光影、可作为镜头首帧。'}画幅比例 ${project.ratio}。`;
+}
+
+function stripSentenceEnd(value: string): string {
+  return value.trim().replace(/[。！？!?]+$/u, '');
+}
+
+function relevantCharacterStyleLabels(labels: string[], characters: string[]): string[] {
+  const names = uniqueStrings(characters.map((item) => item.trim()));
+  const uniqueLabels = uniqueStrings(labels);
+  if (names.length === 0) return uniqueLabels.slice(0, 3);
+  return uniqueLabels.filter((label) => {
+    const owner = label.split(/\s*[·\-－]\s*/u)[0]?.trim() ?? '';
+    return names.some((name) => owner === name || label === name || (name.length > 1 && label.includes(name)));
+  });
+}
+
+function relevantReferenceLabels(labels: string[], haystack: string): string[] {
+  const normalizedHaystack = normalizeReferenceText(haystack);
+  if (!normalizedHaystack) return [];
+  return uniqueStrings(labels).filter((label) => {
+    const normalizedLabel = normalizeReferenceText(label);
+    if (!normalizedLabel) return false;
+    if (normalizedHaystack.includes(normalizedLabel)) return true;
+    return referenceLabelTokens(label).some((token) => normalizedHaystack.includes(normalizeReferenceText(token)));
+  });
+}
+
+function referenceLabelTokens(label: string): string[] {
+  return uniqueStrings(
+    label
+      .replace(/\b(?:INT|EXT)\b\.?/giu, ' ')
+      .replace(/[()（）【】《》]/gu, ' ')
+      .split(/[\s,，、.。:：;；/／|｜\-－—]+/u)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2 && !/^(?:内|外|夜|日|白天|清晨|上午|中午|下午|傍晚|黄昏|深夜)$/u.test(token)),
+  );
+}
+
+function normalizeReferenceText(value: string): string {
+  return value.replace(/\s+/g, '').trim();
 }
 
 export function buildReferenceBindingMessages(args: {
