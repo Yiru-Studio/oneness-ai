@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable react-hooks/set-state-in-effect */
-
 import { useEffect, useRef, useState } from 'react';
 import {
   X,
@@ -235,6 +233,7 @@ export function EntityDetailDrawer({
   useEffect(() => {
     if (!resourceKind) {
       activeHistoryKeyRef.current = null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Switching away from image-backed entities clears the owned history panel.
       setHistory([]);
       setHistoryLoading(false);
       return;
@@ -256,6 +255,7 @@ export function EntityDetailDrawer({
   useEffect(() => {
     const latest = history[0];
     if (latest?.status !== 'SUCCEEDED' || !latest.assetId) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- Successful resource-image polling reconciles local generation state with the persisted asset. */
     setError(null);
     clearError(kind, entity.id);
     if (generationPhase === 'failed') setGenerationPhase('idle');
@@ -264,6 +264,7 @@ export function EntityDetailDrawer({
       setImage(latest.image);
       void onSave({ assetId: latest.assetId }).catch(() => {});
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [assetId, clearError, entity.id, generationPhase, history, image, kind, onSave]);
 
   useEffect(() => {

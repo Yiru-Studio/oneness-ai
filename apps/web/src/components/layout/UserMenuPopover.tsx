@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/hooks/useAuth';
+import Link from 'next/link';
 import { Settings, HelpCircle, LogOut, ChevronRight } from 'lucide-react';
 
 interface Props {
@@ -43,10 +44,10 @@ export function UserMenuPopover({ onClose }: Props) {
       </div>
 
       <div className="px-2 pt-2">
-        <a href="/profile" className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors text-sm text-[var(--color-text)]">
+        <Link href="/profile" className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors text-sm text-[var(--color-text)]">
           <Settings className="w-4 h-4 text-[var(--color-text-secondary)]" />
           <span>账户管理</span>
-        </a>
+        </Link>
         <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors text-sm text-[var(--color-text)]">
           <HelpCircle className="w-4 h-4 text-[var(--color-text-secondary)]" />
           <span>使用指南</span>
