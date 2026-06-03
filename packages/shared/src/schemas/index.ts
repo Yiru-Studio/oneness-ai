@@ -11,3 +11,4 @@ export * from './shots.js';
 export * from './composition-tasks.js';
 export * from './knowledge-docs.js';
 export * from './tasks.js';
+export * from './image-generation-runs.js';

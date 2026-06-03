@@ -945,7 +945,6 @@ async function linkResourceImageOutputs(
         },
       });
       if (
-        style.name.trim() === '默认造型' &&
         !style.character.identityAssetId &&
         !style.character.avatarAssetId
       ) {

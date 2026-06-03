@@ -14,6 +14,7 @@ import {
   linkResourceImageTaskResult,
   loadOwnedResourceTarget,
   resourceImageEntityFields,
+  resourceImageEntityWhere,
 } from '../lib/resource-images.js';
 import {
   prependIdentityReference,
@@ -22,6 +23,7 @@ import {
   resolveStyleIdentityReference,
 } from '../lib/character-identity.js';
 import { serializeTask } from '../serializers/task.js';
+import { stripCharacterStyleMetadataForGeneration } from '@oneness/shared/character-analysis';
 import { AppError, ErrorCodes } from '@oneness/shared/errors';
 import { estimateCost } from '@oneness/shared/pricing';
 import { queueForTaskType } from '@oneness/shared/queues';
@@ -71,6 +73,16 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
       'resource target does not belong to project',
     );
   }
+  if (resourceTarget && body.type === TaskType.IMAGE) {
+    const activeResourceTask = await findActiveResourceImageTask(
+      resourceTarget.kind,
+      resourceTarget.entityId,
+      user.id,
+    );
+    if (activeResourceTask) {
+      return c.json(await serializeTask(activeResourceTask), 202);
+    }
+  }
 
   // Character-style generation must stay identity-bound. The identity master
   // is always the first reference image; user-provided refs follow it.
@@ -99,7 +111,6 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
     const identity = styleIdentity ?? hintedIdentity;
     const canGenerateStyleIdentitySeed =
       body.resourceTarget?.kind === 'character-style' &&
-      Boolean(styleIdentitySeed?.isDefaultStyle) &&
       !styleIdentitySeed?.hasIdentity;
     if (body.resourceTarget?.kind === 'character-style' && !identity && !canGenerateStyleIdentitySeed) {
       throw AppError.badRequest(
@@ -186,6 +197,30 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
 
   return c.json(await serializeTask(task), 201);
 });
+
+async function findActiveResourceImageTask(
+  kind: 'character-avatar' | 'character-style' | 'scene' | 'item',
+  entityId: string,
+  ownerId: string,
+) {
+  const row = await prisma.resourceImage.findFirst({
+    where: {
+      ownerId,
+      kind,
+      status: { in: [TaskStatus.QUEUED, TaskStatus.RUNNING, TaskStatus.RETRYING] },
+      task: {
+        type: TaskType.IMAGE,
+        status: { in: [TaskStatus.QUEUED, TaskStatus.RUNNING, TaskStatus.RETRYING] },
+      },
+      ...resourceImageEntityWhere(kind, entityId),
+    },
+    include: {
+      task: { include: { assets: { include: { asset: true } } } },
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+  });
+  return row?.task ?? null;
+}
 
 const THREE_VIEW_MARKER = '@三视图';
 
@@ -288,7 +323,7 @@ async function buildGovernedImagePrompt(args: {
       description: style.character.description,
       bio: style.character.bio,
       styleName: style.name,
-      userPrompt: args.prompt || style.prompt,
+      userPrompt: stripCharacterStyleMetadataForGeneration(args.prompt || style.prompt),
       projectStylePrompt: stylePrompt,
       ratio: args.ratio,
     });

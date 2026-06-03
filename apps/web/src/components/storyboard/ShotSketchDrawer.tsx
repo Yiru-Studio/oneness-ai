@@ -20,6 +20,7 @@ import {
   setShotSketch,
   updateCompositionTask,
   updateShot,
+  type ImageGenerationRun,
   type ShotSketchContext,
   type ShotSketchHistoryRun,
   type ShotSketchReferenceAsset,
@@ -27,7 +28,9 @@ import {
 import { IMAGE_MODEL_OPTIONS } from '@/data/style-presets';
 import { ImagePreview } from '@/components/ImagePreview';
 import { ReferencePickerDialog } from './ReferencePickerDialog';
-import { isTaskPending } from '@/lib/task-status';
+import { useGeneration, type GenerationKind } from '@/contexts/GenerationContext';
+import { isTaskPending, taskPendingLabel } from '@/lib/task-status';
+import { useImageGenerationRuns } from '@/hooks/useImageGenerationRuns';
 
 type ExistingImage = {
   id: string;
@@ -68,6 +71,25 @@ const SOURCE_LABEL: Record<ShotSketchReferenceAsset['source'], string> = {
   scene: '场景素材',
   item: '道具',
 };
+
+function generationKindForReference(reference: ShotSketchReferenceAsset): GenerationKind | null {
+  if (reference.source === 'character') return 'style';
+  if (reference.source === 'scene') return 'scene';
+  if (reference.source === 'item') return 'item';
+  return null;
+}
+
+function referenceRunOwnerKey(reference: ShotSketchReferenceAsset): string | null {
+  if (!reference.sourceId) return null;
+  if (reference.source === 'character') return `character-style:${reference.sourceId}`;
+  if (reference.source === 'scene') return `scene:${reference.sourceId}`;
+  if (reference.source === 'item') return `item:${reference.sourceId}`;
+  return null;
+}
+
+function uniq(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)));
+}
 
 function buildShotReferenceRemovalPatch(
   shot: Shot,
@@ -146,6 +168,10 @@ export function ShotSketchDrawer({
   const [referencePickerOpen, setReferencePickerOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ url: string; label: string } | null>(null);
   const activeContextShotRef = useRef<string | null>(null);
+  const { runs: activeImageRuns, byOwner: imageRunByOwner } = useImageGenerationRuns(project.id, {
+    activeOnly: true,
+    enabled: open,
+  });
 
   const compositionTask = useMemo(
     () =>
@@ -165,6 +191,37 @@ export function ShotSketchDrawer({
   const visibleReferenceAssets = useMemo(
     () => (context?.referenceAssets ?? []).filter((reference) => reference.scope !== 'locked'),
     [context?.referenceAssets],
+  );
+  const hasPendingReferenceResource = useMemo(
+    () => visibleReferenceAssets.some((reference) => {
+      const key = referenceRunOwnerKey(reference);
+      return isTaskPending((key ? imageRunByOwner.get(key)?.status : null) ?? reference.resourceStatus);
+    }),
+    [imageRunByOwner, visibleReferenceAssets],
+  );
+  const referencePickerSelection = useMemo(
+    () => ({
+      compositionTaskIds: shot.compositionTaskIds,
+      characterStyleIds: uniq([
+        ...shot.characterStyleIds,
+        ...visibleReferenceAssets
+          .filter((reference) => reference.source === 'character' && reference.sourceId)
+          .map((reference) => reference.sourceId as string),
+      ]),
+      sceneIds: uniq([
+        ...shot.sceneIds,
+        ...visibleReferenceAssets
+          .filter((reference) => reference.source === 'scene' && reference.sourceId)
+          .map((reference) => reference.sourceId as string),
+      ]),
+      itemIds: uniq([
+        ...shot.itemIds,
+        ...visibleReferenceAssets
+          .filter((reference) => reference.source === 'item' && reference.sourceId)
+          .map((reference) => reference.sourceId as string),
+      ]),
+    }),
+    [shot.characterStyleIds, shot.compositionTaskIds, shot.itemIds, shot.sceneIds, visibleReferenceAssets],
   );
   const sketchHistory = useMemo<ShotSketchHistoryRun[]>(() => {
     const history = context?.sketchHistory ?? [];
@@ -265,13 +322,14 @@ export function ShotSketchDrawer({
     const hasActiveRun = (context?.sketchHistory ?? []).some(
       (run) => isTaskPending(run.status),
     );
-    if (!hasActiveRun && !previewGenerating) return;
+    if (!hasActiveRun && !previewGenerating && !hasPendingReferenceResource && activeImageRuns.length === 0) return;
     const timer = window.setInterval(() => {
       void loadContextAndRuns({ quiet: true });
       void onRefreshShots().catch(() => {});
+      void onRefreshReferences().catch(() => {});
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [loadContextAndRuns, onRefreshShots, open, context?.sketchHistory, previewGenerating]);
+  }, [activeImageRuns.length, hasPendingReferenceResource, loadContextAndRuns, onRefreshReferences, onRefreshShots, open, context?.sketchHistory, previewGenerating]);
 
   const handleGenerate = async () => {
     setLocalBusy(true);
@@ -444,8 +502,9 @@ export function ShotSketchDrawer({
                   references={visibleReferenceAssets}
                   loading={contextLoading}
                   disabled={disabled}
+                  imageRunByOwner={imageRunByOwner}
                   onAdd={() => setReferencePickerOpen(true)}
-                  onPreview={(reference) => setPreviewImage({ url: reference.url, label: reference.label })}
+                  onOpenPicker={() => setReferencePickerOpen(true)}
                   onRemove={(reference) => void handleRemoveReference(reference)}
                 />
               </div>
@@ -561,14 +620,11 @@ export function ShotSketchDrawer({
         items={items}
         compositionTasks={compositionTasks}
         project={project}
-        selected={{
-          compositionTaskIds: shot.compositionTaskIds,
-          characterStyleIds: shot.characterStyleIds,
-          sceneIds: shot.sceneIds,
-          itemIds: shot.itemIds,
-        }}
+        selected={referencePickerSelection}
         onRefreshReferences={onRefreshReferences}
         onConfirm={handleConfirmReferences}
+        includeComposition={false}
+        initialTab="selected"
       />
       <ImagePreview
         src={previewImage?.url ?? ''}
@@ -737,15 +793,17 @@ function ReferenceStrip({
   references,
   loading,
   disabled,
+  imageRunByOwner,
   onAdd,
-  onPreview,
+  onOpenPicker,
   onRemove,
 }: {
   references: ShotSketchReferenceAsset[];
   loading: boolean;
   disabled: boolean;
+  imageRunByOwner: Map<string, ImageGenerationRun>;
   onAdd: () => void;
-  onPreview: (reference: ShotSketchReferenceAsset) => void;
+  onOpenPicker: () => void;
   onRemove: (reference: ShotSketchReferenceAsset) => void;
 }) {
   if (loading) {
@@ -767,23 +825,85 @@ function ReferenceStrip({
         </div>
       )}
       {references.map((reference) => (
-        <div
+        <ReferenceCard
           key={reference.id}
+          reference={reference}
+          disabled={disabled}
+          imageRunByOwner={imageRunByOwner}
+          onOpenPicker={onOpenPicker}
+          onRemove={onRemove}
+        />
+      ))}
+      <AddReferenceButton disabled={disabled} onClick={onAdd} />
+    </div>
+  );
+}
+
+function ReferenceCard({
+  reference,
+  disabled,
+  imageRunByOwner,
+  onOpenPicker,
+  onRemove,
+}: {
+  reference: ShotSketchReferenceAsset;
+  disabled: boolean;
+  imageRunByOwner: Map<string, ImageGenerationRun>;
+  onOpenPicker: () => void;
+  onRemove: (reference: ShotSketchReferenceAsset) => void;
+}) {
+  const { isGenerating, getError } = useGeneration();
+  const hasImage = Boolean(reference.url);
+  const ownerKey = referenceRunOwnerKey(reference);
+  const activeRun = ownerKey ? imageRunByOwner.get(ownerKey) : null;
+  const generationKind = reference.sourceId ? generationKindForReference(reference) : null;
+  const realtimeGenerating = generationKind && reference.sourceId
+    ? isGenerating(generationKind, reference.sourceId)
+    : false;
+  const persistedPending = isTaskPending(activeRun?.status ?? reference.resourceStatus);
+  const generating = realtimeGenerating || persistedPending;
+  const generationLabel = realtimeGenerating
+    ? '生成中...'
+    : taskPendingLabel(activeRun?.status ?? reference.resourceStatus) ?? '生成中...';
+  const generationError = generationKind && reference.sourceId
+    ? getError(generationKind, reference.sourceId) || activeRun?.error || reference.resourceError || null
+    : activeRun?.error || reference.resourceError || null;
+  return (
+        <div
           className="group relative h-[112px] min-w-0 overflow-hidden rounded-lg border border-[var(--color-border)] bg-gray-50"
           title={`${SOURCE_LABEL[reference.source]} · ${reference.label}`}
         >
           <button
             type="button"
-            onClick={() => onPreview(reference)}
-            className="absolute inset-0 cursor-zoom-in"
-            aria-label={`查看参考图：${reference.label}`}
+            onClick={onOpenPicker}
+            disabled={disabled}
+            className="absolute inset-0 cursor-pointer disabled:cursor-not-allowed"
+            aria-label={`管理参考资产：${reference.label}`}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={reference.url} alt={reference.label} className="h-full w-full object-cover" />
-            <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-black/55 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
-              点击放大
-            </span>
+            {hasImage ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={reference.url ?? ''} alt={reference.label} className="h-full w-full object-cover" />
+                <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-black/55 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+                  选择引用资产
+                </span>
+              </>
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-2 text-center text-gray-500">
+                <ImagePlus className="h-5 w-5 text-gray-400" />
+                <span className="text-[11px] font-medium">待生成</span>
+                <span className="line-clamp-1 text-[10px] text-gray-400">
+                  选择引用资产
+                </span>
+              </div>
+            )}
           </button>
+          {generating && (
+            <div className="pointer-events-none absolute inset-0 z-[2] flex flex-col items-center justify-center gap-1 bg-black/45 text-white">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-xs font-medium">{generationLabel}</span>
+            </div>
+          )}
           <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[11px] font-medium text-white">
             {SOURCE_LABEL[reference.source]}
           </span>
@@ -804,12 +924,9 @@ function ReferenceStrip({
             </span>
           )}
           <span className="absolute inset-x-0 bottom-0 truncate bg-black/70 px-2 py-1.5 text-xs font-medium text-white">
-            {reference.label}
+            {generationError && !generating ? `生成失败 · ${reference.label}` : reference.label}
           </span>
         </div>
-      ))}
-      <AddReferenceButton disabled={disabled} onClick={onAdd} />
-    </div>
   );
 }
 

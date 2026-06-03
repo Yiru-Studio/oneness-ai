@@ -6,6 +6,10 @@ import type {
 } from '@oneness/shared/providers';
 import { sanitizeShotVideoPrompt } from '@oneness/shared/shot-prompts';
 import {
+  currentCompositionImageAssetId,
+  prepareShotSketchRun,
+} from '@oneness/shared/shot-sketch-preparation';
+import {
   buildSceneImageCompositionPrompt,
   cleanSceneImageSummary,
   normalizeSceneReferenceVisibility,
@@ -259,12 +263,22 @@ export const stubTextProvider: TextProvider = {
       const referenceContext = input.model === 'stub-text-chain'
         ? await loadStubShotReferenceContext(ctx, input.episodeId, sceneIndex)
         : null;
-      const ids = await ctx.prisma.$transaction(async (tx) => {
+      const createdShots = await ctx.prisma.$transaction(async (tx) => {
         await tx.shot.deleteMany({ where: { episodeId: input.episodeId, sceneIndex, createType: 'assist' } });
         const agg = await tx.shot.aggregate({ where: { episodeId: input.episodeId }, _max: { displayId: true } });
         let displayId = agg._max.displayId ?? 0;
         let prev: number | null = null;
-        const out: string[] = [];
+        const out: Array<{
+          id: string;
+          displayId: number;
+          shotType: string;
+          duration: number;
+          prompt: string;
+          compositionTaskIds: unknown;
+          characterStyleIds: unknown;
+          sceneIds: unknown;
+          itemIds: unknown;
+        }> = [];
         for (const s of mock) {
           displayId += 1;
           const isContinue = s.shotType === 'continue' && prev !== null;
@@ -291,20 +305,40 @@ export const stubTextProvider: TextProvider = {
               sceneIds: refs.sceneIds as never,
               itemIds: refs.itemIds as never,
             },
-            select: { id: true },
+            select: {
+              id: true,
+              displayId: true,
+              shotType: true,
+              duration: true,
+              prompt: true,
+              compositionTaskIds: true,
+              characterStyleIds: true,
+              sceneIds: true,
+              itemIds: true,
+            },
           });
-          out.push(row.id);
+          out.push(row);
           prev = displayId;
         }
         return out;
       });
+      let preparedCount = 0;
+      try {
+        preparedCount = await prepareStubShotSketches(ctx, input.episodeId, sceneIndex, createdShots);
+      } catch (err) {
+        ctx.log.warn(
+          { err: (err as Error).message, episodeId: input.episodeId, sceneIndex },
+          'stub shot sketch preparation failed after shot breakdown',
+        );
+      }
       return {
         outputJson: {
           kind: 'stub-text',
           episodeId: input.episodeId,
           analysisType: 'shot_breakdown',
           sceneIndex,
-          shotCount: ids.length,
+          shotCount: createdShots.length,
+          preparedShotSketchCount: preparedCount,
         },
       };
     }
@@ -524,4 +558,91 @@ async function loadStubShotReferenceContext(
     }),
   ]);
   return { characters, itemRows, sceneRows, scene };
+}
+
+async function prepareStubShotSketches(
+  ctx: ProviderContext,
+  episodeId: string,
+  sceneIndex: number,
+  shots: Array<{
+    id: string;
+    displayId: number;
+    shotType: string;
+    duration: number;
+    prompt: string;
+    compositionTaskIds: unknown;
+    characterStyleIds: unknown;
+    sceneIds: unknown;
+    itemIds: unknown;
+  }>,
+): Promise<number> {
+  if (shots.length === 0) return 0;
+  const episode = await ctx.prisma.storyboardEpisode.findUnique({
+    where: { id: episodeId },
+    select: {
+      id: true,
+      number: true,
+      title: true,
+      content: true,
+      projectId: true,
+      scenesJson: true,
+    },
+  });
+  if (!episode) throw new Error(`episode not found: ${episodeId}`);
+  const project = await ctx.prisma.project.findUnique({
+    where: { id: episode.projectId },
+    select: { id: true, ratio: true, stylePrompt: true, imageModel: true },
+  });
+  if (!project) throw new Error(`project not found: ${episode.projectId}`);
+  const rawScenes = Array.isArray(episode.scenesJson) ? episode.scenesJson : [];
+  const rawScene = rawScenes.find((item) =>
+    item && typeof item === 'object' && (item as Record<string, unknown>).index === sceneIndex,
+  );
+  const scene = rawScene && typeof rawScene === 'object'
+    ? sceneFromStubObject(rawScene as Record<string, unknown>, sceneIndex, episode.title, episode.content)
+    : sceneFromStubObject({}, sceneIndex, episode.title, episode.content);
+  const library = await loadStubReferenceLibrary(ctx, project.id);
+  const refs = prefillCompositionReferences(scene, library);
+  const prompt = buildStubCompositionPrompt(project, scene, refs, library);
+  const compositionTask = await ctx.prisma.compositionTask.upsert({
+    where: { episodeId_sceneIndex: { episodeId, sceneIndex } },
+    create: {
+      projectId: project.id,
+      episodeId,
+      sceneIndex,
+      title: `第${episode.number}集 · ${scene.title || `场景 ${sceneIndex + 1}`}`,
+      scriptExcerpt: cleanSceneImageSummary(scene.content),
+      prompt,
+      characterStyleIds: refs.characterStyleIds as never,
+      sceneIds: refs.sceneIds as never,
+      itemIds: refs.itemIds as never,
+    },
+    update: {
+      title: `第${episode.number}集 · ${scene.title || `场景 ${sceneIndex + 1}`}`,
+      scriptExcerpt: cleanSceneImageSummary(scene.content),
+      prompt,
+      characterStyleIds: refs.characterStyleIds as never,
+      sceneIds: refs.sceneIds as never,
+      itemIds: refs.itemIds as never,
+    },
+    include: {
+      currentImageRun: {
+        include: { taskJob: { include: { assets: true } } },
+      },
+    },
+  });
+  const compositionImageAssetId = currentCompositionImageAssetId(compositionTask);
+  let preparedCount = 0;
+  for (const shot of shots) {
+    await prepareShotSketchRun(ctx.prisma, {
+      project,
+      episode,
+      scene,
+      shot,
+      compositionTask,
+      compositionImageAssetId,
+    });
+    preparedCount += 1;
+  }
+  return preparedCount;
 }

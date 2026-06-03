@@ -1,5 +1,9 @@
 import { Prisma } from '@prisma/client';
 import { sanitizeShotVideoPrompt } from '@oneness/shared/shot-prompts';
+import {
+  currentCompositionImageAssetId,
+  prepareShotSketchRun,
+} from '@oneness/shared/shot-sketch-preparation';
 import type {
   TextProvider,
   TextInput,
@@ -1292,7 +1296,7 @@ async function analyzeShotBreakdown(args: {
 
   const project = await ctx.prisma.project.findUnique({
     where: { id: ep.projectId },
-    select: { ratio: true, stylePrompt: true },
+    select: { id: true, ratio: true, stylePrompt: true, imageModel: true },
   });
   const ratio = project?.ratio || '16:9';
   const sceneRefs = normalizeSceneReferenceVisibility(scene.sceneReferences, {
@@ -1364,7 +1368,7 @@ async function analyzeShotBreakdown(args: {
     select: { id: true, name: true, description: true, prompt: true },
   });
 
-  const createdIds = await ctx.prisma.$transaction(
+  const createdShots = await ctx.prisma.$transaction(
     async (tx) => {
       // Re-running AI-assist for a scene replaces its previously generated shots,
       // leaving any manually created shots untouched.
@@ -1372,7 +1376,17 @@ async function analyzeShotBreakdown(args: {
       const agg = await tx.shot.aggregate({ where: { episodeId }, _max: { displayId: true } });
       let displayId = agg._max.displayId ?? 0;
       let prevDisplayId: number | null = null;
-      const ids: string[] = [];
+      const created: Array<{
+        id: string;
+        displayId: number;
+        shotType: string;
+        duration: number;
+        prompt: string;
+        compositionTaskIds: unknown;
+        characterStyleIds: unknown;
+        sceneIds: unknown;
+        itemIds: unknown;
+      }> = [];
 
       for (const s of shots) {
         displayId += 1;
@@ -1406,15 +1420,79 @@ async function analyzeShotBreakdown(args: {
             itemIds: refs.itemIds as unknown as Prisma.InputJsonValue,
             sceneIds: refs.sceneIds as unknown as Prisma.InputJsonValue,
           },
-          select: { id: true },
+          select: {
+            id: true,
+            displayId: true,
+            shotType: true,
+            duration: true,
+            prompt: true,
+            compositionTaskIds: true,
+            characterStyleIds: true,
+            sceneIds: true,
+            itemIds: true,
+          },
         });
-        ids.push(row.id);
+        created.push(row);
         prevDisplayId = displayId;
       }
-      return ids;
+      return created;
     },
     { timeout: 30000 },
   );
+  const createdIds = createdShots.map((shot) => shot.id);
+  let preparedCount = 0;
+  try {
+    if (createdShots.length > 0) {
+      const library = await loadCompositionReferenceLibrary(ctx, ep.projectId);
+      const refs = prefillCompositionReferences(scene, library);
+      const [compositionTaskId] = await upsertCompositionSceneTasks({
+        ctx,
+        project: {
+          id: ep.projectId,
+          ratio,
+          stylePrompt: project?.stylePrompt ?? '',
+        },
+        episode: { id: episodeId, number: ep.number },
+        scenes: [scene],
+        refsBySceneIndex: new Map([[scene.index, refs]]),
+        library,
+      });
+      const compositionTask = compositionTaskId
+        ? await ctx.prisma.compositionTask.findUnique({
+            where: { id: compositionTaskId },
+            include: {
+              currentImageRun: {
+                include: { taskJob: { include: { assets: true } } },
+              },
+            },
+          })
+        : null;
+      if (compositionTask) {
+        const compositionImageAssetId = currentCompositionImageAssetId(compositionTask);
+        for (const shot of createdShots) {
+          await prepareShotSketchRun(ctx.prisma, {
+            project: {
+              id: ep.projectId,
+              stylePrompt: project?.stylePrompt ?? '',
+              ratio,
+              imageModel: project?.imageModel ?? null,
+            },
+            episode: { id: episodeId, number: ep.number, title: ep.title },
+            scene,
+            shot,
+            compositionTask,
+            compositionImageAssetId,
+          });
+          preparedCount += 1;
+        }
+      }
+    }
+  } catch (err) {
+    ctx.log.warn(
+      { err: (err as Error).message, episodeId, sceneIndex, createdShotCount: createdShots.length },
+      'shot sketch preparation failed after shot breakdown',
+    );
+  }
 
   return {
     outputJson: {
@@ -1425,6 +1503,7 @@ async function analyzeShotBreakdown(args: {
       sceneIndex,
       shotCount: createdIds.length,
       createdShotIds: createdIds,
+      preparedShotSketchCount: preparedCount,
     },
   };
 }

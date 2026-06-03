@@ -17,6 +17,7 @@ import {
   buildCharacterAnalysisMessages,
   normalizeCharacterAnalysis,
   parseCharacterAnalysisJson,
+  stripCharacterStyleMetadataForGeneration,
 } from '../../packages/shared/src/character-analysis.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -449,9 +450,28 @@ async function evalCharacterDetail(round, asset) {
     error,
     styleCount: normalized?.styles.length ?? 0,
     metadataCount: normalized?.styles.filter((style) => style.prompt.includes('造型元数据：')).length ?? 0,
-    promptPollutionCount: normalized?.styles.filter((style) => /街道|房间|球场|教室|手持|拿着|互动/u.test(style.prompt)).length ?? 0,
+    promptPollutionRows: normalized?.styles
+      .map((style) => {
+        const prompt = stripCharacterStyleMetadataForGeneration(style.prompt);
+        return {
+          name: style.name,
+          prompt,
+          positivePrompt: positiveCharacterPromptText(prompt),
+        };
+      })
+      .filter((style) => /街道|房间|球场|教室|手持|拿着|互动/u.test(style.positivePrompt)) ?? [],
     rawPreview: response.raw.slice(0, 1200),
   };
+}
+
+function positiveCharacterPromptText(prompt) {
+  return prompt
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^(造型名称|类型|要求|身份锁定|背景|禁止|风格)：/.test(line))
+    .filter((line) => !/^(角色参考图只画|固定穿戴|如果原描述|不要画)/.test(line))
+    .join('\n');
 }
 
 function messagesObject(messages) {
@@ -501,7 +521,7 @@ function summarize(results) {
       parseRate: rate(characterRuns, (run) => run.parseOk),
       averageStyleCount: avg(characterRuns.map((run) => run.styleCount)),
       metadataRate: rate(characterRuns, (run) => run.metadataCount > 0),
-      promptPollutionRuns: characterRuns.filter((run) => run.promptPollutionCount > 0),
+      promptPollutionRuns: characterRuns.filter((run) => run.promptPollutionRows.length > 0),
     },
     usage: summarizeUsage([...sceneRuns, ...bindingRuns, ...characterRuns]),
   };

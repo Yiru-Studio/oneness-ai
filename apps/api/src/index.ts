@@ -18,6 +18,7 @@ import { resourceImageRoutes } from './routes/resource-images.js';
 import { episodeRoutes } from './routes/episodes.js';
 import { shotRoutes } from './routes/shots.js';
 import { compositionTaskRoutes } from './routes/composition-tasks.js';
+import { imageGenerationRunRoutes } from './routes/image-generation-runs.js';
 import { knowledgeDocRoutes } from './routes/knowledge-docs.js';
 import { taskRoutes } from './routes/tasks.js';
 import './types/hono-env.js';
@@ -41,6 +42,7 @@ app.route('/api', resourceImageRoutes);
 app.route('/api', episodeRoutes);
 app.route('/api', shotRoutes);
 app.route('/api', compositionTaskRoutes);
+app.route('/api', imageGenerationRunRoutes);
 app.route('/api', knowledgeDocRoutes);
 app.route('/api', taskRoutes);
 

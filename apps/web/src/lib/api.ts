@@ -574,12 +574,18 @@ export async function generateShotSketch(
   );
 }
 
-export type ShotSketchReferenceAsset = AssetDTO & {
+export type ShotSketchReferenceAsset = Omit<AssetDTO, 'url'> & {
+  url: string | null;
   label: string;
   source: 'composition' | 'character' | 'scene' | 'item';
   sourceId: string | null;
   scope: 'shot' | 'compositionTask' | 'locked';
   removable: boolean;
+  missing?: boolean;
+  resourceImageId?: string | null;
+  resourceStatus?: ResourceImageDTO['status'] | null;
+  resourceTaskId?: string | null;
+  resourceError?: string | null;
 };
 
 export type ShotSketchImage = {
@@ -632,6 +638,22 @@ export type CompositionPlanningState = {
   updatedAt: string | null;
 };
 
+export type ImageGenerationRun = {
+  id: string;
+  kind: 'resource' | 'composition-image' | 'composition-grid' | 'shot-sketch';
+  projectId: string;
+  ownerEntityId: string | null;
+  ownerEntityKind: string | null;
+  taskId: string | null;
+  status: string;
+  error: string | null;
+  assetId: string | null;
+  image: string;
+  label: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export async function getShotSketchContext(
   projectId: string,
   body: { shotId: string },
@@ -640,6 +662,22 @@ export async function getShotSketchContext(
     `/api/projects/${projectId}/composition-tasks/shot-sketch-context`,
     { method: 'POST', body },
   );
+}
+
+export async function getImageGenerationRuns(
+  projectId: string,
+  query: { activeOnly?: boolean; status?: string; limit?: number } = {},
+): Promise<ImageGenerationRun[]> {
+  return await apiFetch<ImageGenerationRun[]>('/api/image-generation-runs', {
+    query: { projectId, ...query },
+  });
+}
+
+export async function reconcileImageGenerationRuns(projectId: string): Promise<{ scanned: number; reenqueued: number }> {
+  return await apiFetch<{ scanned: number; reenqueued: number }>('/api/image-generation-runs/reconcile', {
+    method: 'POST',
+    query: { projectId },
+  });
 }
 
 // -- Composition shots --------------------------------------------------

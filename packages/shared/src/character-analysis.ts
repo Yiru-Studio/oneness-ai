@@ -168,6 +168,14 @@ function withStyleMetadata(
   ].join('\n');
 }
 
+export function stripCharacterStyleMetadataForGeneration(prompt: string): string {
+  return prompt
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('造型元数据：'))
+    .join('\n')
+    .trim();
+}
+
 export function parseCharacterAnalysisJson(raw: string): LLMCharacterAnalysisJson {
   const cleaned = extractJsonObject(raw);
   const candidates = buildJsonParseCandidates(cleaned);

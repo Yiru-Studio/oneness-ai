@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { Worker } from 'bullmq';
 import { taskRoutes } from '../../src/routes/tasks.js';
 import { compositionTaskRoutes } from '../../src/routes/composition-tasks.js';
+import { imageGenerationRunRoutes } from '../../src/routes/image-generation-runs.js';
 import { requestIdMiddleware } from '../../src/middleware/request-id.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { prisma } from '../../src/lib/prisma.js';
@@ -18,6 +19,7 @@ app.use('*', requestIdMiddleware);
 app.onError(errorHandler);
 app.route('/api', taskRoutes);
 app.route('/api', compositionTaskRoutes);
+app.route('/api', imageGenerationRunRoutes);
 
 const auth = { authorization: 'Bearer test_token' };
 const connection = { url: config.REDIS_URL };
@@ -344,8 +346,11 @@ describe('tasks lifecycle', () => {
     }
   });
 
-  it('character-style IMAGE task refuses to generate without an identity master', async () => {
-    const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });
+  it('character-style IMAGE task can seed identity from any first generated style', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true, credits: true },
+    });
     if (!user) throw new Error('Seed user missing.');
     const project = await prisma.project.findFirst({ where: { ownerId: user.id } });
     if (!project) throw new Error('Seed project missing.');
@@ -368,6 +373,7 @@ describe('tasks lifecycle', () => {
       },
     });
 
+    let taskId: string | null = null;
     try {
       const res = await app.request('/api/tasks', {
         method: 'POST',
@@ -385,11 +391,31 @@ describe('tasks lifecycle', () => {
           resourceTarget: { kind: 'character-style', entityId: style.id },
         }),
       });
-      expect(res.status).toBe(400);
-      const body = (await res.json()) as { error: { message: string } };
-      expect(body.error.message).toContain('身份母版');
+      expect(res.status).toBe(201);
+      const created = (await res.json()) as { id: string };
+      taskId = created.id;
+      const final = await pollUntilTerminal(created.id);
+      expect(final).toBe(TaskStatus.SUCCEEDED);
+      const [fresh, freshStyle] = await Promise.all([
+        prisma.character.findUnique({
+          where: { id: character.id },
+          select: { avatarAssetId: true, identityAssetId: true },
+        }),
+        prisma.characterStyle.findUnique({
+          where: { id: style.id },
+          select: { assetId: true },
+        }),
+      ]);
+      expect(freshStyle?.assetId).toBeTruthy();
+      expect(fresh?.identityAssetId).toBe(freshStyle?.assetId);
+      expect(fresh?.avatarAssetId).toBe(freshStyle?.assetId);
     } finally {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { credits: user.credits },
+      });
       await prisma.character.deleteMany({ where: { id: character.id } });
+      if (taskId) await prisma.task.deleteMany({ where: { id: taskId } });
     }
   });
 
@@ -536,6 +562,266 @@ describe('tasks lifecycle', () => {
       expect(row?.characterId).toBe(character.id);
     } finally {
       await prisma.character.deleteMany({ where: { id: character.id } });
+    }
+  });
+
+  it('reuses an active resource image task for the same target instead of charging twice', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true, credits: true },
+    });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.findFirst({ where: { ownerId: user.id } });
+    if (!project) throw new Error('Seed project missing.');
+    const scene = await prisma.scene.create({
+      data: {
+        projectId: project.id,
+        name: '重复生成复用测试场景',
+        description: '',
+        prompt: '',
+      },
+    });
+    const existingTask = await prisma.task.create({
+      data: {
+        ownerId: user.id,
+        projectId: project.id,
+        type: TaskType.IMAGE,
+        provider: 'stub',
+        status: TaskStatus.QUEUED,
+        costCredits: 1,
+        input: { prompt: '已存在的场景图生成任务', ratio: '16:9', model: 'stub', n: 1 },
+      },
+    });
+    await prisma.resourceImage.create({
+      data: {
+        ownerId: user.id,
+        projectId: project.id,
+        kind: 'scene',
+        source: 'generated',
+        status: TaskStatus.QUEUED,
+        prompt: '已存在的场景图生成任务',
+        model: 'stub',
+        ratio: '16:9',
+        taskId: existingTask.id,
+        sceneId: scene.id,
+      },
+    });
+
+    try {
+      const before = await prisma.user.findUniqueOrThrow({
+        where: { id: user.id },
+        select: { credits: true },
+      });
+      const beforeTaskCount = await prisma.task.count({
+        where: { ownerId: user.id, projectId: project.id, type: TaskType.IMAGE },
+      });
+      const res = await app.request('/api/tasks', {
+        method: 'POST',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          type: 'IMAGE',
+          projectId: project.id,
+          provider: 'stub',
+          input: {
+            prompt: '第二次点击同一个场景生成',
+            ratio: '16:9',
+            model: 'stub',
+            n: 1,
+          },
+          resourceTarget: { kind: 'scene', entityId: scene.id },
+        }),
+      });
+      expect(res.status).toBe(202);
+      const reused = (await res.json()) as { id: string };
+      expect(reused.id).toBe(existingTask.id);
+      const [after, taskCount, resourceCount] = await Promise.all([
+        prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { credits: true } }),
+        prisma.task.count({ where: { ownerId: user.id, projectId: project.id, type: TaskType.IMAGE } }),
+        prisma.resourceImage.count({ where: { ownerId: user.id, projectId: project.id, kind: 'scene', sceneId: scene.id } }),
+      ]);
+      expect(after.credits).toBe(before.credits);
+      expect(taskCount).toBe(beforeTaskCount);
+      expect(resourceCount).toBe(1);
+    } finally {
+      await prisma.task.deleteMany({ where: { id: existingTask.id } });
+      await prisma.scene.deleteMany({ where: { id: scene.id } });
+      await prisma.user.update({ where: { id: user.id }, data: { credits: user.credits } });
+    }
+  });
+
+  it('lists image generation runs from resource, composition, and shot sketch records', async () => {
+    const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL }, select: { id: true } });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.create({
+      data: {
+        ownerId: user.id,
+        name: `统一图片运行态测试-${Date.now()}`,
+        ratio: '16:9',
+        style: '写实',
+        stylePrompt: '写实',
+        analysisModel: 'stub-text-chain',
+        imageModel: 'stub',
+        videoModel: 'stub',
+      },
+    });
+    const episode = await prisma.storyboardEpisode.create({
+      data: { projectId: project.id, number: 1, title: '测试集', content: '测试内容' },
+    });
+    const scene = await prisma.scene.create({
+      data: { projectId: project.id, name: '统一运行态场景', description: '', prompt: '' },
+    });
+    const imageTask = await prisma.task.create({
+      data: {
+        ownerId: user.id,
+        projectId: project.id,
+        type: TaskType.IMAGE,
+        provider: 'stub',
+        status: TaskStatus.QUEUED,
+        input: { prompt: '场景', ratio: '16:9', model: 'stub', n: 1 },
+      },
+    });
+    const composition = await prisma.compositionTask.create({
+      data: {
+        projectId: project.id,
+        episodeId: episode.id,
+        sceneIndex: 0,
+        title: '第1集 · 统一运行态场景',
+        scriptExcerpt: '测试内容',
+        prompt: '场景图 prompt',
+      },
+    });
+    const shot = await prisma.shot.create({
+      data: {
+        episodeId: episode.id,
+        displayId: 1,
+        sceneIndex: 0,
+        prompt: '主分镜 prompt',
+        model: 'stub',
+        ratio: '16:9',
+      },
+    });
+    await prisma.resourceImage.create({
+      data: {
+        ownerId: user.id,
+        projectId: project.id,
+        kind: 'scene',
+        source: 'generated',
+        status: TaskStatus.QUEUED,
+        taskId: imageTask.id,
+        sceneId: scene.id,
+      },
+    });
+    await prisma.compositionImageRun.create({
+      data: {
+        taskId: composition.id,
+        prompt: '场景图 prompt',
+        model: 'stub',
+        ratio: '16:9',
+        status: TaskStatus.QUEUED,
+        taskJobId: imageTask.id,
+      },
+    });
+    await prisma.shotSketchRun.create({
+      data: {
+        projectId: project.id,
+        episodeId: episode.id,
+        shotId: shot.id,
+        source: 'generated',
+        prompt: '主分镜 prompt',
+        model: 'stub',
+        ratio: '16:9',
+        status: TaskStatus.QUEUED,
+        taskJobId: imageTask.id,
+      },
+    });
+
+    try {
+      const res = await app.request(`/api/image-generation-runs?projectId=${project.id}&activeOnly=true`, {
+        headers: auth,
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json() as Array<{ kind: string; status: string; ownerEntityId: string | null }>;
+      expect(body).toEqual(expect.arrayContaining([
+        expect.objectContaining({ kind: 'resource', status: TaskStatus.QUEUED, ownerEntityId: scene.id }),
+        expect.objectContaining({ kind: 'composition-image', status: TaskStatus.QUEUED, ownerEntityId: composition.id }),
+        expect.objectContaining({ kind: 'shot-sketch', status: TaskStatus.QUEUED, ownerEntityId: shot.id }),
+      ]));
+    } finally {
+      await prisma.task.deleteMany({ where: { id: imageTask.id } });
+      await prisma.project.deleteMany({ where: { id: project.id } });
+    }
+  });
+
+  it('reuses an active composition image run instead of creating another image task', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true, credits: true },
+    });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.create({
+      data: {
+        ownerId: user.id,
+        name: `场景图复用测试-${Date.now()}`,
+        ratio: '16:9',
+        style: '写实',
+        stylePrompt: '写实',
+        analysisModel: 'stub-text-chain',
+        imageModel: 'stub',
+        videoModel: 'stub',
+      },
+    });
+    const episode = await prisma.storyboardEpisode.create({
+      data: { projectId: project.id, number: 1, title: '测试集', content: '测试内容' },
+    });
+    const composition = await prisma.compositionTask.create({
+      data: {
+        projectId: project.id,
+        episodeId: episode.id,
+        sceneIndex: 0,
+        title: '第1集 · 场景图复用',
+        scriptExcerpt: '测试内容',
+        prompt: '场景图 prompt',
+      },
+    });
+    const task = await prisma.task.create({
+      data: {
+        ownerId: user.id,
+        projectId: project.id,
+        type: TaskType.IMAGE,
+        provider: 'stub',
+        status: TaskStatus.QUEUED,
+        input: { prompt: '场景图 prompt', ratio: '16:9', model: 'stub', n: 1 },
+      },
+    });
+    const run = await prisma.compositionImageRun.create({
+      data: {
+        taskId: composition.id,
+        prompt: '场景图 prompt',
+        model: 'stub',
+        ratio: '16:9',
+        status: TaskStatus.QUEUED,
+        taskJobId: task.id,
+      },
+    });
+    await prisma.compositionTask.update({
+      where: { id: composition.id },
+      data: { currentImageRunId: run.id, imageTaskId: task.id, status: 'IMAGE_QUEUED' },
+    });
+
+    try {
+      const before = await prisma.task.count({ where: { projectId: project.id, type: TaskType.IMAGE } });
+      const res = await app.request(`/api/composition-tasks/${composition.id}/generate-image`, {
+        method: 'POST',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify({ model: 'stub', ratio: '16:9' }),
+      });
+      expect(res.status).toBe(200);
+      const after = await prisma.task.count({ where: { projectId: project.id, type: TaskType.IMAGE } });
+      expect(after).toBe(before);
+    } finally {
+      await prisma.task.deleteMany({ where: { id: task.id } });
+      await prisma.project.deleteMany({ where: { id: project.id } });
+      await prisma.user.update({ where: { id: user.id }, data: { credits: user.credits } });
     }
   });
 
@@ -1053,6 +1339,19 @@ describe('tasks lifecycle', () => {
         await processTask(detailTask.id);
       }
 
+      const makeAsset = (label: string) => prisma.asset.create({
+        data: {
+          ownerId: user.id,
+          bucket: 'test-fixtures',
+          key: `${label}-${Date.now()}-${Math.random()}.png`,
+          contentType: 'image/png',
+          sizeBytes: 10,
+        },
+      });
+      const [carSceneAsset, phoneAsset] = await Promise.all([
+        makeAsset('prepared-car-scene'),
+        makeAsset('prepared-phone'),
+      ]);
       const [carScene, phoneItem, basketballItem] = await Promise.all([
         prisma.scene.create({
           data: {
@@ -1060,6 +1359,7 @@ describe('tasks lifecycle', () => {
             name: '网约车车内',
             description: '后座、驾驶室、后视镜和雨夜车窗',
             prompt: '雨夜网约车车内空间',
+            assetId: carSceneAsset.id,
           },
         }),
         prisma.item.create({
@@ -1068,6 +1368,7 @@ describe('tasks lifecycle', () => {
             name: '手机',
             description: '订单页面亮起的手机',
             prompt: '屏幕微光照亮手指',
+            assetId: phoneAsset.id,
           },
         }),
         prisma.item.create({
@@ -1113,7 +1414,7 @@ describe('tasks lifecycle', () => {
       const shots = await prisma.shot.findMany({
         where: { episodeId: episode.id, sceneIndex: 0, createType: 'assist' },
         orderBy: { displayId: 'asc' },
-        select: { characterStyleIds: true, sceneIds: true, itemIds: true, roleNames: true },
+        select: { id: true, characterStyleIds: true, sceneIds: true, itemIds: true, roleNames: true },
       });
       expect(shots).toHaveLength(2);
       const firstShotStyleNames = await styleNamesForIds(shots[0]!.characterStyleIds as string[]);
@@ -1123,6 +1424,29 @@ describe('tasks lifecycle', () => {
       expect(shots[0]!.sceneIds).toEqual([carScene.id]);
       expect(shots[1]!.characterStyleIds).toHaveLength(1);
       expect(await styleNamesForIds(shots[1]!.characterStyleIds as string[])).toEqual(['我 · 后座乘客造型']);
+      const preparedRuns = await prisma.shotSketchRun.findMany({
+        where: { shotId: { in: shots.map((shot) => shot.id) }, source: 'prepared' },
+        orderBy: { createdAt: 'asc' },
+        select: { shotId: true, prompt: true, referenceAssetIds: true, taskJobId: true, outputAssetId: true, sourceAssetId: true, status: true },
+      });
+      expect(preparedRuns).toHaveLength(2);
+      expect(preparedRuns.every((run) => run.status === 'APPLIED')).toBe(true);
+      expect(preparedRuns.every((run) => run.taskJobId === null && run.outputAssetId === null && run.sourceAssetId === null)).toBe(true);
+      expect(preparedRuns[0]!.prompt).toContain('请生成一张单张主分镜关键帧图');
+      expect(preparedRuns[0]!.prompt).toContain('关键画面');
+      expect(preparedRuns[0]!.prompt).not.toContain('秒级动作拆解');
+      expect(preparedRuns[0]!.prompt).not.toContain('音效设计');
+      expect(preparedRuns[0]!.referenceAssetIds).toEqual(expect.arrayContaining([carSceneAsset.id, phoneAsset.id]));
+
+      const context = await app.request(`/api/projects/${project.id}/composition-tasks/shot-sketch-context`, {
+        method: 'POST',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify({ shotId: shots[0]!.id }),
+      });
+      expect(context.status).toBe(200);
+      const contextBody = await context.json() as { prompt: string; referenceAssetIds: string[] };
+      expect(contextBody.prompt).toBe(preparedRuns[0]!.prompt);
+      expect(contextBody.referenceAssetIds).toEqual(expect.arrayContaining(preparedRuns[0]!.referenceAssetIds as string[]));
     } finally {
       await prisma.project.deleteMany({ where: { id: project.id } });
     }
@@ -1252,6 +1576,257 @@ describe('tasks lifecycle', () => {
       expect(fresh.characterStyleIds).toEqual([passengerStyle.id]);
       expect(fresh.sceneIds).toEqual([carScene.id]);
       expect(fresh.itemIds).toEqual([phoneItem.id]);
+    } finally {
+      await prisma.project.deleteMany({ where: { id: project.id } });
+    }
+  });
+
+  it('creates shot sketch task with storyboard prompt and prefilled reference assets', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true },
+    });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.create({
+      data: {
+        ownerId: user.id,
+        name: `主分镜预填测试-${Date.now()}`,
+        ratio: '16:9',
+        style: '写实电影感',
+        stylePrompt: '写实电影感，雨夜冷色调',
+        analysisModel: 'stub-text-chain',
+        imageModel: 'stub',
+        videoModel: 'stub',
+      },
+    });
+    const episode = await prisma.storyboardEpisode.create({
+      data: {
+        projectId: project.id,
+        number: 1,
+        title: '雨夜网约车',
+        content: '我坐进网约车后座，司机在驾驶室，手机屏幕亮起。',
+        analyzed: true,
+        scenesJson: [{
+          index: 0,
+          title: 'INT. 网约车后座 - 夜',
+          content: '我坐进网约车后座，司机在驾驶室，手机屏幕亮起。',
+          characters: ['我', '司机'],
+          environment: '雨夜网约车车内',
+          sceneReferences: {
+            visibleCharacters: ['我', '司机'],
+            mentionedCharacters: [],
+            voiceCharacters: [],
+            backgroundCharacters: [],
+            visibleItems: ['手机'],
+            mentionedItems: [],
+            backgroundItems: [],
+          },
+        }],
+      },
+    });
+
+    try {
+      const makeAsset = (label: string) => prisma.asset.create({
+        data: {
+          ownerId: user.id,
+          bucket: 'test-fixtures',
+          key: `${label}-${Date.now()}-${Math.random()}.png`,
+          contentType: 'image/png',
+          sizeBytes: 10,
+        },
+      });
+      const [
+        compositionAsset,
+        passengerIdentityAsset,
+        passengerStyleAsset,
+        carSceneAsset,
+        phoneAsset,
+      ] = await Promise.all([
+        makeAsset('composition'),
+        makeAsset('passenger-identity'),
+        makeAsset('passenger-style'),
+        makeAsset('car-scene'),
+        makeAsset('phone'),
+      ]);
+      const [passenger, driver, carScene, pendingScene, phoneItem] = await Promise.all([
+        prisma.character.create({
+          data: {
+            projectId: project.id,
+            name: '我',
+            description: '后座乘客',
+            bio: '',
+            identityAssetId: passengerIdentityAsset.id,
+          },
+        }),
+        prisma.character.create({ data: { projectId: project.id, name: '司机', description: '司机', bio: '' } }),
+        prisma.scene.create({
+          data: {
+            projectId: project.id,
+            name: '网约车车内',
+            description: '后座、驾驶室、雨夜车窗',
+            prompt: '',
+            assetId: carSceneAsset.id,
+          },
+        }),
+        prisma.scene.create({
+          data: {
+            projectId: project.id,
+            name: '网约车后座待生成',
+            description: '缺失但正在生成的车厢参考',
+            prompt: '',
+          },
+        }),
+        prisma.item.create({
+          data: {
+            projectId: project.id,
+            name: '手机',
+            description: '亮屏手机',
+            prompt: '',
+            assetId: phoneAsset.id,
+          },
+        }),
+      ]);
+      void driver;
+      const pendingSceneResource = await prisma.resourceImage.create({
+        data: {
+          ownerId: user.id,
+          projectId: project.id,
+          kind: 'scene',
+          source: 'generated',
+          status: TaskStatus.RUNNING,
+          prompt: '正在生成的车厢参考',
+          model: 'stub',
+          ratio: project.ratio,
+          sceneId: pendingScene.id,
+        },
+      });
+      const passengerStyle = await prisma.characterStyle.create({
+        data: {
+          characterId: passenger.id,
+          name: '后座乘客造型',
+          prompt: '造型元数据：phase=雨夜乘车；outfit=浅色外套；sceneHint=网约车后座\n乘客造型。',
+          assetId: passengerStyleAsset.id,
+        },
+      });
+      const composition = await prisma.compositionTask.create({
+        data: {
+          projectId: project.id,
+          episodeId: episode.id,
+          sceneIndex: 0,
+          title: '第1集 · INT. 网约车后座 - 夜',
+          scriptExcerpt: '我坐进网约车后座，司机在驾驶室，手机屏幕亮起。',
+          prompt: '主场景图 prompt',
+          imageAssetId: compositionAsset.id,
+          characterStyleIds: [],
+          sceneIds: [carScene.id],
+          itemIds: [],
+        },
+      });
+      const compositionRun = await prisma.compositionImageRun.create({
+        data: {
+          taskId: composition.id,
+          prompt: '主场景图 prompt',
+          model: 'stub',
+          ratio: project.ratio,
+          status: 'SUCCEEDED',
+          outputAssetId: compositionAsset.id,
+        },
+      });
+      await prisma.compositionTask.update({
+        where: { id: composition.id },
+        data: {
+          currentImageRunId: compositionRun.id,
+          imageAssetId: compositionAsset.id,
+        },
+      });
+      const shot = await prisma.shot.create({
+        data: {
+          episodeId: episode.id,
+          displayId: 1,
+          sceneIndex: 0,
+          prompt: '中景，我坐在后座看着亮起的手机，司机在前景虚化。',
+          model: 'stub',
+          ratio: project.ratio,
+          createType: 'assist',
+          characterStyleIds: [passengerStyle.id],
+          sceneIds: [carScene.id, pendingScene.id],
+          itemIds: [phoneItem.id],
+          compositionTaskIds: [composition.id],
+        },
+      });
+      const context = await app.request(`/api/projects/${project.id}/composition-tasks/shot-sketch-context`, {
+        method: 'POST',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify({ shotId: shot.id }),
+      });
+      expect(context.status).toBe(200);
+      const contextBody = await context.json() as {
+        referenceAssets: Array<{
+          source: string;
+          sourceId: string | null;
+          missing?: boolean;
+          resourceImageId?: string | null;
+          resourceStatus?: string | null;
+        }>;
+      };
+      expect(contextBody.referenceAssets).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          source: 'scene',
+          sourceId: pendingScene.id,
+          missing: true,
+          resourceImageId: pendingSceneResource.id,
+          resourceStatus: TaskStatus.RUNNING,
+        }),
+      ]));
+
+      const res = await app.request(`/api/projects/${project.id}/composition-tasks/generate-shot-sketch`, {
+        method: 'POST',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify({ shotId: shot.id }),
+      });
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { taskId: string; runId: string; referenceAssetIds: string[] };
+      expect(body.referenceAssetIds).toEqual([
+        compositionAsset.id,
+        passengerStyleAsset.id,
+        carSceneAsset.id,
+        phoneAsset.id,
+      ]);
+      expect(body.referenceAssetIds).not.toContain(passengerIdentityAsset.id);
+      expect(new Set(body.referenceAssetIds).size).toBe(body.referenceAssetIds.length);
+
+      const task = await prisma.task.findUniqueOrThrow({
+        where: { id: body.taskId },
+        select: { input: true },
+      });
+      const input = task.input as {
+        prompt?: string;
+        referenceAssetIds?: string[];
+        shotSketch?: boolean;
+        shotId?: string;
+        compositionTaskId?: string;
+      };
+      expect(input.shotSketch).toBe(true);
+      expect(input.shotId).toBe(shot.id);
+      expect(input.compositionTaskId).toBe(composition.id);
+      expect(input.referenceAssetIds).toEqual(body.referenceAssetIds);
+      expect(input.prompt).toContain('请生成一张单张主分镜关键帧图');
+      expect(input.prompt).toContain('不是视频生成提示词');
+      expect(input.prompt).toContain('优先呈现画面构图、景别、机位、光线、色彩和情绪');
+      expect(input.prompt).toContain('关键画面');
+      expect(input.prompt).toContain('中景，我坐在后座看着亮起的手机');
+      expect(input.prompt).not.toContain('秒级动作拆解');
+      expect(input.prompt).not.toContain('音效设计');
+      expect(input.prompt).toContain('INT. 网约车后座 - 夜');
+      expect(input.prompt).toContain('写实电影感，雨夜冷色调');
+
+      const run = await prisma.shotSketchRun.findUniqueOrThrow({
+        where: { id: body.runId },
+        select: { prompt: true, referenceAssetIds: true, taskJobId: true },
+      });
+      expect(run.taskJobId).toBe(body.taskId);
+      expect(run.prompt).toBe(input.prompt);
+      expect(run.referenceAssetIds).toEqual(body.referenceAssetIds);
     } finally {
       await prisma.project.deleteMany({ where: { id: project.id } });
     }

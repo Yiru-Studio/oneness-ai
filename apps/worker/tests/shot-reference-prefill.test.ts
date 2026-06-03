@@ -90,4 +90,58 @@ describe('shot reference prefill', () => {
       sceneIds: [],
     });
   });
+
+  it('resolves scenes from description and prompt phrases when the exact scene name is not present', () => {
+    const refs = resolveShotReferencesFromNames({
+      roles: [],
+      items: [],
+      characters: [],
+      itemRows: [],
+      scene: {
+        title: 'EXT. 马路红绿灯 - 夜',
+        environment: '雨夜路口，网约车车厢狭小昏暗，红绿灯光映在车窗和湿漉漉街道上',
+        content: '我坐在网约车后座，司机透过后视镜看向车外的红灯。',
+      },
+      sceneRows: [
+        {
+          id: 'scene-rideshare-backseat',
+          name: 'INT. 网约车后座 - 夜',
+          description: '雨夜网约车后座，窗外红绿灯与湿漉漉街道',
+          prompt: '后座、驾驶室、后视镜、车窗雨痕',
+        },
+      ],
+    });
+
+    expect(refs.sceneIds).toEqual(['scene-rideshare-backseat']);
+  });
+
+  it('prefers exact scene name matches over stronger shared phrase matches', () => {
+    const refs = resolveShotReferencesFromNames({
+      roles: [],
+      items: [],
+      characters: [],
+      itemRows: [],
+      scene: {
+        title: '7A 校园主楼·门口大厅 昏 内',
+        environment: '校园主楼·门口大厅',
+        content: '吴翊杰跑到教学主楼门口，随后继续冲向楼梯。',
+      },
+      sceneRows: [
+        {
+          id: 'scene-main-hall',
+          name: '校园主楼·门口大厅',
+          description: '昏色主楼入口大厅，双马尾女生摔倒。',
+          prompt: '',
+        },
+        {
+          id: 'scene-stairwell',
+          name: '校园主楼·楼梯间',
+          description: '被旧课桌椅和人群堵塞的楼梯间。',
+          prompt: '主楼、楼梯、冲向楼梯、旧课桌椅',
+        },
+      ],
+    });
+
+    expect(refs.sceneIds).toEqual(['scene-main-hall']);
+  });
 });

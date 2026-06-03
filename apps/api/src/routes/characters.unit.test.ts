@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeCharacterAnalysis, parseCharacterAnalysisJson } from '@oneness/shared/character-analysis';
+import {
+  normalizeCharacterAnalysis,
+  parseCharacterAnalysisJson,
+  stripCharacterStyleMetadataForGeneration,
+} from '@oneness/shared/character-analysis';
 import { CreateTaskSchema } from '@oneness/shared/schemas';
 import { TaskType } from '@oneness/shared/enums';
 
@@ -66,6 +70,8 @@ describe('character analysis JSON parser', () => {
 
     expect(normalized.styles).toHaveLength(2);
     expect(normalized.styles[0]?.prompt).toContain('造型元数据：phase=雨夜接单；outfit=深色夹克；sceneHint=网约车驾驶室');
+    expect(stripCharacterStyleMetadataForGeneration(normalized.styles[0]?.prompt ?? '')).not.toContain('造型元数据');
+    expect(stripCharacterStyleMetadataForGeneration(normalized.styles[0]?.prompt ?? '')).not.toContain('网约车驾驶室');
     expect(normalized.styles[1]?.prompt).not.toContain('造型元数据');
   });
 });

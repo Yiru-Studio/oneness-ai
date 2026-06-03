@@ -4,17 +4,26 @@ import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from 
 import { X, Check, Loader2, Image as ImageIcon, ImagePlus } from 'lucide-react';
 import { Character, CompositionTask, Item, Project, ResourceImageStatus, Scene } from '@/types';
 import { EntityDetailDrawer, type EntityDetailData } from '@/components/projects/EntityDetailDrawer';
-import { updateCharacterStyle } from '@/lib/api';
+import { updateCharacterStyle, updateItem, updateScene } from '@/lib/api';
 import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
-import { useGeneration } from '@/contexts/GenerationContext';
+import { useGeneration, type GenerationKind } from '@/contexts/GenerationContext';
 import { getGenerationErrorDisplay } from '@/lib/generation-error';
 import { isTaskPending, taskPendingLabel } from '@/lib/task-status';
 
-type PickerTab = 'composition' | 'characters' | 'scenes' | 'items';
+type PickerTab = 'selected' | 'composition' | 'characters' | 'scenes' | 'items';
+type PickerKind = 'composition' | 'characters' | 'scenes' | 'items';
 
 type PickerOption = {
   id: string;
+  kind: PickerKind;
   label: string;
+  name?: string;
+  description?: string;
+  prompt?: string;
+  model?: string | null;
+  ratio?: string | null;
+  assetId?: string | null;
+  image?: string;
   sub?: string;
   thumb: string | null;
   badge?: string;
@@ -75,6 +84,8 @@ interface Props {
     sceneIds: string[];
     itemIds: string[];
   }) => void | Promise<void>;
+  includeComposition?: boolean;
+  initialTab?: PickerTab;
 }
 
 /**
@@ -94,8 +105,10 @@ export function ReferencePickerDialog({
   selected,
   onRefreshReferences,
   onConfirm,
+  includeComposition = true,
+  initialTab,
 }: Props) {
-  const [tab, setTab] = useState<PickerTab>('composition');
+  const [tab, setTab] = useState<PickerTab>(initialTab ?? (includeComposition ? 'composition' : 'selected'));
   const [compositionTaskIds, setCompositionTaskIds] = useState<string[]>(
     selected.compositionTaskIds,
   );
@@ -103,7 +116,7 @@ export function ReferencePickerDialog({
   const [sceneIds, setSceneIds] = useState<string[]>(selected.sceneIds);
   const [itemIds, setItemIds] = useState<string[]>(selected.itemIds);
   const [previewOption, setPreviewOption] = useState<PickerOption | null>(null);
-  const [editingStyle, setEditingStyle] = useState<CharacterStyleEditor | null>(null);
+  const [editingOption, setEditingOption] = useState<PickerOption | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const { isGenerating, getError } = useGeneration();
@@ -121,11 +134,13 @@ export function ReferencePickerDialog({
     setSceneIds(selected.sceneIds);
     setItemIds(selected.itemIds);
     setPreviewOption(null);
-    setEditingStyle(null);
+    setEditingOption(null);
     setConfirmError(null);
     setIsConfirming(false);
-    setTab('composition');
+    setTab(initialTab ?? (includeComposition ? 'composition' : 'selected'));
   }, [
+    includeComposition,
+    initialTab,
     isOpen,
     selected.compositionTaskIds,
     selected.characterStyleIds,
@@ -142,10 +157,17 @@ export function ReferencePickerDialog({
         .filter((s) => Boolean(s.id))
         .map((s, index) => ({
           id: s.id as string,
+          kind: 'characters' as const,
           label: characterStylePickerLabel(s.name, c.name, index),
+          name: s.name,
+          prompt: s.prompt,
+          model: s.model,
+          ratio: s.ratio,
+          assetId: s.assetId ?? s.styleResourceImage?.assetId ?? null,
+          image: s.image || s.styleResourceImage?.image || '',
           sub: c.name,
-          thumb: s.image || null,
-          badge: s.image ? '造型图' : '待生成',
+          thumb: s.image || s.styleResourceImage?.image || null,
+          badge: s.image || s.styleResourceImage?.image ? '造型图' : '待生成',
           emptyTitle: '暂无造型图',
           emptyText: '请先生成图片后再添加',
           resourceStatus: s.styleResourceImage?.status ?? null,
@@ -160,18 +182,45 @@ export function ReferencePickerDialog({
   const characterOptions = characterGroups.flatMap((group) => group.options);
   const sceneOptions: PickerOption[] = scenes.map((s) => ({
     id: s.id,
+    kind: 'scenes',
     label: s.name,
-    thumb: s.image || null,
+    name: s.name,
+    description: s.description,
+    prompt: s.prompt,
+    model: s.model,
+    ratio: s.ratio,
+    assetId: s.assetId ?? s.sceneResourceImage?.assetId ?? null,
+    image: s.image || s.sceneResourceImage?.image || '',
+    thumb: s.image || s.sceneResourceImage?.image || null,
+    badge: s.image || s.sceneResourceImage?.image ? '场景图' : '待生成',
+    emptyTitle: '暂无场景图',
+    emptyText: '请先生成图片后再添加',
+    resourceStatus: s.sceneResourceImage?.status ?? null,
+    resourceError: s.sceneResourceImage?.error ?? null,
   }));
   const itemOptions: PickerOption[] = items.map((i) => ({
     id: i.id,
+    kind: 'items',
     label: i.name,
-    thumb: i.image || null,
+    name: i.name,
+    description: i.description,
+    prompt: i.prompt,
+    model: i.model,
+    ratio: i.ratio,
+    assetId: i.assetId ?? i.itemResourceImage?.assetId ?? null,
+    image: i.image || i.itemResourceImage?.image || '',
+    thumb: i.image || i.itemResourceImage?.image || null,
+    badge: i.image || i.itemResourceImage?.image ? '道具图' : '待生成',
+    emptyTitle: '暂无道具图',
+    emptyText: '请先生成图片后再添加',
+    resourceStatus: i.itemResourceImage?.status ?? null,
+    resourceError: i.itemResourceImage?.error ?? null,
   }));
   const compositionOptions: PickerOption[] = compositionTasks
     .filter((task) => Boolean(task.image?.url))
     .map((task) => ({
       id: task.id,
+      kind: 'composition',
       label: `第${task.sceneIndex + 1}场 · ${task.title}`,
       sub: '场景图',
       thumb: task.image?.url ?? null,
@@ -179,6 +228,21 @@ export function ReferencePickerDialog({
 
   const toggle = (_ids: string[], setIds: Dispatch<SetStateAction<string[]>>, id: string) => {
     setIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const selectedIdsForKind = (kind: PickerKind) => {
+    if (kind === 'composition') return compositionTaskIds;
+    if (kind === 'characters') return styleIds;
+    if (kind === 'scenes') return sceneIds;
+    return itemIds;
+  };
+  const setSelectedForKind = (kind: PickerKind) => {
+    if (kind === 'composition') return setCompositionTaskIds;
+    if (kind === 'characters') return setStyleIds;
+    if (kind === 'scenes') return setSceneIds;
+    return setItemIds;
+  };
+  const toggleOption = (opt: PickerOption) => {
+    toggle(selectedIdsForKind(opt.kind), setSelectedForKind(opt.kind), opt.id);
   };
   const openPreview = (opt: PickerOption) => {
     if (opt.thumb) setPreviewOption(opt);
@@ -188,7 +252,7 @@ export function ReferencePickerDialog({
       openPreview(opt);
       return;
     }
-    if (opt.styleEditor) setEditingStyle(opt.styleEditor);
+    if (opt.kind !== 'composition') setEditingOption(opt);
   };
   const handleConfirm = async () => {
     setIsConfirming(true);
@@ -208,48 +272,51 @@ export function ReferencePickerDialog({
     }
   };
 
+  const allOptions = [
+    ...(includeComposition ? compositionOptions : []),
+    ...characterOptions,
+    ...sceneOptions,
+    ...itemOptions,
+  ];
+  const selectedOptions = allOptions.filter((option) => selectedIdsForKind(option.kind).includes(option.id));
   const currentOptions =
     tab === 'composition'
       ? compositionOptions
-      : tab === 'characters'
+      : tab === 'selected'
+        ? selectedOptions
+        : tab === 'characters'
         ? characterOptions
         : tab === 'scenes'
           ? sceneOptions
           : itemOptions;
-  const currentSelected =
-    tab === 'composition'
-      ? compositionTaskIds
-      : tab === 'characters'
-        ? styleIds
-        : tab === 'scenes'
-          ? sceneIds
-          : itemIds;
-  const setCurrentSelected =
-    tab === 'composition'
-      ? setCompositionTaskIds
-      : tab === 'characters'
-        ? setStyleIds
-        : tab === 'scenes'
-          ? setSceneIds
-          : setItemIds;
 
   const tabs: Array<{ key: PickerTab; label: string; count: number }> = [
-    { key: 'composition', label: '场景图', count: compositionTaskIds.length },
+    { key: 'selected', label: '已选', count: selectedOptions.length },
+    ...(includeComposition ? [{ key: 'composition' as const, label: '场景图', count: compositionTaskIds.length }] : []),
     { key: 'characters', label: '角色造型', count: styleIds.length },
     { key: 'scenes', label: '场景', count: sceneIds.length },
     { key: 'items', label: '物品', count: itemIds.length },
   ];
+  const editorConfig = editingOption
+    ? referenceEditorConfig({
+        option: editingOption,
+        project,
+        onRefreshReferences,
+      })
+    : null;
 
   const renderOptionCard = (opt: PickerOption) => {
+    const currentSelected = selectedIdsForKind(opt.kind);
     const isSelected = currentSelected.includes(opt.id);
     const hasImage = Boolean(opt.thumb);
-    const realtimeGenerating = Boolean(opt.styleEditor && isGenerating('style', opt.id));
+    const generationKind = generationKindForOption(opt.kind);
+    const realtimeGenerating = generationKind ? isGenerating(generationKind, opt.id) : false;
     const persistedPending = isResourceImagePending(opt.resourceStatus);
     const generating = realtimeGenerating || persistedPending;
     const generationLabel = realtimeGenerating ? '生成中...' : resourceStatusLabel(opt.resourceStatus);
     const generationError =
-      opt.styleEditor
-        ? getGenerationErrorDisplay(getError('style', opt.id) || opt.resourceError)?.message ?? null
+      generationKind
+        ? getGenerationErrorDisplay(getError(generationKind, opt.id) || opt.resourceError)?.message ?? null
         : null;
     return (
       <div
@@ -317,7 +384,7 @@ export function ReferencePickerDialog({
             <button
               type="button"
               onClick={() => {
-                if (hasImage && !isSelected) toggle(currentSelected, setCurrentSelected, opt.id);
+                if (hasImage && !isSelected) toggleOption(opt);
               }}
               disabled={!hasImage || isConfirming}
               className={`min-w-0 flex-1 text-left ${
@@ -333,7 +400,7 @@ export function ReferencePickerDialog({
             {hasImage && (
               <button
                 type="button"
-                onClick={() => toggle(currentSelected, setCurrentSelected, opt.id)}
+                onClick={() => toggleOption(opt)}
                 disabled={isConfirming}
                 aria-label={isSelected ? `移除引用：${opt.label}` : `选择引用：${opt.label}`}
                 title={isSelected ? '移除引用' : '选择引用'}
@@ -347,7 +414,7 @@ export function ReferencePickerDialog({
               </button>
             )}
           </div>
-          {!hasImage && opt.styleEditor && (
+          {!hasImage && opt.kind !== 'composition' && (
             <div className="mt-2">
               <button
                 type="button"
@@ -504,48 +571,31 @@ export function ReferencePickerDialog({
               </div>
               <button
                 type="button"
-                onClick={() => toggle(currentSelected, setCurrentSelected, previewOption.id)}
+                onClick={() => toggleOption(previewOption)}
                 disabled={isConfirming}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition ${
-                  currentSelected.includes(previewOption.id)
+                  selectedIdsForKind(previewOption.kind).includes(previewOption.id)
                     ? 'bg-white text-[var(--color-primary)] hover:bg-gray-100'
                     : 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]'
                 } disabled:opacity-50`}
               >
-                {currentSelected.includes(previewOption.id) ? '已添加' : '添加到参考'}
+                {selectedIdsForKind(previewOption.kind).includes(previewOption.id) ? '已添加' : '添加到参考'}
               </button>
             </div>
           </div>
         </div>
       )}
-      {editingStyle && (
+      {editorConfig && (
         <EntityDetailDrawer
           open
-          kind="style"
-          entity={styleEditorEntity(editingStyle.style)}
+          kind={editorConfig.kind}
+          entity={editorConfig.entity}
           project={project}
-          characterId={editingStyle.character.id}
-          identityReferenceAssetId={
-            editingStyle.character.identityAssetId ?? editingStyle.character.avatarAssetId ?? null
-          }
-          buildAutoPrompt={() =>
-            buildResourceImagePrompt({
-              kind: 'character-style',
-              name: editingStyle.character.name,
-              description: editingStyle.character.description,
-              bio: editingStyle.character.bio,
-              styleName: editingStyle.style.name,
-              userPrompt: editingStyle.style.prompt,
-              projectStylePrompt: project.stylePrompt,
-              ratio: editingStyle.style.ratio || project.ratio,
-            })
-          }
-          onSave={async (patch) => {
-            const fresh = await updateCharacterStyle(editingStyle.style.id, patch);
-            await onRefreshReferences();
-            return styleEditorEntity({ ...fresh, id: fresh.id ?? editingStyle.style.id });
-          }}
-          onClose={() => setEditingStyle(null)}
+          characterId={editorConfig.characterId}
+          identityReferenceAssetId={editorConfig.identityReferenceAssetId}
+          buildAutoPrompt={editorConfig.buildAutoPrompt}
+          onSave={editorConfig.onSave}
+          onClose={() => setEditingOption(null)}
         />
       )}
     </>
@@ -561,5 +611,142 @@ function styleEditorEntity(style: CharacterStyle & { id: string }): EntityDetail
     ratio: style.ratio ?? null,
     image: style.image || style.styleResourceImage?.image || '',
     assetId: style.assetId ?? style.styleResourceImage?.assetId ?? null,
+  };
+}
+
+type EntitySavePatch = {
+  name?: string;
+  description?: string;
+  prompt?: string;
+  model?: string | null;
+  ratio?: string | null;
+  assetId?: string | null;
+};
+
+type ReferenceEditorConfig = {
+  kind: 'style' | 'scene' | 'item';
+  entity: EntityDetailData;
+  characterId?: string;
+  identityReferenceAssetId?: string | null;
+  buildAutoPrompt: () => string;
+  onSave: (patch: EntitySavePatch) => Promise<EntityDetailData>;
+};
+
+function generationKindForOption(kind: PickerKind): GenerationKind | null {
+  if (kind === 'characters') return 'style';
+  if (kind === 'scenes') return 'scene';
+  if (kind === 'items') return 'item';
+  return null;
+}
+
+function referenceEditorConfig({
+  option,
+  project,
+  onRefreshReferences,
+}: {
+  option: PickerOption;
+  project: Project;
+  onRefreshReferences: () => Promise<void>;
+}): ReferenceEditorConfig {
+  if (option.kind === 'characters' && option.styleEditor) {
+    const { character, style } = option.styleEditor;
+    return {
+      kind: 'style',
+      characterId: character.id,
+      identityReferenceAssetId: character.identityAssetId ?? character.avatarAssetId ?? null,
+      entity: styleEditorEntity(style),
+      buildAutoPrompt: () =>
+        buildResourceImagePrompt({
+          kind: 'character-style',
+          name: character.name,
+          description: character.description,
+          bio: character.bio,
+          styleName: style.name,
+          userPrompt: style.prompt,
+          projectStylePrompt: project.stylePrompt,
+          ratio: style.ratio || project.ratio,
+        }),
+      onSave: async (patch) => {
+        const fresh = await updateCharacterStyle(style.id, patch);
+        await onRefreshReferences();
+        return styleEditorEntity({ ...fresh, id: fresh.id ?? style.id });
+      },
+    };
+  }
+
+  if (option.kind === 'scenes') {
+    return {
+      kind: 'scene',
+      entity: {
+        id: option.id,
+        name: option.name ?? option.label,
+        description: option.description ?? '',
+        prompt: option.prompt ?? '',
+        model: option.model ?? null,
+        ratio: option.ratio ?? null,
+        image: option.image ?? '',
+        assetId: option.assetId ?? null,
+      },
+      buildAutoPrompt: () =>
+        buildResourceImagePrompt({
+          kind: 'scene',
+          name: option.name ?? option.label,
+          description: option.description,
+          userPrompt: option.prompt,
+          projectStylePrompt: project.stylePrompt,
+          ratio: option.ratio || project.ratio,
+        }),
+      onSave: async (patch) => {
+        const fresh = await updateScene(option.id, patch);
+        await onRefreshReferences();
+        return {
+          id: fresh.id,
+          name: fresh.name,
+          description: fresh.description ?? '',
+          prompt: fresh.prompt ?? '',
+          model: fresh.model ?? null,
+          ratio: fresh.ratio ?? null,
+          image: fresh.image || fresh.sceneResourceImage?.image || '',
+          assetId: fresh.assetId ?? fresh.sceneResourceImage?.assetId ?? null,
+        };
+      },
+    };
+  }
+
+  return {
+    kind: 'item',
+    entity: {
+      id: option.id,
+      name: option.name ?? option.label,
+      description: option.description ?? '',
+      prompt: option.prompt ?? '',
+      model: option.model ?? null,
+      ratio: option.ratio ?? null,
+      image: option.image ?? '',
+      assetId: option.assetId ?? null,
+    },
+    buildAutoPrompt: () =>
+      buildResourceImagePrompt({
+        kind: 'item',
+        name: option.name ?? option.label,
+        description: option.description,
+        userPrompt: option.prompt,
+        projectStylePrompt: project.stylePrompt,
+        ratio: option.ratio || project.ratio,
+      }),
+    onSave: async (patch) => {
+      const fresh = await updateItem(option.id, patch);
+      await onRefreshReferences();
+      return {
+        id: fresh.id,
+        name: fresh.name,
+        description: fresh.description ?? '',
+        prompt: fresh.prompt ?? '',
+        model: fresh.model ?? null,
+        ratio: fresh.ratio ?? null,
+        image: fresh.image || fresh.itemResourceImage?.image || '',
+        assetId: fresh.assetId ?? fresh.itemResourceImage?.assetId ?? null,
+      };
+    },
   };
 }

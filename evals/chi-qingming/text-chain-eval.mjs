@@ -10,6 +10,7 @@ import {
 } from '../../packages/shared/src/composition-planning.ts';
 import { mergeShotSketchReferenceIds } from '../../apps/api/src/lib/shot-sketch-reference-prefill.ts';
 import { resolveShotReferencesFromNames } from '../../apps/worker/src/lib/shot-reference-prefill.ts';
+import { buildShotSketchPrompt } from '../../packages/shared/src/shot-prompts.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -228,16 +229,25 @@ function shotEval() {
     const expectedSceneIds = namesToSceneIds([shotItem.scene]);
     const expectedItemIds = namesToItemIds(shotItem.props);
     const expectedCharacterNames = shotItem.characters;
-    const sketchPrompt = [
-      '请生成一张单张电影分镜场景图，用作后续视频生成的参考首帧。',
-      `Shot：#${shotItem.shot_number}`,
-      `预计时长：${Math.max(1, Math.round(shotItem.duration))} 秒`,
-      `Shot 提示词：\n${buildShotPrompt(shotItem)}`,
-      `场景标题：${scene?.heading || shotItem.scene}`,
-      `环境：${scene?.location || shotItem.scene}`,
-      `剧本片段：\n${shotItem.prompt}`,
-      '项目风格：\n写实电影感',
-    ].join('\n');
+    const sketchPrompt = buildShotSketchPrompt(
+      {
+        ratio: '16:9',
+        stylePrompt: dataset.filmforge_mapping?.project?.settings?.visualStyle || '写实电影感',
+      },
+      {
+        title: scene?.heading || shotItem.scene,
+        environment: scene?.location || shotItem.scene,
+        characters: shotItem.characters || [],
+        content: shotItem.prompt || sceneText(scene || {}) || '',
+      },
+      {
+        displayId: shotItem.shot_number,
+        shotType: 'standalone',
+        duration: Math.max(1, Math.round(shotItem.duration)),
+        prompt: buildShotPrompt(shotItem),
+      },
+      refs.sceneIds.length > 0,
+    );
     const mergedRefs = mergeShotSketchReferenceIds(
       {
         characterStyleIds: namesToStyleIds(dataset.script_scenes.find((item) => item.scene_number === shotItem.scene_number)?.characters || []),
@@ -274,6 +284,9 @@ function shotEval() {
         promptHasScene: sketchPrompt.includes(shotItem.scene),
         promptHasVisibleCharacters: expectedCharacterNames.every((name) => sketchPrompt.includes(name)),
         promptHasVisibleItems: shotItem.props.every((name) => sketchPrompt.includes(name)),
+        usesMainKeyframePrompt: sketchPrompt.includes('请生成一张单张主分镜关键帧图'),
+        noLegacySketchPrompt: !sketchPrompt.includes('请生成一张单张电影分镜场景图，用作后续视频生成的参考首帧'),
+        noVideoPromptSections: !/秒级动作拆解|台词同步|音效设计/u.test(sketchPrompt),
         noFilteredCharacters: (shotItem.filtered_characters || []).every((name) => !refNames.characters.includes(name) && !mergedNames.characters.includes(name)),
         noFilteredProps: (shotItem.filtered_props || []).every((name) => !refNames.items.includes(name) && !mergedNames.items.includes(name)),
       },
@@ -348,6 +361,9 @@ function summarize(sceneResults, shotResults, resourceRows, timeline) {
       itemReferenceAccuracy: shotResults.filter((shot) => shot.missingItems.length === 0 && shot.extraItems.length === 0).length / shotResults.length,
       sceneReferenceAccuracy: shotResults.filter((shot) => shot.missingScenes.length === 0).length / shotResults.length,
       promptCompletenessRate: allShotChecks.filter((item) => item.ok).length / allShotChecks.length,
+      mainKeyframePromptRate: shotResults.filter((shot) => shot.checks.usesMainKeyframePrompt).length / shotResults.length,
+      legacySketchPromptLeakCount: shotResults.filter((shot) => !shot.checks.noLegacySketchPrompt).length,
+      videoSectionLeakCount: shotResults.filter((shot) => !shot.checks.noVideoPromptSections).length,
       filteredCharacterLeakCount: shotResults.filter((shot) => !shot.checks.noFilteredCharacters).length,
       filteredPropLeakCount: shotResults.filter((shot) => !shot.checks.noFilteredProps).length,
       sampleFailures: shotResults.filter((shot) => (

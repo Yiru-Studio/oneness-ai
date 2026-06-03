@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocale } from '@/hooks/useLocale';
@@ -19,7 +20,7 @@ interface Props {
 
 function YiruLogo() {
   return (
-    <img
+    <Image
       src="/yiru_logo_bw.png"
       alt="一如创影"
       width={32}

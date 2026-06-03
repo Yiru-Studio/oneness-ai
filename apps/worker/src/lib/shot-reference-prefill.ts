@@ -38,6 +38,9 @@ export function resolveShotReferencesFromNames(args: {
   const sceneHaystack = args.scene
     ? [args.scene.title, args.scene.environment, args.scene.content].join('\n')
     : '';
+  const sceneReferenceHaystack = args.scene
+    ? [args.scene.title, args.scene.environment].join('\n')
+    : '';
   const characterStyleIds: string[] = [];
   for (const role of args.roles) {
     const character = charByName.get(role);
@@ -52,11 +55,7 @@ export function resolveShotReferencesFromNames(args: {
       .filter((item) => referenceTextMatches(name, [], item.name, item.description, item.prompt))
       .map((item) => item.id);
   }));
-  const sceneIds = uniqueStrings(
-    (args.sceneRows ?? [])
-      .filter((scene) => textMentions(sceneHaystack, scene.name))
-      .map((scene) => scene.id),
-  );
+  const sceneIds = selectMatchingSceneIds(sceneReferenceHaystack, args.sceneRows ?? []);
 
   return { characterStyleIds, itemIds, sceneIds };
 }
@@ -119,6 +118,57 @@ function referenceTextMatches(
   return values.some((value) => value
     ? textMentions(haystack, value) || hasSharedReferencePhrase(haystack, value, ignoredTerms)
     : false);
+}
+
+function selectMatchingSceneIds(haystack: string, scenes: ShotReferenceScene[]): string[] {
+  const exactMatches = scenes.filter((scene) => textMentions(haystack, scene.name));
+  if (exactMatches.length > 0) return exactMatches.slice(0, 2).map((scene) => scene.id);
+
+  const scored = scenes
+    .map((scene) => ({ scene, score: sceneReferenceScore(haystack, scene) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+  const maxScore = scored[0]?.score ?? 0;
+  const strongMatches = scored.filter((item) => item.score >= 8 && item.score >= maxScore - 2);
+  if (strongMatches.length > 0) return strongMatches.slice(0, 2).map((item) => item.scene.id);
+  return scored[0]?.score && scored[0].score >= 4 ? [scored[0].scene.id] : [];
+}
+
+function sceneReferenceScore(haystack: string, scene: ShotReferenceScene): number {
+  if (textMentions(haystack, scene.name)) return 20;
+
+  let score = 0;
+  for (const value of [scene.name, scene.description, scene.prompt]) {
+    for (const phrase of sceneReferencePhrases(value ?? '')) {
+      if (!haystack.includes(phrase)) continue;
+      if (phrase.length >= 5) score += 8;
+      else if (phrase.length === 4) score += 5;
+      else if (phrase.length === 3) score += 4;
+      else score += 1;
+    }
+  }
+  return score;
+}
+
+function sceneReferencePhrases(value: string): string[] {
+  const longGrams: string[] = [];
+  const tokens = value
+    .split(/[^\p{Script=Han}]+/u)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  for (const token of tokens) {
+    const max = Math.min(6, token.length);
+    for (let size = max; size >= 3; size -= 1) {
+      for (let i = 0; i <= token.length - size; i += 1) {
+        const gram = token.slice(i, i + size);
+        if (!isGenericReferencePhrase(gram, SCENE_IGNORED_TERMS)) longGrams.push(gram);
+      }
+    }
+  }
+  return uniqueStrings([
+    ...referencePhrases(value, SCENE_IGNORED_TERMS),
+    ...longGrams,
+  ]);
 }
 
 function textMentions(text: string, term: string): boolean {
@@ -189,3 +239,31 @@ function isGenericReferencePhrase(value: string, ignoredTerms: string[]): boolea
     '规则',
   ]).has(value);
 }
+
+const SCENE_IGNORED_TERMS = [
+  'INT',
+  'EXT',
+  '内',
+  '外',
+  '夜',
+  '日',
+  '场景',
+  '参考',
+  '环境',
+  '空间',
+  '雨夜',
+  '夜雨',
+  '雨水',
+  '雨声',
+  '大雨',
+  '细雨',
+  '湿亮',
+  '湿漉漉',
+  '灯光',
+  '光线',
+  '反光',
+  '昏暗',
+  '压抑',
+  '沉静',
+  '氛围',
+];

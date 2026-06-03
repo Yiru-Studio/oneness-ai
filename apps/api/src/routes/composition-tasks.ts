@@ -15,6 +15,13 @@ import { AppError, ErrorCodes } from '@oneness/shared/errors';
 import { estimateCost } from '@oneness/shared/pricing';
 import { queueForTaskType } from '@oneness/shared/queues';
 import { TaskStatus, TaskType } from '@oneness/shared/enums';
+import { buildShotSketchPrompt } from '@oneness/shared/shot-prompts';
+import {
+  currentCompositionImageAssetId,
+  jsonStringArray,
+  mergeShotSketchReferenceIds,
+  resolveShotSketchReferenceAssetIds,
+} from '@oneness/shared/shot-sketch-preparation';
 import {
   AnalyzeCompositionTasksSchema,
   ApplyCompositionCandidatesSchema,
@@ -36,7 +43,6 @@ import { config } from '../config.js';
 import { uniqueAssetIds } from '../lib/character-identity.js';
 import { serializeAsset, type AssetDTO } from '../lib/assets.js';
 import { reconcileShotSketchTask } from '../lib/shot-sketches.js';
-import { jsonStringArray, mergeShotSketchReferenceIds } from '../lib/shot-sketch-reference-prefill.js';
 import {
   buildSceneImageCompositionPrompt,
   buildReferenceBindingMessages,
@@ -91,15 +97,48 @@ const COMPOSITION_INCLUDE = {
 } as const;
 
 const ANGLE_LABELS = ['远景', '中景', '近景', '侧面', '正面', '背影', '俯拍', '仰拍', '特写'];
+const ACTIVE_IMAGE_RUN_STATUSES = ['QUEUED', 'RUNNING', 'RETRYING'] as const;
 
 type ReferenceLibrary = Awaited<ReturnType<typeof loadReferenceLibrary>>;
 
-type ShotSketchReferenceAssetDTO = AssetDTO & {
+type ShotSketchReferenceAssetDTO = Omit<Partial<AssetDTO>, 'url'> & {
+  id: string;
+  url: string | null;
   label: string;
   source: 'composition' | 'character' | 'scene' | 'item';
   sourceId: string | null;
   scope: 'shot' | 'compositionTask' | 'locked';
   removable: boolean;
+  missing: boolean;
+  resourceImageId: string | null;
+  resourceStatus: string | null;
+  resourceTaskId: string | null;
+  resourceError: string | null;
+};
+
+type ResourceImageReferenceRow = {
+  id: string;
+  status: string;
+  taskId: string | null;
+  error: string | null;
+  assetId: string | null;
+} | null | undefined;
+
+type ResourceImageReferenceMeta = Pick<
+  ShotSketchReferenceAssetDTO,
+  'resourceImageId' | 'resourceStatus' | 'resourceTaskId' | 'resourceError'
+>;
+
+type ReferenceAssetMeta = Pick<
+  ShotSketchReferenceAssetDTO,
+  'label' | 'source' | 'sourceId' | 'scope' | 'removable'
+> & Partial<Pick<ShotSketchReferenceAssetDTO, 'missing'>> & Partial<ResourceImageReferenceMeta>;
+
+const EMPTY_RESOURCE_META: ResourceImageReferenceMeta = {
+  resourceImageId: null,
+  resourceStatus: null,
+  resourceTaskId: null,
+  resourceError: null,
 };
 
 type ShotSketchHistoryRunDTO = {
@@ -444,6 +483,8 @@ async function createImageRunForTask(
   if (!row.prompt.trim()) {
     throw AppError.badRequest(ErrorCodes.VALIDATION_FAILED, '场景图提示词不能为空');
   }
+  const activeRun = await findActiveCompositionImageRun(row.id);
+  if (activeRun) return row.id;
   const project = await assertOwnedProject(row.projectId, userId);
   const settings = normalizeImageSettings(project, body);
   const referenceAssetIds = await resolveReferenceAssetIds(row.projectId, {
@@ -541,6 +582,8 @@ async function createGridRunForImageRun(
   body: GenerateCompositionGridInput,
 ): Promise<string> {
   const imageRun = await loadOwnedImageRun(imageRunId, userId);
+  const activeRun = await findActiveCompositionGridRun(imageRun.id);
+  if (activeRun) return imageRun.taskId;
   const project = await assertOwnedProject(imageRun.task.projectId, userId);
   const source = imageRun.outputAsset ?? imageRun.taskJob?.assets.find((a) => a.role === 'output')?.asset ?? null;
   if (!source) {
@@ -622,6 +665,49 @@ async function createGridRunForImageRun(
     priority: QueueJobPriority.INTERACTIVE_IMAGE,
   });
   return imageRun.taskId;
+}
+
+async function findActiveCompositionImageRun(taskId: string) {
+  return prisma.compositionImageRun.findFirst({
+    where: {
+      taskId,
+      status: { in: [...ACTIVE_IMAGE_RUN_STATUSES] },
+      taskJob: { status: { in: [...ACTIVE_IMAGE_RUN_STATUSES] } },
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true, taskJobId: true },
+  });
+}
+
+async function findActiveCompositionGridRun(imageRunId: string) {
+  return prisma.compositionGridRun.findFirst({
+    where: {
+      imageRunId,
+      status: { in: [...ACTIVE_IMAGE_RUN_STATUSES] },
+      taskJob: { status: { in: [...ACTIVE_IMAGE_RUN_STATUSES] } },
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true, taskJobId: true, taskId: true },
+  });
+}
+
+async function findActiveShotSketchRun(shotId: string) {
+  return prisma.shotSketchRun.findFirst({
+    where: {
+      shotId,
+      status: { in: [...ACTIVE_IMAGE_RUN_STATUSES] },
+      taskJob: { status: { in: [...ACTIVE_IMAGE_RUN_STATUSES] } },
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { id: true, taskJobId: true, referenceAssetIds: true, params: true },
+  });
+}
+
+function compositionTaskIdFromRunParams(params: unknown): string {
+  if (params && typeof params === 'object' && typeof (params as { compositionTaskId?: unknown }).compositionTaskId === 'string') {
+    return (params as { compositionTaskId: string }).compositionTaskId;
+  }
+  return '';
 }
 
 async function applyGridRunToShots(
@@ -793,7 +879,7 @@ async function createShotSketchTasks(
 
   const workItems = await Promise.all(
     targetShots.map(async (shot) => {
-      const referenceAssetIds = await buildShotSketchReferenceAssetIds(projectId, compositionTask, shot, compositionImageAssetId);
+      const referenceAssetIds = await resolveShotSketchReferenceAssetIds(prisma, projectId, compositionTask, shot, compositionImageAssetId);
       return {
         shotId: shot.id,
         prompt: buildShotSketchPrompt(project, scene, shot, Boolean(compositionImageAssetId)),
@@ -904,17 +990,27 @@ async function createShotSketchTask(
     },
   });
   if (!shot) throw AppError.notFound(ErrorCodes.SHOT_NOT_FOUND, 'shot not found');
-  if (!shouldCreateShotSketch(shot, body.force)) {
-    if (
-      shot.sketchTask?.status === TaskStatus.QUEUED ||
-      shot.sketchTask?.status === TaskStatus.RUNNING ||
-      shot.sketchTask?.status === TaskStatus.RETRYING
-    ) {
+  if (
+    shot.sketchTask?.status === TaskStatus.QUEUED ||
+    shot.sketchTask?.status === TaskStatus.RUNNING ||
+    shot.sketchTask?.status === TaskStatus.RETRYING
+  ) {
+    const activeRun = await findActiveShotSketchRun(shot.id);
+    if (!activeRun) {
       throw AppError.conflict(
         ErrorCodes.CONFLICT,
         'a shot sketch generation task is already in flight for this shot',
       );
     }
+    return {
+      compositionTaskId: compositionTaskIdFromRunParams(activeRun.params),
+      taskId: shot.sketchTask.id,
+      runId: activeRun.id,
+      targetShotId: shot.id,
+      referenceAssetIds: jsonStringArray(activeRun.referenceAssetIds),
+    };
+  }
+  if (!shouldCreateShotSketch(shot, body.force)) {
     throw AppError.badRequest(
       ErrorCodes.VALIDATION_FAILED,
       shot.sketchAssetId ? 'shot already has a sketch; pass force to regenerate' : 'shot prompt is empty',
@@ -928,7 +1024,8 @@ async function createShotSketchTask(
   const compositionTaskId = await ensureCompositionTaskForScene(project, shot.episode, scene, library);
   const compositionTask = await loadCompositionTask(compositionTaskId);
   const compositionImageAssetId = currentCompositionImageAssetId(compositionTask);
-  const referenceAssetIds = await buildShotSketchReferenceAssetIds(
+  const referenceAssetIds = await resolveShotSketchReferenceAssetIds(
+    prisma,
     projectId,
     compositionTask,
     shot,
@@ -1049,12 +1146,27 @@ async function buildShotSketchContext(
   const compositionTaskId = await ensureCompositionTaskForScene(project, reconciledShot.episode, scene, library);
   const compositionTask = await loadCompositionTask(compositionTaskId);
   const compositionImageAssetId = currentCompositionImageAssetId(compositionTask);
-  const referenceAssetIds = await buildShotSketchReferenceAssetIds(
+  const dynamicReferenceAssetIds = await resolveShotSketchReferenceAssetIds(
+    prisma,
     projectId,
     compositionTask,
     reconciledShot,
     compositionImageAssetId,
   );
+  const preparedRun = await prisma.shotSketchRun.findFirst({
+    where: {
+      projectId,
+      shotId: reconciledShot.id,
+      source: 'prepared',
+    },
+    orderBy: { updatedAt: 'desc' },
+    select: { prompt: true, referenceAssetIds: true },
+  });
+  const preparedReferenceAssetIds = jsonStringArray(preparedRun?.referenceAssetIds);
+  const referenceAssetIds = uniqueStrings([
+    ...preparedReferenceAssetIds,
+    ...dynamicReferenceAssetIds,
+  ]).slice(0, 8);
   const referenceAssets = await serializeShotSketchReferenceAssets(
     projectId,
     referenceAssetIds,
@@ -1066,7 +1178,7 @@ async function buildShotSketchContext(
 
   return {
     compositionTaskId,
-    prompt: buildShotSketchPrompt(project, scene, reconciledShot, Boolean(compositionImageAssetId)),
+    prompt: preparedRun?.prompt || buildShotSketchPrompt(project, scene, reconciledShot, Boolean(compositionImageAssetId)),
     model: project.imageModel,
     ratio: project.ratio,
     referenceAssetIds,
@@ -1857,39 +1969,6 @@ function describeSceneImageReferences(
   };
 }
 
-function buildShotSketchPrompt(
-  project: { stylePrompt: string; ratio: string },
-  scene: EpisodeScene,
-  shot: { displayId: number; shotType: string; duration: number; prompt: string },
-  hasCompositionImage: boolean,
-): string {
-  const prompt = [
-    '请生成一张单张电影分镜场景图，用作后续视频生成的参考首帧。',
-    '',
-    '强制要求：',
-    '- 只输出一张完整画面，不要九宫格、拼贴、分屏或 contact sheet。',
-    '- 不要在图片中写字幕、编号、角度标签、水印、logo 或任何说明文字。',
-    '- 画面必须是电影镜头感，而不是海报、设定图、UI 或纯素材展示。',
-    '- 人物、道具和环境需要自然同框；构图、光线、色彩保持统一。',
-    `- 输出比例按 ${project.ratio} 构图。`,
-    hasCompositionImage
-      ? '- 已提供的场景图是空间、角色、服装、光线和画风锚点；请在保持一致的基础上，根据本 Shot 重新构图。'
-      : '',
-    '',
-    `Shot：#${shot.displayId}`,
-    `镜头类型：${shot.shotType === 'continuation' ? '续写镜头' : '全新镜头'}`,
-    `预计时长：${shot.duration} 秒`,
-    `Shot 提示词：\n${truncateText(shot.prompt, 1400)}`,
-    '',
-    `场景标题：${scene.title}`,
-    scene.environment ? `环境：${scene.environment}` : '',
-    scene.characters.length ? `出场人物：${scene.characters.join('、')}` : '',
-    `剧本片段：\n${truncateText(scene.content, 1800)}`,
-    project.stylePrompt ? `项目风格：\n${truncateText(project.stylePrompt, 900)}` : '',
-  ].filter(Boolean).join('\n');
-  return truncateText(prompt, 5000);
-}
-
 function buildGridPrompt(
   project: { stylePrompt: string; ratio: string },
   imageRun: {
@@ -1977,30 +2056,17 @@ async function resolveReferenceAssetIds(
   ]);
   return uniqueAssetIds([
     ...compositionTasks.map(currentCompositionImageAssetId),
-    ...styles.flatMap((row) => [
-      row.character?.identityAssetId ?? row.character?.avatarAssetId ?? null,
-      row.assetId,
-    ]),
+    ...styles.map(characterStyleReferenceAssetId),
     ...scenes.map((row) => row.assetId),
     ...items.map((row) => row.assetId),
   ]).slice(0, 8);
 }
 
-async function buildShotSketchReferenceAssetIds(
-  projectId: string,
-  compositionTask: { characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
-  shot: { compositionTaskIds?: unknown; characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
-  compositionImageAssetId: string | null,
-): Promise<string[]> {
-  const refs = mergeShotSketchReferenceIds(compositionTask, shot);
-  const assetIds = await resolveReferenceAssetIds(projectId, {
-    compositionTaskIds: jsonStringArray(shot.compositionTaskIds),
-    ...refs,
-  });
-  return uniqueStrings([
-    ...(compositionImageAssetId ? [compositionImageAssetId] : []),
-    ...assetIds,
-  ]).slice(0, 8);
+function characterStyleReferenceAssetId(row: {
+  assetId: string | null;
+  character: { identityAssetId: string | null; avatarAssetId: string | null } | null;
+}): string | null {
+  return row.assetId ?? row.character?.identityAssetId ?? row.character?.avatarAssetId ?? null;
 }
 
 async function serializeShotSketchReferenceAssets(
@@ -2010,7 +2076,6 @@ async function serializeShotSketchReferenceAssets(
   shot: { compositionTaskIds?: unknown; characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
   compositionImageAssetId: string | null,
 ): Promise<ShotSketchReferenceAssetDTO[]> {
-  if (referenceAssetIds.length === 0) return [];
   const shotCompositionTaskIds = jsonStringArray(shot.compositionTaskIds);
   const shotStyleIds = jsonStringArray(shot.characterStyleIds);
   const shotSceneIds = jsonStringArray(shot.sceneIds);
@@ -2037,6 +2102,17 @@ async function serializeShotSketchReferenceAssets(
         id: true,
         name: true,
         assetId: true,
+        resourceImages: {
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: 1,
+          select: {
+            id: true,
+            status: true,
+            taskId: true,
+            error: true,
+            assetId: true,
+          },
+        },
         character: {
           select: {
             name: true,
@@ -2056,7 +2132,22 @@ async function serializeShotSketchReferenceAssets(
         },
         projectId,
       },
-      select: { id: true, name: true, assetId: true },
+      select: {
+        id: true,
+        name: true,
+        assetId: true,
+        resourceImages: {
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: 1,
+          select: {
+            id: true,
+            status: true,
+            taskId: true,
+            error: true,
+            assetId: true,
+          },
+        },
+      },
     }),
     prisma.item.findMany({
       where: {
@@ -2068,24 +2159,66 @@ async function serializeShotSketchReferenceAssets(
         },
         projectId,
       },
-      select: { id: true, name: true, assetId: true },
+      select: {
+        id: true,
+        name: true,
+        assetId: true,
+        resourceImages: {
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: 1,
+          select: {
+            id: true,
+            status: true,
+            taskId: true,
+            error: true,
+            assetId: true,
+          },
+        },
+      },
     }),
   ]);
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
   const metaByAssetId = new Map<
     string,
-    Pick<ShotSketchReferenceAssetDTO, 'label' | 'source' | 'sourceId' | 'scope' | 'removable'>
+    ReferenceAssetMeta & { missing: boolean } & ResourceImageReferenceMeta
   >();
+  const placeholders: ShotSketchReferenceAssetDTO[] = [];
+  const resourceMetaBySource = new Map<string, ResourceImageReferenceMeta>();
   const setMeta = (
     assetId: string | null | undefined,
-    meta: Pick<ShotSketchReferenceAssetDTO, 'label' | 'source' | 'sourceId' | 'scope' | 'removable'>,
+    meta: ReferenceAssetMeta,
   ) => {
     if (!assetId) return;
     const existing = metaByAssetId.get(assetId);
     if (existing?.scope === 'locked') return;
     if (!existing || (!existing.removable && meta.removable)) {
-      metaByAssetId.set(assetId, meta);
+      metaByAssetId.set(assetId, {
+        ...EMPTY_RESOURCE_META,
+        ...meta,
+        missing: Boolean(meta.missing),
+      });
     }
+  };
+  const addPlaceholder = (
+    meta: ReferenceAssetMeta,
+  ) => {
+    if (!meta.sourceId) return;
+    const resource = resourceMetaBySource.get(sourceKey(meta.source, meta.sourceId));
+    const id = resource?.resourceImageId ? `resource-${resource.resourceImageId}` : `missing-${meta.source}-${meta.sourceId}`;
+    if (placeholders.some((item) => item.id === id)) return;
+    placeholders.push({
+      id,
+      url: null,
+      contentType: '',
+      sizeBytes: 0,
+      width: null,
+      height: null,
+      durationMs: null,
+      ...meta,
+      missing: true,
+      ...EMPTY_RESOURCE_META,
+      ...resource,
+    });
   };
   if (compositionImageAssetId) {
     setMeta(compositionImageAssetId, {
@@ -2094,56 +2227,76 @@ async function serializeShotSketchReferenceAssets(
       sourceId: null,
       scope: 'locked',
       removable: false,
+      missing: false,
+      ...EMPTY_RESOURCE_META,
     });
   }
   for (const task of selectedCompositionTasks) {
     const assetId = currentCompositionImageAssetId(task);
-    setMeta(assetId, {
+    const meta = {
       label: `第${task.sceneIndex + 1}场 · ${task.title}`,
       source: 'composition',
       sourceId: task.id,
       scope: 'shot',
       removable: true,
-    });
+    } as const;
+    if (assetId) setMeta(assetId, { ...meta, missing: false });
+    else addPlaceholder(meta);
   }
   for (const style of styles) {
     const label = `${style.character.name}${style.name ? ` - ${style.name}` : ''}`;
     const selectedByShot = shotStyleIds.includes(style.id);
-    for (const assetId of uniqueAssetIds([
-      style.character.identityAssetId ?? style.character.avatarAssetId ?? null,
-      style.assetId,
-    ])) {
+    const assetIds = uniqueAssetIds([characterStyleReferenceAssetId(style)]);
+    const resource = resourceImageReferenceMeta(style.resourceImages[0]);
+    resourceMetaBySource.set(sourceKey('character', style.id), resource);
+    const meta = {
+      label,
+      source: 'character',
+      sourceId: style.id,
+      scope: selectedByShot ? 'shot' : 'compositionTask',
+      removable: true,
+      ...resource,
+    } as const;
+    if (assetIds.length === 0) addPlaceholder(meta);
+    for (const assetId of assetIds) {
       setMeta(assetId, {
-        label,
-        source: 'character',
-        sourceId: style.id,
-        scope: selectedByShot ? 'shot' : 'compositionTask',
-        removable: true,
+        ...meta,
+        missing: false,
       });
     }
   }
   for (const scene of sceneRows) {
     const selectedByShot = shotSceneIds.includes(scene.id);
-    setMeta(scene.assetId, {
+    const resource = resourceImageReferenceMeta(scene.resourceImages[0]);
+    resourceMetaBySource.set(sourceKey('scene', scene.id), resource);
+    const meta = {
       label: scene.name,
       source: 'scene',
       sourceId: scene.id,
       scope: selectedByShot ? 'shot' : 'compositionTask',
       removable: true,
-    });
+      ...resource,
+    } as const;
+    if (scene.assetId) setMeta(scene.assetId, { ...meta, missing: false });
+    else addPlaceholder(meta);
   }
   for (const item of itemRows) {
     const selectedByShot = shotItemIds.includes(item.id);
-    setMeta(item.assetId, {
+    const resource = resourceImageReferenceMeta(item.resourceImages[0]);
+    resourceMetaBySource.set(sourceKey('item', item.id), resource);
+    const meta = {
       label: item.name,
       source: 'item',
       sourceId: item.id,
       scope: selectedByShot ? 'shot' : 'compositionTask',
       removable: true,
-    });
+      ...resource,
+    } as const;
+    if (item.assetId) setMeta(item.assetId, { ...meta, missing: false });
+    else addPlaceholder(meta);
   }
 
-  const serialized = await Promise.all(
+  const serialized: Array<ShotSketchReferenceAssetDTO | null> = await Promise.all(
     referenceAssetIds.map(async (assetId) => {
       const asset = assetById.get(assetId);
       if (!asset) return null;
@@ -2154,26 +2307,30 @@ async function serializeShotSketchReferenceAssets(
         sourceId: null,
         scope: 'locked' as const,
         removable: false,
+        missing: false,
+        ...EMPTY_RESOURCE_META,
       };
       return { ...dto, ...meta };
     }),
   );
-  return serialized.filter((item): item is ShotSketchReferenceAssetDTO => Boolean(item));
+  return [
+    ...serialized.filter((item): item is ShotSketchReferenceAssetDTO => Boolean(item)),
+    ...placeholders,
+  ];
 }
 
-function currentCompositionImageAssetId(row: {
-  imageAssetId: string | null;
-  currentImageRun: {
-    outputAssetId: string | null;
-    taskJob: { assets: Array<{ role: string; assetId: string }> } | null;
-  } | null;
-}): string | null {
-  return (
-    row.currentImageRun?.outputAssetId ??
-    row.currentImageRun?.taskJob?.assets.find((asset) => asset.role === 'output')?.assetId ??
-    row.imageAssetId ??
-    null
-  );
+function sourceKey(source: ShotSketchReferenceAssetDTO['source'], sourceId: string): string {
+  return `${source}:${sourceId}`;
+}
+
+function resourceImageReferenceMeta(row: ResourceImageReferenceRow): ResourceImageReferenceMeta {
+  if (!row) return EMPTY_RESOURCE_META;
+  return {
+    resourceImageId: row.id,
+    resourceStatus: row.status,
+    resourceTaskId: row.taskId,
+    resourceError: row.error,
+  };
 }
 
 function shouldCreateShotSketch(
@@ -2185,21 +2342,18 @@ function shouldCreateShotSketch(
   force: boolean,
 ): boolean {
   if (!shot.prompt.trim()) return false;
+  if (
+    shot.sketchTask?.status === TaskStatus.QUEUED ||
+    shot.sketchTask?.status === TaskStatus.RUNNING ||
+    shot.sketchTask?.status === TaskStatus.RETRYING
+  ) return false;
   if (force) return true;
   if (shot.sketchAssetId) return false;
-  return (
-    shot.sketchTask?.status !== TaskStatus.QUEUED &&
-    shot.sketchTask?.status !== TaskStatus.RUNNING &&
-    shot.sketchTask?.status !== TaskStatus.RETRYING
-  );
+  return true;
 }
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
-}
-
-function truncateText(value: string, maxLength: number): string {
-  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
 
 async function assertAllCharacterStylesOwned(projectId: string, ids: string[], userId: string) {

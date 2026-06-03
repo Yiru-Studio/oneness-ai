@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { FloatingKnowledgeButton } from '@/components/layout/FloatingKnowledgeButton';
 import { ParticleBackground } from '@/components/home/ParticleBackground';
@@ -18,7 +19,7 @@ export default function HomePage() {
 
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-8 py-5 z-10">
         <div className="flex items-center gap-2">
-          <img src="/yiru_logo_bw.png" alt="一如创影" width={28} height={28} className="object-contain" />
+          <Image src="/yiru_logo_bw.png" alt="一如创影" width={28} height={28} className="object-contain" priority />
           <span className="text-lg font-semibold">一如创影</span>
         </div>
         <button

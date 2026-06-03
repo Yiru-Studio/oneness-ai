@@ -1,4 +1,4 @@
-const BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
+export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
 
 export class ApiError extends Error {
   readonly code: string;
@@ -21,7 +21,7 @@ type FetchOpts = {
   headers?: Record<string, string>;
 };
 
-function readToken(): string | null {
+export function readAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
   return window.localStorage.getItem('auth_token');
 }
@@ -38,7 +38,7 @@ function buildQuery(q: FetchOpts['query']): string {
 }
 
 export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
-  const token = readToken();
+  const token = readAuthToken();
   const headers: Record<string, string> = { ...opts.headers };
   if (token) headers['authorization'] = `Bearer ${token}`;
 
@@ -50,7 +50,7 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
     body = JSON.stringify(opts.body);
   }
 
-  const url = `${BASE_URL}${path}${buildQuery(opts.query)}`;
+  const url = buildApiUrl(path, opts.query);
   const res = await fetch(url, {
     method: opts.method ?? 'GET',
     headers,
@@ -83,6 +83,10 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
   }
 
   return parsed as T;
+}
+
+export function buildApiUrl(path: string, query?: FetchOpts['query']): string {
+  return `${API_BASE_URL}${path}${buildQuery(query)}`;
 }
 
 export function setAuthToken(token: string | null) {
