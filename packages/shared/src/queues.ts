@@ -24,5 +24,12 @@ export const WorkerConcurrency = {
   [QueueNames.TEXT]:  4,
 } as const;
 
-/** BullMQ job data — minimal. Workers re-fetch Task row from DB. */
-export type TaskJobData = { taskId: string };
+/**
+ * BullMQ job data. Workers still re-fetch Task rows from DB; retry metadata is
+ * only a freshness guard so stale delayed jobs cannot revive older retries.
+ */
+export type TaskJobData = {
+  taskId: string;
+  retryCount?: number;
+  nextRetryAt?: string;
+};

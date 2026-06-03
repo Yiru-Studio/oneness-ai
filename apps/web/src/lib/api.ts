@@ -277,9 +277,13 @@ type ResourceTargetInput = {
 export type TaskDTO = {
   id: string;
   type: 'IMAGE' | 'VIDEO' | 'TEXT_ANALYZE';
-  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+  status: 'QUEUED' | 'RUNNING' | 'RETRYING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
   output?: Record<string, unknown> | null;
   error?: string | null;
+  retryCount?: number;
+  nextRetryAt?: string | null;
+  retryUntil?: string | null;
+  lastRetryError?: string | null;
   outputAssets?: Array<{ id: string; url: string; contentType: string; sizeBytes: number; width: number | null; height: number | null }>;
 };
 
@@ -330,7 +334,7 @@ export async function createResourceImage(data: {
   kind: ResourceImageKind;
   entityId: string;
   source?: 'generated' | 'upload' | 'legacy';
-  status?: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+  status?: 'QUEUED' | 'RUNNING' | 'RETRYING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
   prompt?: string;
   model?: string | null;
   ratio?: string | null;
@@ -348,7 +352,7 @@ export async function createResourceImage(data: {
 export async function updateResourceImage(
   id: string,
   data: Partial<{
-    status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+    status: 'QUEUED' | 'RUNNING' | 'RETRYING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
     prompt: string;
     model: string | null;
     ratio: string | null;
@@ -482,7 +486,7 @@ export async function generateShotVideo(shotId: string): Promise<Shot> {
 export type TaskSummary = {
   id: string;
   type: 'IMAGE' | 'VIDEO' | 'TEXT_ANALYZE';
-  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+  status: 'QUEUED' | 'RUNNING' | 'RETRYING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
   input?: Record<string, unknown>;
   output?: Record<string, unknown> | null;
   error?: string | null;

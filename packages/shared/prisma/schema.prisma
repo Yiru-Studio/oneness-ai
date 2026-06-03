@@ -27,6 +27,7 @@ enum TaskType {
 enum TaskStatus {
   QUEUED
   RUNNING
+  RETRYING
   SUCCEEDED
   FAILED
   CANCELLED
@@ -337,6 +338,12 @@ model Task {
   output      Json?
   error       String?
   costCredits Int        @default(0)
+  retryCount  Int        @default(0)
+  firstRetryAt DateTime?
+  lastRetryAt DateTime?
+  nextRetryAt DateTime?
+  retryUntil  DateTime?
+  lastRetryError String? @db.Text
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   startedAt   DateTime?
@@ -356,6 +363,7 @@ model Task {
 
   @@index([ownerId, status, createdAt])
   @@index([projectId, type])
+  @@index([status, nextRetryAt])
 }
 
 model Asset {

@@ -27,10 +27,10 @@ export type ShotDTO = {
   video: AssetDTO | null;
   lastFrame: AssetDTO | null;
   sketchTaskId: string | null;
-  sketchTaskStatus: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | null;
+  sketchTaskStatus: 'QUEUED' | 'RUNNING' | 'RETRYING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | null;
   sketchTaskError: string | null;
   videoTaskId: string | null;
-  videoTaskStatus: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | null;
+  videoTaskStatus: 'QUEUED' | 'RUNNING' | 'RETRYING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | null;
   videoTaskError: string | null;
   characterStyleIds: string[];
   sceneIds: string[];

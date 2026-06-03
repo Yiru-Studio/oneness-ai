@@ -83,7 +83,7 @@ export interface Scene {
 }
 
 export type ResourceImageKind = 'character-avatar' | 'character-style' | 'scene' | 'item';
-export type ResourceImageStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+export type ResourceImageStatus = 'QUEUED' | 'RUNNING' | 'RETRYING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
 
 export interface ResourceImage {
   id: string;
@@ -134,7 +134,7 @@ export interface ShotAssetRef {
 
 export type ShotType = 'new' | 'continuation';
 export type ShotCreateType = 'manual' | 'assist';
-export type ShotVideoTaskStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+export type ShotVideoTaskStatus = 'QUEUED' | 'RUNNING' | 'RETRYING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
 
 export interface Shot {
   id: string;

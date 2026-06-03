@@ -91,7 +91,11 @@ export async function reconcileShotSketchTask(db: Db, shotId: string): Promise<v
       data.status = task.status;
       data.error = task.error;
       if (outputAssetId) data.outputAsset = { connect: { id: outputAssetId } };
-    } else if (task.status === TaskStatus.RUNNING || task.status === TaskStatus.QUEUED) {
+    } else if (
+      task.status === TaskStatus.RUNNING ||
+      task.status === TaskStatus.QUEUED ||
+      task.status === TaskStatus.RETRYING
+    ) {
       data.status = task.status;
       data.error = task.error;
     }

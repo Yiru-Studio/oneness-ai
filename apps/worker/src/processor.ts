@@ -13,12 +13,19 @@ import { selectProvider } from './providers/registry.js';
 import { distillForThreeView } from './lib/three-view-distill.js';
 import { config } from './config.js';
 import { installImageTaskTimeout } from './lib/task-timeout.js';
+import {
+  decideImageRetry,
+  isRunnableTaskStatus,
+} from './lib/image-retry-policy.js';
+import { enqueueRetryTaskJob } from './lib/retry-queue.js';
 
 const CANCEL_POLL_MS = 1000;
 
 type ProcessTaskOptions = {
   attemptsMade?: number;
   attempts?: number;
+  retryCount?: number;
+  nextRetryAt?: string;
 };
 
 export async function processTask(taskId: string, opts: ProcessTaskOptions = {}) {
@@ -37,20 +44,37 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
       status: true,
       input: true,
       costCredits: true,
+      retryCount: true,
+      firstRetryAt: true,
+      nextRetryAt: true,
+      retryUntil: true,
     },
   });
   if (!task) {
     taskLog.warn('task row not found, skipping');
     return;
   }
-  if (task.status !== TaskStatus.QUEUED) {
+  if (!isRunnableTaskStatus(task.status)) {
     taskLog.info({ status: task.status }, 'task not in QUEUED state, skipping');
+    return;
+  }
+  if (!isFreshRetryJob(task, opts, new Date())) {
+    taskLog.info(
+      {
+        status: task.status,
+        jobRetryCount: opts.retryCount ?? null,
+        taskRetryCount: task.retryCount,
+        jobNextRetryAt: opts.nextRetryAt ?? null,
+        taskNextRetryAt: task.nextRetryAt?.toISOString() ?? null,
+      },
+      'stale retry job skipped',
+    );
     return;
   }
 
   // 2. Claim — set RUNNING. If concurrent claim raced, bail.
   const claim = await prisma.task.updateMany({
-    where: { id: taskId, status: TaskStatus.QUEUED },
+    where: { id: taskId, status: { in: [TaskStatus.QUEUED, TaskStatus.RETRYING] } },
     data: { status: TaskStatus.RUNNING, startedAt: new Date() },
   });
   if (claim.count === 0) {
@@ -58,11 +82,11 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
     return;
   }
   await prisma.resourceImage.updateMany({
-    where: { taskId, status: TaskStatus.QUEUED },
+    where: { taskId, status: { in: [TaskStatus.QUEUED, TaskStatus.RETRYING] } },
     data: { status: TaskStatus.RUNNING },
   });
   await prisma.shotSketchRun.updateMany({
-    where: { taskJobId: taskId, status: TaskStatus.QUEUED },
+    where: { taskJobId: taskId, status: { in: [TaskStatus.QUEUED, TaskStatus.RETRYING] } },
     data: { status: TaskStatus.RUNNING },
   });
   metrics.incr('task.start', { type: task.type, provider: task.provider });
@@ -187,42 +211,107 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
   }
 
   if (providerError) {
-    if (shouldRetryProviderError(providerError, opts)) {
+    const retry = decideImageRetry({
+      error: providerError,
+      taskType: task.type,
+      provider: task.provider,
+      status: task.status,
+      retryCount: task.retryCount,
+      firstRetryAt: task.firstRetryAt,
+      retryUntil: task.retryUntil,
+      retryWindowMs: config.OPENAI_IMAGE_RETRY_WINDOW_MS,
+      baseDelayMs: config.OPENAI_IMAGE_RETRY_BASE_DELAY_MS,
+      maxDelayMs: config.OPENAI_IMAGE_RETRY_MAX_DELAY_MS,
+    });
+
+    if (retry.retryable) {
       await prisma.$transaction([
         prisma.task.update({
           where: { id: taskId },
           data: {
-            status: TaskStatus.QUEUED,
+            status: TaskStatus.RETRYING,
             error: providerError.message,
+            retryCount: { increment: 1 },
+            firstRetryAt: retry.firstRetryAt,
+            lastRetryAt: retry.now,
+            nextRetryAt: retry.nextRetryAt,
+            retryUntil: retry.retryUntil,
+            lastRetryError: providerError.message,
             startedAt: null,
           },
         }),
         prisma.resourceImage.updateMany({
           where: { taskId },
           data: {
-            status: TaskStatus.QUEUED,
+            status: TaskStatus.RETRYING,
             error: providerError.message,
           },
         }),
         prisma.shotSketchRun.updateMany({
           where: { taskJobId: taskId },
           data: {
-            status: TaskStatus.QUEUED,
+            status: TaskStatus.RETRYING,
             error: providerError.message,
           },
         }),
       ]);
+      await enqueueRetryTaskJob({
+        taskId,
+        delayMs: retry.delayMs,
+        retryCount: task.retryCount + 1,
+        nextRetryAt: retry.nextRetryAt,
+      });
       metrics.incr('task.retry', { type: task.type, provider: task.provider });
       taskLog.warn(
         {
           err: providerError.message,
-          attemptsMade: opts.attemptsMade ?? 0,
-          attempts: opts.attempts ?? 1,
+          retryCount: task.retryCount + 1,
+          nextRetryAt: retry.nextRetryAt.toISOString(),
+          retryUntil: retry.retryUntil.toISOString(),
+          delayMs: retry.delayMs,
           durationMs: Date.now() - startedAtMs,
         },
-        'task failed transiently, queued for retry',
+        'task failed transiently, scheduled for retry',
       );
-      throw providerError;
+      return;
+    }
+
+    const exhaustedRetryWindow =
+      retry.reason === 'retry_window_exhausted' && task.type === 'IMAGE';
+    if (exhaustedRetryWindow) {
+      await prisma.$transaction([
+        prisma.task.update({
+          where: { id: taskId },
+          data: {
+            status: TaskStatus.RETRYING,
+            error: providerError.message,
+            lastRetryAt: new Date(),
+            nextRetryAt: null,
+            lastRetryError: providerError.message,
+            startedAt: null,
+          },
+        }),
+        prisma.resourceImage.updateMany({
+          where: { taskId },
+          data: {
+            status: TaskStatus.RETRYING,
+            error: providerError.message,
+          },
+        }),
+        prisma.shotSketchRun.updateMany({
+          where: { taskJobId: taskId },
+          data: {
+            status: TaskStatus.RETRYING,
+            error: providerError.message,
+          },
+        }),
+      ]);
+      metrics.incr('task.retry_exhausted', { type: task.type, provider: task.provider });
+      taskLog.warn(
+        { err: providerError.message, durationMs: Date.now() - startedAtMs },
+        'image task retry window exhausted, waiting for manual recovery',
+      );
+      return;
     }
 
     await prisma.$transaction([
@@ -282,6 +371,28 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
     },
     'task succeeded',
   );
+}
+
+function isFreshRetryJob(
+  task: {
+    status: TaskStatus;
+    retryCount: number;
+    nextRetryAt: Date | null;
+    retryUntil: Date | null;
+  },
+  opts: ProcessTaskOptions,
+  now: Date,
+): boolean {
+  if (task.status !== TaskStatus.RETRYING) return true;
+  if (opts.retryCount === undefined && opts.nextRetryAt === undefined) return true;
+  if (opts.retryCount !== task.retryCount) return false;
+  if (!opts.nextRetryAt || !task.nextRetryAt) return false;
+  const jobNextRetryAt = Date.parse(opts.nextRetryAt);
+  if (!Number.isFinite(jobNextRetryAt)) return false;
+  if (jobNextRetryAt !== task.nextRetryAt.getTime()) return false;
+  if (task.nextRetryAt.getTime() > now.getTime()) return false;
+  if (task.retryUntil && now.getTime() >= task.retryUntil.getTime()) return false;
+  return true;
 }
 
 function stripInternalImageInput(input: unknown): unknown {
@@ -554,6 +665,13 @@ async function persistSuccess(
             ? Prisma.JsonNull
             : (result.outputJson as Prisma.InputJsonValue),
         costCredits: actualCost ?? reservedCost,
+        error: null,
+        retryCount: 0,
+        firstRetryAt: null,
+        lastRetryAt: null,
+        nextRetryAt: null,
+        retryUntil: null,
+        lastRetryError: null,
         completedAt: new Date(),
       },
     });

@@ -48,6 +48,8 @@ function startWorker(name: QueueName): Worker<TaskJobData> {
         await processTask(job.data.taskId, {
           attemptsMade: job.attemptsMade,
           attempts,
+          retryCount: job.data.retryCount,
+          nextRetryAt: job.data.nextRetryAt,
         });
         logger.info(
           {

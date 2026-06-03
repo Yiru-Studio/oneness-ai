@@ -8,6 +8,7 @@ import { updateCharacterStyle } from '@/lib/api';
 import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 import { useGeneration } from '@/contexts/GenerationContext';
 import { getGenerationErrorDisplay } from '@/lib/generation-error';
+import { isTaskPending, taskPendingLabel } from '@/lib/task-status';
 
 type PickerTab = 'composition' | 'characters' | 'scenes' | 'items';
 
@@ -46,13 +47,11 @@ function characterStylePickerLabel(styleName: string, characterName: string, ind
 }
 
 function isResourceImagePending(status: ResourceImageStatus | null | undefined): boolean {
-  return status === 'QUEUED' || status === 'RUNNING';
+  return isTaskPending(status);
 }
 
 function resourceStatusLabel(status: ResourceImageStatus | null | undefined): string {
-  if (status === 'QUEUED') return '排队中';
-  if (status === 'RUNNING') return '生成中';
-  return '生成中';
+  return taskPendingLabel(status) ?? '生成中';
 }
 
 interface Props {

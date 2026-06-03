@@ -14,6 +14,7 @@ import {
   getOpenAIClient,
   normalizeOpenAIError,
 } from '../lib/openai-client.js';
+import { AsyncRateLimiter } from '../lib/openai-image-limiter.js';
 
 type GptImageSize = '1024x1024' | '1536x1024' | '1024x1536' | 'auto';
 
@@ -45,6 +46,11 @@ function extFromContentType(ct: string): string {
 function openAIImageModelName(model: string): string {
   return model.startsWith('openai/') ? model.slice('openai/'.length) : model;
 }
+
+const openAIImageLimiter = new AsyncRateLimiter(
+  config.OPENAI_IMAGE_MAX_CONCURRENCY,
+  config.OPENAI_IMAGE_MIN_INTERVAL_MS,
+);
 
 async function readAssetBytes(
   prisma: PrismaClient,
@@ -101,20 +107,22 @@ export const openaiImageProvider: ImageProvider = {
       input.referenceAssetIds.length > 0;
 
     try {
-      const data = hasRefs
-        ? await callEdit(client, ctx, {
-            model: providerModel,
-            prompt: input.prompt,
-            n,
-            size,
-            referenceAssetIds: input.referenceAssetIds!,
-          })
-        : await callGenerate(client, ctx, {
-            model: providerModel,
-            prompt: input.prompt,
-            n,
-            size,
-          });
+      const data = await openAIImageLimiter.schedule(() =>
+        hasRefs
+          ? callEdit(client, ctx, {
+              model: providerModel,
+              prompt: input.prompt,
+              n,
+              size,
+              referenceAssetIds: input.referenceAssetIds!,
+            })
+          : callGenerate(client, ctx, {
+              model: providerModel,
+              prompt: input.prompt,
+              n,
+              size,
+            }),
+      );
 
       const items = data.images ?? [];
       if (items.length === 0) throw new Error('openai returned no images');

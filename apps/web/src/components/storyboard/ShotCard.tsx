@@ -6,6 +6,7 @@ import { Shot, Character, Scene, Item, CompositionTask, Project } from '@/types'
 import { ImagePreview } from '@/components/ImagePreview';
 import { ReferencePickerDialog } from './ReferencePickerDialog';
 import { ShotSketchDrawer } from './ShotSketchDrawer';
+import { isTaskPending } from '@/lib/task-status';
 
 // Models we actually have registered in the worker registry. Adding more is
 // a backend change — DO NOT add cosmetic-only options here.
@@ -86,10 +87,8 @@ export function ShotCard({
       ? promptDraft.value
       : shot.prompt;
 
-  const isGenerating =
-    shot.videoTaskStatus === 'QUEUED' || shot.videoTaskStatus === 'RUNNING';
-  const isSketchGenerating =
-    shot.sketchTaskStatus === 'QUEUED' || shot.sketchTaskStatus === 'RUNNING';
+  const isGenerating = isTaskPending(shot.videoTaskStatus);
+  const isSketchGenerating = isTaskPending(shot.sketchTaskStatus);
   const sketchFailed = shot.sketchTaskStatus === 'FAILED' && !shot.sketch;
   const promptReady = prompt.trim().length > 0;
 

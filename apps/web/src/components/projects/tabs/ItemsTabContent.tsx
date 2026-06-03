@@ -13,6 +13,7 @@ import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
 import { useGeneration } from '@/contexts/GenerationContext';
 import { getGenerationErrorDisplay } from '@/lib/generation-error';
+import { isTaskPending, taskPendingLabel } from '@/lib/task-status';
 
 interface Props {
   items: Item[];
@@ -27,20 +28,17 @@ function itemTaskState(
   inSessionError: string | null,
 ): { pending: boolean; failed: boolean; error: string | null; label: string | null; title: string | undefined } {
   const row = item.itemResourceImage;
-  const queued = row?.status === 'QUEUED';
-  const running = row?.status === 'RUNNING';
-  const pending = inSessionGenerating || queued || running;
+  const pending = inSessionGenerating || isTaskPending(row?.status);
   const persistedError = row?.status === 'FAILED' ? row.error || '道具图生成失败' : null;
   const error = inSessionError || persistedError;
   const errorDisplay = getGenerationErrorDisplay(error);
   const failed = !pending && Boolean(error);
-  const label = queued
-    ? '排队中'
-    : running || inSessionGenerating
+  const label = taskPendingLabel(row?.status) ??
+    (inSessionGenerating
       ? '生成中'
       : failed
         ? errorDisplay?.shortLabel || '生成失败'
-        : null;
+        : null);
   const title = label ? `${item.name}：${failed && errorDisplay ? `${label}，${errorDisplay.message}` : label}` : undefined;
   return { pending, failed, error, label, title };
 }
@@ -103,8 +101,7 @@ export function ItemsTabContent({ items, project, scriptContent, onChange }: Pro
   useEffect(() => {
     const hasPendingItems = items.some((item) =>
       isGenerating('item', item.id) ||
-      item.itemResourceImage?.status === 'QUEUED' ||
-      item.itemResourceImage?.status === 'RUNNING',
+      isTaskPending(item.itemResourceImage?.status),
     );
     if (!hasPendingItems) return;
 

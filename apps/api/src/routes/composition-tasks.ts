@@ -900,7 +900,11 @@ async function createShotSketchTask(
   });
   if (!shot) throw AppError.notFound(ErrorCodes.SHOT_NOT_FOUND, 'shot not found');
   if (!shouldCreateShotSketch(shot, body.force)) {
-    if (shot.sketchTask?.status === TaskStatus.QUEUED || shot.sketchTask?.status === TaskStatus.RUNNING) {
+    if (
+      shot.sketchTask?.status === TaskStatus.QUEUED ||
+      shot.sketchTask?.status === TaskStatus.RUNNING ||
+      shot.sketchTask?.status === TaskStatus.RETRYING
+    ) {
       throw AppError.conflict(
         ErrorCodes.CONFLICT,
         'a shot sketch generation task is already in flight for this shot',
@@ -1173,7 +1177,7 @@ async function findActiveCompositionPlanningTask(
       ownerId: userId,
       projectId,
       type: TaskType.TEXT_ANALYZE,
-      status: { in: [TaskStatus.QUEUED, TaskStatus.RUNNING] },
+      status: { in: [TaskStatus.QUEUED, TaskStatus.RUNNING, TaskStatus.RETRYING] },
       input: {
         path: ['analysisType'],
         equals: 'composition_scene_planning',
@@ -1362,7 +1366,11 @@ async function refreshCompositionGridRun(id: string) {
   if (run.taskJob.status === TaskStatus.FAILED || run.taskJob.status === TaskStatus.CANCELLED) {
     data.status = run.taskJob.status;
     data.error = run.taskJob.error;
-  } else if (run.taskJob.status === TaskStatus.RUNNING || run.taskJob.status === TaskStatus.QUEUED) {
+  } else if (
+    run.taskJob.status === TaskStatus.RUNNING ||
+    run.taskJob.status === TaskStatus.QUEUED ||
+    run.taskJob.status === TaskStatus.RETRYING
+  ) {
     data.status = run.taskJob.status;
   }
   if (Object.keys(data).length > 0) {
@@ -1461,7 +1469,11 @@ async function refreshCompositionImageRun(id: string) {
   } else if (run.taskJob.status === TaskStatus.FAILED || run.taskJob.status === TaskStatus.CANCELLED) {
     data.status = run.taskJob.status;
     data.error = run.taskJob.error;
-  } else if (run.taskJob.status === TaskStatus.RUNNING || run.taskJob.status === TaskStatus.QUEUED) {
+  } else if (
+    run.taskJob.status === TaskStatus.RUNNING ||
+    run.taskJob.status === TaskStatus.QUEUED ||
+    run.taskJob.status === TaskStatus.RETRYING
+  ) {
     data.status = run.taskJob.status;
   }
   if (Object.keys(data).length > 0) {
@@ -1501,7 +1513,7 @@ async function syncTaskCurrentStatus(taskId: string) {
   } else if (gridStatus === TaskStatus.FAILED || gridStatus === TaskStatus.CANCELLED) {
     status = 'GRID_FAILED';
     error = row.currentGridRun?.error ?? row.currentGridRun?.taskJob?.error ?? null;
-  } else if (gridStatus === TaskStatus.RUNNING) {
+  } else if (gridStatus === TaskStatus.RUNNING || gridStatus === TaskStatus.RETRYING) {
     status = 'GRID_RUNNING';
   } else if (gridStatus === TaskStatus.QUEUED) {
     status = 'GRID_QUEUED';
@@ -2170,7 +2182,11 @@ function shouldCreateShotSketch(
   if (!shot.prompt.trim()) return false;
   if (force) return true;
   if (shot.sketchAssetId) return false;
-  return shot.sketchTask?.status !== TaskStatus.QUEUED && shot.sketchTask?.status !== TaskStatus.RUNNING;
+  return (
+    shot.sketchTask?.status !== TaskStatus.QUEUED &&
+    shot.sketchTask?.status !== TaskStatus.RUNNING &&
+    shot.sketchTask?.status !== TaskStatus.RETRYING
+  );
 }
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {

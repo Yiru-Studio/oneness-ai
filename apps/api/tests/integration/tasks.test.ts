@@ -261,6 +261,7 @@ describe('tasks lifecycle', () => {
       },
     });
 
+    process.env.STUB_FAIL_RATE = '0';
     try {
       const res = await app.request('/api/tasks', {
         method: 'POST',
@@ -293,7 +294,8 @@ describe('tasks lifecycle', () => {
       expect(input.identityReferenceAssetId).toBe(identityAsset.id);
       expect(input.referenceAssetIds).toEqual([identityAsset.id, extraAsset.id]);
 
-      await pollUntilTerminal(created.id);
+      const final = await pollUntilTerminal(created.id);
+      expect(final).toBe(TaskStatus.SUCCEEDED);
       const completed = await prisma.task.findUnique({
         where: { id: created.id },
         select: { output: true },
@@ -307,6 +309,7 @@ describe('tasks lifecycle', () => {
       expect(output.identityReferenceAssetId).toBe(identityAsset.id);
       expect(output.referenceAssetIds).toEqual([identityAsset.id, extraAsset.id]);
     } finally {
+      process.env.STUB_FAIL_RATE = '0';
       await prisma.character.deleteMany({ where: { id: character.id } });
       await prisma.asset.deleteMany({ where: { id: { in: [identityAsset.id, extraAsset.id] } } });
     }
@@ -423,8 +426,79 @@ describe('tasks lifecycle', () => {
     }
   });
 
-  it('transient IMAGE failure is put back into QUEUED for BullMQ retry', async () => {
+  it('transient OpenAI IMAGE error policy marks the failure retryable', async () => {
     const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.findFirst({ where: { ownerId: user.id } });
+    if (!project) throw new Error('Seed project missing.');
+    const scene = await prisma.scene.create({
+      data: {
+        projectId: project.id,
+        name: 'Retry 状态同步测试场景',
+        description: '',
+        prompt: '',
+      },
+    });
+    const task = await prisma.task.create({
+      data: {
+        ownerId: user.id,
+        projectId: project.id,
+        type: TaskType.IMAGE,
+        provider: 'stub',
+        status: TaskStatus.QUEUED,
+        costCredits: 0,
+        input: { prompt: '[test-openai-429] transient', ratio: '1:1', model: 'stub', n: 1 },
+      },
+    });
+    await prisma.resourceImage.create({
+      data: {
+        ownerId: user.id,
+        projectId: project.id,
+        kind: 'scene',
+        source: 'generated',
+        status: TaskStatus.QUEUED,
+        prompt: '[test-openai-429] transient',
+        taskId: task.id,
+        sceneId: scene.id,
+      },
+    });
+
+    try {
+      await processTask(task.id, { attemptsMade: 0, attempts: 1 });
+      const fresh = await prisma.task.findUnique({
+        where: { id: task.id },
+        select: {
+          status: true,
+          error: true,
+          completedAt: true,
+          retryCount: true,
+          nextRetryAt: true,
+          retryUntil: true,
+        },
+      });
+      expect(fresh?.status).toBe(TaskStatus.RETRYING);
+      expect(fresh?.error).toContain('http_429');
+      expect(fresh?.completedAt).toBeNull();
+      expect(fresh?.retryCount).toBe(1);
+      expect(fresh?.nextRetryAt).toBeInstanceOf(Date);
+      expect(fresh?.retryUntil).toBeInstanceOf(Date);
+      const image = await prisma.resourceImage.findFirst({
+        where: { taskId: task.id },
+        select: { status: true, error: true },
+      });
+      expect(image?.status).toBe(TaskStatus.RETRYING);
+      expect(image?.error).toContain('http_429');
+    } finally {
+      await prisma.task.deleteMany({ where: { id: task.id } });
+      await prisma.scene.deleteMany({ where: { id: scene.id } });
+    }
+  });
+
+  it('OpenAI timeout marks IMAGE task retrying without extra credit charge', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true, credits: true },
+    });
     if (!user) throw new Error('Seed user missing.');
     const task = await prisma.task.create({
       data: {
@@ -432,25 +506,206 @@ describe('tasks lifecycle', () => {
         type: TaskType.IMAGE,
         provider: 'stub',
         status: TaskStatus.QUEUED,
-        costCredits: 0,
-        input: { prompt: 'transient', ratio: '1:1', model: 'stub', n: 1 },
+        costCredits: 1,
+        input: { prompt: '[test-openai-timeout]', ratio: '1:1', model: 'stub', n: 1 },
       },
     });
-
-    process.env.STUB_FAIL_RATE = '1';
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { credits: { decrement: task.costCredits } },
+    });
     try {
-      await expect(
-        processTask(task.id, { attemptsMade: 0, attempts: 3 }),
-      ).rejects.toThrow('stub-image');
+      await processTask(task.id);
       const fresh = await prisma.task.findUnique({
         where: { id: task.id },
-        select: { status: true, error: true, completedAt: true },
+        select: { status: true, error: true, retryCount: true },
       });
-      expect(fresh?.status).toBe(TaskStatus.QUEUED);
-      expect(fresh?.error).toContain('stub-image');
-      expect(fresh?.completedAt).toBeNull();
+      expect(fresh?.status).toBe(TaskStatus.RETRYING);
+      expect(fresh?.error).toContain('timeout');
+      expect(fresh?.retryCount).toBe(1);
+      const after = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { credits: true },
+      });
+      expect(after?.credits).toBe(user.credits - task.costCredits);
     } finally {
-      process.env.STUB_FAIL_RATE = '0';
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { credits: user.credits },
+      });
+      await prisma.task.deleteMany({ where: { id: task.id } });
+    }
+  });
+
+  it('terminal OpenAI IMAGE error fails and refunds credits', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true, credits: true },
+    });
+    if (!user) throw new Error('Seed user missing.');
+    const task = await prisma.task.create({
+      data: {
+        ownerId: user.id,
+        type: TaskType.IMAGE,
+        provider: 'stub',
+        status: TaskStatus.QUEUED,
+        costCredits: 1,
+        input: { prompt: '[test-openai-invalid]', ratio: '1:1', model: 'stub', n: 1 },
+      },
+    });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { credits: { decrement: task.costCredits } },
+    });
+    try {
+      await expect(processTask(task.id)).rejects.toThrow('invalid_params');
+      const fresh = await prisma.task.findUnique({
+        where: { id: task.id },
+        select: { status: true, retryCount: true, nextRetryAt: true },
+      });
+      expect(fresh?.status).toBe(TaskStatus.FAILED);
+      expect(fresh?.retryCount).toBe(0);
+      expect(fresh?.nextRetryAt).toBeNull();
+      const after = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { credits: true },
+      });
+      expect(after?.credits).toBe(user.credits);
+    } finally {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { credits: user.credits },
+      });
+      await prisma.task.deleteMany({ where: { id: task.id } });
+    }
+  });
+
+  it('delayed retry metadata lets current retry run and skips stale retry jobs', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true, credits: true },
+    });
+    if (!user) throw new Error('Seed user missing.');
+    const task = await prisma.task.create({
+      data: {
+        ownerId: user.id,
+        type: TaskType.IMAGE,
+        provider: 'stub',
+        status: TaskStatus.QUEUED,
+        costCredits: 1,
+        input: { prompt: '[test-openai-429] first', ratio: '1:1', model: 'stub', n: 1 },
+      },
+    });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { credits: { decrement: task.costCredits } },
+    });
+    try {
+      await processTask(task.id);
+      const retrying = await prisma.task.findUnique({
+        where: { id: task.id },
+        select: { retryCount: true, nextRetryAt: true, status: true },
+      });
+      expect(retrying?.status).toBe(TaskStatus.RETRYING);
+      expect(retrying?.retryCount).toBe(1);
+      expect(retrying?.nextRetryAt).toBeInstanceOf(Date);
+
+      const dueNextRetryAt = new Date(Date.now() - 1000);
+      await prisma.task.update({
+        where: { id: task.id },
+        data: {
+          input: { prompt: 'retry succeeds', ratio: '1:1', model: 'stub', n: 1 },
+          nextRetryAt: dueNextRetryAt,
+        },
+      });
+      await processTask(task.id, {
+        retryCount: retrying!.retryCount,
+        nextRetryAt: dueNextRetryAt.toISOString(),
+      });
+      const succeeded = await prisma.task.findUnique({
+        where: { id: task.id },
+        select: { status: true, retryCount: true },
+      });
+      expect(succeeded?.status).toBe(TaskStatus.SUCCEEDED);
+      expect(succeeded?.retryCount).toBe(0);
+
+      await prisma.task.update({
+        where: { id: task.id },
+        data: {
+          status: TaskStatus.RETRYING,
+          retryCount: 2,
+          nextRetryAt: new Date(Date.now() - 1000),
+          retryUntil: new Date(Date.now() + 60_000),
+        },
+      });
+      await processTask(task.id, {
+        retryCount: 1,
+        nextRetryAt: retrying!.nextRetryAt!.toISOString(),
+      });
+      const afterStaleJob = await prisma.task.findUnique({
+        where: { id: task.id },
+        select: { status: true, retryCount: true },
+      });
+      expect(afterStaleJob?.status).toBe(TaskStatus.RETRYING);
+      expect(afterStaleJob?.retryCount).toBe(2);
+
+      const after = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { credits: true },
+      });
+      expect(after?.credits).toBe(user.credits - task.costCredits);
+    } finally {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { credits: user.credits },
+      });
+      await prisma.task.deleteMany({ where: { id: task.id } });
+    }
+  });
+
+  it('manual retry does not deduct credits again', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true, credits: true },
+    });
+    if (!user) throw new Error('Seed user missing.');
+    const task = await prisma.task.create({
+      data: {
+        ownerId: user.id,
+        type: TaskType.IMAGE,
+        provider: 'stub',
+        status: TaskStatus.RETRYING,
+        costCredits: 1,
+        retryCount: 3,
+        nextRetryAt: null,
+        retryUntil: new Date(Date.now() - 1000),
+        input: { prompt: 'manual retry', ratio: '1:1', model: 'stub', n: 1 },
+      },
+    });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { credits: { decrement: task.costCredits } },
+    });
+    try {
+      const beforeRetry = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { credits: true },
+      });
+      const res = await app.request(`/api/tasks/${task.id}/retry`, {
+        method: 'POST',
+        headers: auth,
+      });
+      expect(res.status).toBe(200);
+      const afterRetry = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { credits: true },
+      });
+      expect(afterRetry?.credits).toBe(beforeRetry?.credits);
+    } finally {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { credits: user.credits },
+      });
       await prisma.task.deleteMany({ where: { id: task.id } });
     }
   });
@@ -486,42 +741,52 @@ describe('tasks lifecycle', () => {
     expect(body.output.summary.length).toBeGreaterThan(10);
   });
 
-  it(
-    'IMAGE task with STUB_FAIL_RATE=1 fails and refunds credits',
-    async () => {
-      process.env.STUB_FAIL_RATE = '1';
-      try {
-        const before = await prisma.user.findUnique({
-          where: { email: SEED_USER_EMAIL },
-          select: { credits: true },
-        });
-        const res = await app.request('/api/tasks', {
-          method: 'POST',
-          headers: { ...auth, 'content-type': 'application/json' },
-          body: JSON.stringify({
-            type: 'IMAGE',
-            provider: 'stub',
-            input: { prompt: 'doomed', ratio: '1:1', model: 'stub', n: 1 },
-          }),
-        });
-        const { id } = (await res.json()) as { id: string };
-        // Failures get retried 3 times with 5s exp backoff: ~5+10+20 = 35s worst case.
-        const final = await pollUntilTerminal(id, 60000);
-        expect(final).toBe('FAILED');
+	  it(
+	    'IMAGE task with STUB_FAIL_RATE=1 fails and refunds credits',
+	    async () => {
+	      process.env.STUB_FAIL_RATE = '1';
+	      let taskId: string | null = null;
+	      try {
+	        const user = await prisma.user.findUnique({
+	          where: { email: SEED_USER_EMAIL },
+	          select: { id: true, credits: true },
+	        });
+	        if (!user) throw new Error('Seed user missing.');
+	        const task = await prisma.task.create({
+	          data: {
+	            ownerId: user.id,
+	            type: TaskType.IMAGE,
+	            provider: 'stub',
+	            status: TaskStatus.QUEUED,
+	            costCredits: 1,
+	            input: { prompt: 'doomed', ratio: '1:1', model: 'stub', n: 1 },
+	          },
+	        });
+	        taskId = task.id;
+	        await prisma.user.update({
+	          where: { id: user.id },
+	          data: { credits: { decrement: task.costCredits } },
+	        });
 
-        const after = await prisma.user.findUnique({
-          where: { email: SEED_USER_EMAIL },
-          select: { credits: true },
-        });
-        // After all retries settled, credits should be refunded.
-        // Tolerance: allow up to (before - 1) in case of timing.
-        expect(after!.credits).toBeGreaterThanOrEqual((before?.credits ?? 0) - 1);
-      } finally {
-        process.env.STUB_FAIL_RATE = '0';
-      }
-    },
-    70000,
-  );
+	        await expect(processTask(task.id)).rejects.toThrow('stub-image');
+	        const fresh = await prisma.task.findUnique({
+	          where: { id: task.id },
+	          select: { status: true },
+	        });
+	        expect(fresh?.status).toBe(TaskStatus.FAILED);
+
+	        const after = await prisma.user.findUnique({
+	          where: { email: SEED_USER_EMAIL },
+	          select: { credits: true },
+	        });
+	        expect(after!.credits).toBe(user.credits);
+	      } finally {
+	        process.env.STUB_FAIL_RATE = '0';
+	        if (taskId) await prisma.task.deleteMany({ where: { id: taskId } });
+	      }
+	    },
+	    15000,
+	  );
 
   it('POST cancel on QUEUED task refunds credits', async () => {
     // Briefly pause the image worker to make the task sit in QUEUED.

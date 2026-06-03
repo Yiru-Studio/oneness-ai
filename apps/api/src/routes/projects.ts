@@ -121,7 +121,12 @@ projectRoutes.get(
       throw AppError.notFound(ErrorCodes.PROJECT_NOT_FOUND, 'project not found');
     }
     // Only count tasks that actually consumed credits (succeeded or in-flight).
-    const includedStatuses = [TaskStatus.SUCCEEDED, TaskStatus.RUNNING, TaskStatus.QUEUED];
+    const includedStatuses = [
+      TaskStatus.SUCCEEDED,
+      TaskStatus.RUNNING,
+      TaskStatus.RETRYING,
+      TaskStatus.QUEUED,
+    ];
     const [byType, totalAgg, latest] = await Promise.all([
       prisma.task.groupBy({
         by: ['type'],

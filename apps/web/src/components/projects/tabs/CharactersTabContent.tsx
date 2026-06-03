@@ -18,6 +18,7 @@ import { EntityDetailDrawer } from '@/components/projects/EntityDetailDrawer';
 import { useGeneration } from '@/contexts/GenerationContext';
 import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 import { getGenerationErrorDisplay } from '@/lib/generation-error';
+import { isTaskPending, taskPendingLabel } from '@/lib/task-status';
 
 interface Props {
   characters: Character[];
@@ -32,19 +33,18 @@ function avatarTaskState(
   inSessionError: string | null,
 ): { pending: boolean; failed: boolean; error: string | null; title: string | undefined } {
   const row = character.avatarResourceImage;
-  const queued = row?.status === 'QUEUED';
-  const running = row?.status === 'RUNNING';
-  const pending = inSessionGenerating || queued || running;
+  const pending = inSessionGenerating || isTaskPending(row?.status);
   const persistedError = row?.status === 'FAILED' ? row.error || '头像生成失败' : null;
   const error = inSessionError || persistedError;
   const errorDisplay = getGenerationErrorDisplay(error);
   const failed = !pending && Boolean(error);
-  const statusLabel = queued
+  const pendingLabel = taskPendingLabel(row?.status, '头像生成中');
+  const statusLabel = row?.status === 'QUEUED'
     ? row?.error
       ? '头像重试排队中'
       : '头像排队中'
-    : running || inSessionGenerating
-      ? '头像生成中'
+    : pendingLabel || inSessionGenerating
+      ? pendingLabel ?? '头像生成中'
       : failed
         ? `头像生成失败：${errorDisplay?.message || '请重试；如果多次失败，请稍后再试。'}`
         : undefined;
@@ -67,20 +67,17 @@ function styleTaskState(
   inSessionError: string | null,
 ): { pending: boolean; failed: boolean; error: string | null; label: string | null; title: string | undefined } {
   const row = style.styleResourceImage;
-  const queued = row?.status === 'QUEUED';
-  const running = row?.status === 'RUNNING';
-  const pending = inSessionGenerating || queued || running;
+  const pending = inSessionGenerating || isTaskPending(row?.status);
   const persistedError = row?.status === 'FAILED' ? row.error || '造型图生成失败' : null;
   const error = inSessionError || persistedError;
   const errorDisplay = getGenerationErrorDisplay(error);
   const failed = !pending && Boolean(error);
-  const label = queued
-    ? '排队中'
-    : running || inSessionGenerating
+  const label = taskPendingLabel(row?.status) ??
+    (inSessionGenerating
       ? '生成中'
       : failed
         ? errorDisplay?.shortLabel || '生成失败'
-        : null;
+        : null);
   const title = label ? `${style.name}：${failed && errorDisplay ? `${label}，${errorDisplay.message}` : label}` : undefined;
   return { pending, failed, error, label, title };
 }
@@ -137,10 +134,15 @@ export function CharactersTabContent({ characters, project, onChange }: Props) {
   useEffect(() => {
     const hasPendingAvatar = characters.some((char) =>
       isGenerating('character-avatar', char.id) ||
-      char.avatarResourceImage?.status === 'QUEUED' ||
-      char.avatarResourceImage?.status === 'RUNNING',
+      isTaskPending(char.avatarResourceImage?.status),
     );
-    if (!hasPendingAvatar) return;
+    const hasPendingStyle = characters.some((char) =>
+      char.styles.some((style) =>
+        (style.id ? isGenerating('style', style.id) : false) ||
+        isTaskPending(style.styleResourceImage?.status),
+      ),
+    );
+    if (!hasPendingAvatar && !hasPendingStyle) return;
 
     const timer = window.setInterval(() => {
       void getProjectCharacters(project.id).then(onChange).catch(() => undefined);
@@ -594,8 +596,7 @@ function CharacterStylesGrid({ character, project, onChanged }: StylesProps) {
   useEffect(() => {
     const hasPendingStyles = character.styles.some((style) =>
       Boolean(style.id && isGenerating('style', style.id)) ||
-      style.styleResourceImage?.status === 'QUEUED' ||
-      style.styleResourceImage?.status === 'RUNNING',
+      isTaskPending(style.styleResourceImage?.status),
     );
     if (!hasPendingStyles) return;
 

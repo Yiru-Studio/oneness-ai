@@ -3,7 +3,13 @@ import { zValidator } from '../middleware/validator';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { tryReadUser, requireUser } from '../middleware/auth.js';
-import { enqueueTaskJob, QueueJobPriority, removeTaskJob } from '../lib/queues.js';
+import {
+  enqueueTaskJob,
+  enqueueTaskRetry,
+  hasTaskJob,
+  QueueJobPriority,
+  removeTaskJob,
+} from '../lib/queues.js';
 import {
   linkResourceImageTaskResult,
   loadOwnedResourceTarget,
@@ -163,7 +169,7 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
   });
 
   // Enqueue AFTER transaction commits so worker can't observe a half-created Task.
-  await enqueueTaskJob(queueForTaskType(body.type), task.id, {
+  await enqueueCreatedTaskOrRollback(task.id, user.id, body.type, estimate, {
     ...(body.type === TaskType.IMAGE
       ? { priority: QueueJobPriority.INTERACTIVE_IMAGE }
       : {}),
@@ -377,18 +383,14 @@ taskRoutes.post(
     if (!task) {
       throw AppError.notFound(ErrorCodes.TASK_NOT_FOUND, 'task not found');
     }
-    if (
-      task.status === TaskStatus.SUCCEEDED ||
-      task.status === TaskStatus.FAILED ||
-      task.status === TaskStatus.CANCELLED
-    ) {
+    if (isTerminalTaskStatus(task.status)) {
       throw AppError.conflict(
         ErrorCodes.TASK_NOT_CANCELLABLE,
         `task is in terminal status ${task.status}`,
       );
     }
 
-    if (task.status === TaskStatus.QUEUED) {
+    if (task.status === TaskStatus.QUEUED || task.status === TaskStatus.RETRYING) {
       // Race-safe: only refund + cancel if the row is STILL QUEUED at write time.
       // If the worker has already claimed it (-> RUNNING) between our read and
       // this transaction, updateMany.count will be 0 and we fall through to the
@@ -399,7 +401,7 @@ taskRoutes.post(
           data: { credits: { increment: task.costCredits } },
         }),
         prisma.task.updateMany({
-          where: { id, status: TaskStatus.QUEUED },
+          where: { id, status: { in: [TaskStatus.QUEUED, TaskStatus.RETRYING] } },
           data: {
             status: TaskStatus.CANCELLED,
             completedAt: new Date(),
@@ -418,11 +420,7 @@ taskRoutes.post(
         if (!task) {
           throw AppError.notFound(ErrorCodes.TASK_NOT_FOUND, 'task not found');
         }
-        if (
-          task.status === TaskStatus.SUCCEEDED ||
-          task.status === TaskStatus.FAILED ||
-          task.status === TaskStatus.CANCELLED
-        ) {
+        if (isTerminalTaskStatus(task.status)) {
           throw AppError.conflict(
             ErrorCodes.TASK_NOT_CANCELLABLE,
             `task is in terminal status ${task.status}`,
@@ -454,6 +452,142 @@ taskRoutes.post(
   },
 );
 
+// POST /api/tasks/:id/retry — manually recover a RETRYING image task whose
+// retry window has stopped scheduling automatic delayed jobs.
+taskRoutes.post(
+  '/tasks/:id/retry',
+  zValidator('param', IdParamSchema),
+  async (c) => {
+    const user = c.var.user!;
+    const { id } = c.req.valid('param');
+    const task = await prisma.task.findFirst({
+      where: { id, ownerId: user.id },
+      include: { assets: { include: { asset: true } } },
+    });
+    if (!task) {
+      throw AppError.notFound(ErrorCodes.TASK_NOT_FOUND, 'task not found');
+    }
+    if (task.type !== TaskType.IMAGE || task.status !== TaskStatus.RETRYING) {
+      throw AppError.conflict(
+        ErrorCodes.VALIDATION_FAILED,
+        'only retrying image tasks can be manually recovered',
+      );
+    }
+
+    const fresh = await prisma.$transaction(async (tx) => {
+      await tx.task.update({
+        where: { id },
+        data: {
+          status: TaskStatus.RETRYING,
+          nextRetryAt: new Date(),
+          startedAt: null,
+          completedAt: null,
+        },
+      });
+      await tx.resourceImage.updateMany({
+        where: { taskId: id },
+        data: { status: TaskStatus.RETRYING },
+      });
+      return tx.task.findUnique({
+        where: { id },
+        include: { assets: { include: { asset: true } } },
+      });
+    });
+
+    await enqueueTaskRetry(queueForTaskType(task.type), id);
+    return c.json(await serializeTask(fresh!));
+  },
+);
+
+function isTerminalTaskStatus(status: TaskStatus): boolean {
+  return (
+    status === TaskStatus.SUCCEEDED ||
+    status === TaskStatus.FAILED ||
+    status === TaskStatus.CANCELLED
+  );
+}
+
+async function enqueueCreatedTaskOrRollback(
+  taskId: string,
+  ownerId: string,
+  type: TaskType,
+  reservedCredits: number,
+  options: { priority?: number },
+) {
+  const queueName = queueForTaskType(type);
+  try {
+    await enqueueTaskJob(queueName, taskId, options);
+    return;
+  } catch (err) {
+    const jobExists = await taskJobExistsAfterEnqueueError(queueName, taskId);
+    if (jobExists) return;
+
+    await rollbackUnqueuedTask(taskId, ownerId, reservedCredits);
+    throw AppError.internal('failed to enqueue task; reservation was rolled back', {
+      taskId,
+      queueName,
+      cause: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+async function taskJobExistsAfterEnqueueError(
+  queueName: ReturnType<typeof queueForTaskType>,
+  taskId: string,
+): Promise<boolean> {
+  try {
+    return await hasTaskJob(queueName, taskId);
+  } catch {
+    return false;
+  }
+}
+
+async function rollbackUnqueuedTask(
+  taskId: string,
+  ownerId: string,
+  reservedCredits: number,
+) {
+  await prisma.$transaction(async (tx) => {
+    const task = await tx.task.findFirst({
+      where: {
+        id: taskId,
+        ownerId,
+        status: TaskStatus.QUEUED,
+        assets: { none: {} },
+      },
+      select: { id: true },
+    });
+    if (!task) return;
+
+    const resourceImages = await tx.resourceImage.findMany({
+      where: { taskId, ownerId, status: TaskStatus.QUEUED },
+      select: { id: true },
+    });
+    const deletedTask = await tx.task.deleteMany({
+      where: {
+        id: taskId,
+        ownerId,
+        status: TaskStatus.QUEUED,
+        assets: { none: {} },
+      },
+    });
+    if (deletedTask.count === 0) return;
+
+    const resourceImageIds = resourceImages.map((item) => item.id);
+    if (resourceImageIds.length > 0) {
+      await tx.resourceImage.deleteMany({
+        where: { id: { in: resourceImageIds }, ownerId },
+      });
+    }
+    if (reservedCredits > 0) {
+      await tx.user.update({
+        where: { id: ownerId },
+        data: { credits: { increment: reservedCredits } },
+      });
+    }
+  });
+}
+
 // PATCH /api/internal/tasks/:id — external workflow callback.
 // NOT user-scoped — auth is the X-Internal-Secret shared header only.
 // (The file-level taskRoutes.use('/tasks', ...) and '/tasks/*' middlewares only
@@ -481,11 +615,7 @@ taskRoutes.patch(
     const data: Record<string, unknown> = {};
     if (body.status) {
       data.status = body.status;
-      if (
-        body.status === TaskStatus.SUCCEEDED ||
-        body.status === TaskStatus.FAILED ||
-        body.status === TaskStatus.CANCELLED
-      ) {
+      if (isTerminalTaskStatus(body.status)) {
         data.completedAt = new Date();
       }
     }

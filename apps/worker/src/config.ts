@@ -17,6 +17,11 @@ const ConfigSchema = z.object({
   IMAGE_TASK_TIMEOUT_MS: z.coerce.number().int().positive().default(600_000),
   IMAGE_STALE_TASK_MS: z.coerce.number().int().positive().default(900_000),
   IMAGE_STALE_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+  OPENAI_IMAGE_MAX_CONCURRENCY: z.coerce.number().int().positive().default(2),
+  OPENAI_IMAGE_MIN_INTERVAL_MS: z.coerce.number().int().nonnegative().default(1500),
+  OPENAI_IMAGE_RETRY_WINDOW_MS: z.coerce.number().int().positive().default(86_400_000),
+  OPENAI_IMAGE_RETRY_BASE_DELAY_MS: z.coerce.number().int().positive().default(15_000),
+  OPENAI_IMAGE_RETRY_MAX_DELAY_MS: z.coerce.number().int().positive().default(1_800_000),
 
   // Shared by every OpenAI-compatible backend (api.openai.com, ZenMux,
   // OpenRouter, DeepSeek, Moonshot, …). Switch backends by changing

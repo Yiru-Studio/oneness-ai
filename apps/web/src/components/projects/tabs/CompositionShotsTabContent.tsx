@@ -56,6 +56,7 @@ import { useGeneration, type GenerationKind } from '@/contexts/GenerationContext
 import { getGenerationErrorDisplay } from '@/lib/generation-error';
 import { buildResourceImagePrompt } from '@oneness/shared/resource-prompts';
 import { CompositionCanvasView } from './CompositionCanvasView';
+import { isTaskPending, taskPendingLabel } from '@/lib/task-status';
 
 interface Props {
   project: Project;
@@ -149,16 +150,14 @@ const QUALITY_OPTIONS: Array<{ value: ImageSettings['quality']; label: string }>
 ];
 const IMAGE_RUNNING_TASK_STATUSES = new Set(['IMAGE_QUEUED', 'IMAGE_RUNNING']);
 const RUNNING_TASK_STATUSES = new Set(['IMAGE_QUEUED', 'IMAGE_RUNNING', 'GRID_QUEUED', 'GRID_RUNNING']);
-const RUNNING_RUN_STATUSES = new Set(['QUEUED', 'RUNNING']);
+const RUNNING_RUN_STATUSES = new Set(['QUEUED', 'RUNNING', 'RETRYING']);
 
 function isReferenceResourcePending(status: ResourceImageStatus | null | undefined): boolean {
-  return status === 'QUEUED' || status === 'RUNNING';
+  return isTaskPending(status);
 }
 
 function referenceResourceStatusLabel(status: ResourceImageStatus | null | undefined): string {
-  if (status === 'QUEUED') return '排队中...';
-  if (status === 'RUNNING') return '生成中...';
-  return '生成中...';
+  return taskPendingLabel(status) ?? '生成中...';
 }
 
 function referenceGenerationError(
@@ -460,7 +459,7 @@ export function CompositionShotsTabContent({
       getCompositionPlanningState(project.id)
         .then((next) => {
           setPlanningState(next);
-          if (next.status !== 'QUEUED' && next.status !== 'RUNNING') {
+          if (!isTaskPending(next.status)) {
             void reloadTasks().catch(() => {});
           }
         })
@@ -2250,7 +2249,7 @@ function RunStatusBadge({ status }: { status: string }) {
   const meta =
     status === 'SUCCEEDED' || status === 'READY'
       ? { label: '成功', className: 'bg-emerald-50 text-emerald-600' }
-      : status === 'QUEUED' || status === 'RUNNING'
+      : isTaskPending(status)
         ? { label: '生成中', className: 'bg-blue-50 text-blue-600' }
         : status === 'FAILED' || status === 'CANCELLED'
           ? { label: '失败', className: 'bg-red-50 text-red-600' }

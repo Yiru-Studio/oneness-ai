@@ -23,9 +23,11 @@ export const stubImageProvider: ImageProvider = {
   name: 'stub',
   async generate(input: ImageInput, ctx: ProviderContext): Promise<ProviderResult> {
     ctx.log.info({ prompt: input.prompt, model: input.model }, 'stub-image start');
-    const delayMs = 3000 + Math.floor(Math.random() * 2000); // 3-5s
+    const testError = testOpenAIErrorForPrompt(input.prompt);
+    const delayMs = testError ? 10 : 3000 + Math.floor(Math.random() * 2000); // 3-5s
     await abortableSleep(delayMs, ctx.abortSignal);
 
+    if (testError) throw new Error(testError);
     if (Math.random() < currentFailRate()) {
       throw new Error('stub-image: random failure (STUB_FAIL_RATE)');
     }
@@ -66,3 +68,15 @@ export const stubImageProvider: ImageProvider = {
     };
   },
 };
+
+function testOpenAIErrorForPrompt(prompt: string): string | null {
+  if (process.env.NODE_ENV !== 'test') return null;
+  if (prompt.includes('[test-openai-429]')) return 'openai[http_429]: rate limit';
+  if (prompt.includes('[test-openai-timeout]')) {
+    return 'openai[timeout]: image task exceeded 100ms';
+  }
+  if (prompt.includes('[test-openai-invalid]')) {
+    return 'openai[invalid_params]: invalid prompt';
+  }
+  return null;
+}

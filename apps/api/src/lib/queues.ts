@@ -33,6 +33,7 @@ export const QueueJobPriority = {
 
 type EnqueueTaskJobOptions = {
   priority?: number;
+  delayMs?: number;
 };
 
 export async function enqueueTaskJob(
@@ -43,18 +44,43 @@ export async function enqueueTaskJob(
   await queues[queueName].add('process-task', { taskId }, {
     jobId: taskId,
     ...(options.priority === undefined ? {} : { priority: options.priority }),
+    ...(options.delayMs === undefined ? {} : { delay: options.delayMs }),
   });
+}
+
+export async function hasTaskJob(queueName: QueueName, taskId: string): Promise<boolean> {
+  return Boolean(await queues[queueName].getJob(taskId));
 }
 
 export async function removeTaskJob(queueName: QueueName, taskId: string) {
   const job = await queues[queueName].getJob(taskId);
-  if (!job) return;
-  try {
-    await job.remove();
-  } catch {
-    // Best effort: a worker may lock the job between DB cancellation and
-    // BullMQ removal. The worker polls Task.status and will abort/refund.
+  const retryJobs = await findRetryJobs(queueName, taskId);
+  for (const candidate of [job, ...retryJobs]) {
+    if (!candidate) continue;
+    try {
+      await candidate.remove();
+    } catch {
+      // Best effort: a worker may lock the job between DB cancellation and
+      // BullMQ removal. The worker polls Task.status and will abort/refund.
+    }
   }
+}
+
+async function findRetryJobs(queueName: QueueName, taskId: string) {
+  const queue = queues[queueName];
+  const jobs = await queue.getJobs(['delayed', 'waiting', 'prioritized'], 0, 1000);
+  return jobs.filter((job) => job.data.taskId === taskId);
+}
+
+export async function enqueueTaskRetry(queueName: QueueName, taskId: string) {
+  await removeTaskJob(queueName, taskId);
+  await queues[queueName].add('process-task', { taskId }, {
+    jobId: `${taskId}-manual-${Date.now()}`,
+    attempts: 1,
+    priority: QueueJobPriority.INTERACTIVE_IMAGE,
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 200 },
+  });
 }
 
 export async function closeQueues() {

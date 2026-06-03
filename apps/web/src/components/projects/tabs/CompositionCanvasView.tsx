@@ -33,6 +33,7 @@ import {
   CompositionTaskRuns,
   ResourceImageStatus,
 } from '@/types';
+import { isTaskPending, taskPendingLabel } from '@/lib/task-status';
 import { IMAGE_MODEL_OPTIONS, imageModelLabel } from '@/data/style-presets';
 import { getGenerationErrorDisplay } from '@/lib/generation-error';
 
@@ -138,7 +139,7 @@ const NODE_TYPES = {
 };
 
 function isCanvasResourcePending(status: ResourceImageStatus | null | undefined): boolean {
-  return status === 'QUEUED' || status === 'RUNNING';
+  return isTaskPending(status);
 }
 
 function isCanvasResourceFailed(status: ResourceImageStatus | null | undefined): boolean {
@@ -146,8 +147,8 @@ function isCanvasResourceFailed(status: ResourceImageStatus | null | undefined):
 }
 
 function canvasResourceStatusLabel(status: ResourceImageStatus | null | undefined): string {
-  if (status === 'QUEUED') return '排队中...';
-  if (status === 'RUNNING') return '生成中...';
+  const pending = taskPendingLabel(status);
+  if (pending) return pending;
   if (status === 'FAILED') return '生成失败';
   return '暂无图片';
 }
@@ -770,7 +771,7 @@ function isCanvasResourceKind(value: string): value is CanvasResourceKind {
 }
 
 function isRunInFlight(status: string) {
-  return status === 'QUEUED' || status === 'RUNNING';
+  return isTaskPending(status);
 }
 
 function statusLabel(status: string) {

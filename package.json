@@ -17,6 +17,7 @@
     "db:seed": "dotenv -e .env -- pnpm --filter @oneness/shared exec tsx prisma/seed.ts",
     "db:studio": "dotenv -e .env -- pnpm --filter @oneness/shared exec prisma studio",
     "db:generate": "dotenv -e .env -- pnpm --filter @oneness/shared exec prisma generate",
+    "loadtest:openai-images": "tsx scripts/openai-image-loadtest.ts",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test"

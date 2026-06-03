@@ -278,7 +278,8 @@ export async function reconcileResourceImagesForTarget(
     if (
       task.status !== TaskStatus.SUCCEEDED &&
       task.status !== TaskStatus.FAILED &&
-      task.status !== TaskStatus.CANCELLED
+      task.status !== TaskStatus.CANCELLED &&
+      task.status !== TaskStatus.RETRYING
     ) continue;
     await linkResourceImageTaskResult(
       db,

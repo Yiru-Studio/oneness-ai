@@ -157,6 +157,7 @@ function statusFromImageRun(row: ImageRunWithRelations | null | undefined): stri
   if (row.status === 'SUCCEEDED' || row.outputAssetId || taskOutputAsset(row.taskJob)) return 'IMAGE_READY';
   if (row.status === 'FAILED' || row.status === 'CANCELLED') return 'IMAGE_FAILED';
   if (row.status === 'RUNNING') return 'IMAGE_RUNNING';
+  if (row.status === 'RETRYING') return 'IMAGE_RUNNING';
   if (row.status === 'QUEUED') return 'IMAGE_QUEUED';
   return null;
 }
@@ -167,6 +168,7 @@ function taskStatusFromGridRun(row: GridRunWithRelations | null | undefined): st
   if ((row.candidates.length ?? 0) > 0 || row.gridAssetId || taskOutputAsset(row.taskJob)) return 'GRID_READY';
   if (status === 'FAILED' || status === 'CANCELLED') return 'GRID_FAILED';
   if (status === 'RUNNING') return 'GRID_RUNNING';
+  if (status === 'RETRYING') return 'GRID_RUNNING';
   if (status === 'QUEUED') return 'GRID_QUEUED';
   return null;
 }
@@ -184,6 +186,7 @@ function derivedStatus(row: CompositionTaskWithRelations): string {
   if (row.imageTask?.status === 'SUCCEEDED' && row.imageTask.assets.some((a) => a.role === 'output')) return 'IMAGE_READY';
   if (row.imageTask?.status === 'FAILED' || row.imageTask?.status === 'CANCELLED') return 'IMAGE_FAILED';
   if (row.imageTask?.status === 'RUNNING') return 'IMAGE_RUNNING';
+  if (row.imageTask?.status === 'RETRYING') return 'IMAGE_RUNNING';
   if (row.imageTask?.status === 'QUEUED') return 'IMAGE_QUEUED';
   return row.status;
 }

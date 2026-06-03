@@ -29,6 +29,7 @@ import {
 } from '@/data/style-presets';
 import { useGeneration } from '@/contexts/GenerationContext';
 import { getGenerationErrorDisplay } from '@/lib/generation-error';
+import { isTaskPending } from '@/lib/task-status';
 
 /**
  * Generic secondary-detail drawer used by Items, Scenes, and CharacterStyles.
@@ -120,19 +121,21 @@ const INTERACTIVE_BACKGROUND_SELECTOR = [
   '[contenteditable="true"]',
 ].join(',');
 
-type ImageGenerationPhase = 'idle' | 'queueing' | 'queued' | 'running' | 'saving' | 'failed';
+type ImageGenerationPhase = 'idle' | 'queueing' | 'queued' | 'retrying' | 'running' | 'saving' | 'failed';
 
 const IMAGE_GENERATION_LABEL: Record<ImageGenerationPhase, string> = {
   idle: '',
   queueing: '提交任务中…',
   queued: '排队中…',
   running: '生成中…',
+  retrying: '等待重试中…',
   saving: '保存结果中…',
   failed: '生成失败',
 };
 
 function phaseForTaskStatus(status: TaskDTO['status']): ImageGenerationPhase {
   if (status === 'QUEUED') return 'queued';
+  if (status === 'RETRYING') return 'retrying';
   if (status === 'RUNNING') return 'running';
   if (status === 'FAILED' || status === 'CANCELLED') return 'failed';
   return 'saving';
@@ -147,7 +150,7 @@ function resourceKindForEntity(kind: EntityKind): ResourceImageKind | null {
 }
 
 function isResourceImagePending(row: ResourceImage | null | undefined): boolean {
-  return row?.status === 'QUEUED' || row?.status === 'RUNNING';
+  return isTaskPending(row?.status);
 }
 
 function historyKey(kind: ResourceImageKind, entityId: string): string {
@@ -513,7 +516,9 @@ export function EntityDetailDrawer({
         : 'w-full';
   const persistedGenerationPhase = latestHistory?.status === 'QUEUED'
     ? 'queued'
-    : latestHistory?.status === 'RUNNING'
+    : latestHistory?.status === 'RETRYING'
+      ? 'retrying'
+      : latestHistory?.status === 'RUNNING'
       ? 'running'
       : generationPhase;
   const generationLabel = IMAGE_GENERATION_LABEL[
@@ -889,7 +894,7 @@ function HistoryRail({
           </div>
         ) : (
           history.map((row) => {
-            const pending = row.status === 'QUEUED' || row.status === 'RUNNING';
+            const pending = isTaskPending(row.status);
             const failed = row.status === 'FAILED';
             const selected = Boolean(row.assetId && row.assetId === currentAssetId);
             const usedIdentityReference = Boolean(

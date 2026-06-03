@@ -21,6 +21,7 @@ export type TaskType = typeof TaskType[keyof typeof TaskType];
 export const TaskStatus = {
   QUEUED: 'QUEUED',
   RUNNING: 'RUNNING',
+  RETRYING: 'RETRYING',
   SUCCEEDED: 'SUCCEEDED',
   FAILED: 'FAILED',
   CANCELLED: 'CANCELLED',

@@ -10,7 +10,7 @@ const imageQueue = new Queue<TaskJobData>(QueueNames.IMAGE, {
 });
 
 async function main() {
-  const [counts, activeJobIds, staleRunningImageTaskCount, staleRunningImageTasks] =
+  const [counts, activeJobIds, staleRunningImageTaskCount, staleRunningImageTasks, retrying] =
     await Promise.all([
       imageQueue.getJobCounts(
         'waiting',
@@ -24,6 +24,11 @@ async function main() {
       redis.lrange(imageQueue.toKey('active'), 0, -1),
       countStaleRunningImageTasks(config.IMAGE_STALE_TASK_MS),
       listStaleRunningImageTasks(config.IMAGE_STALE_TASK_MS),
+      prisma.task.aggregate({
+        where: { type: 'IMAGE', status: 'RETRYING' },
+        _count: { _all: true },
+        _min: { nextRetryAt: true },
+      }),
     ]);
 
   process.stdout.write(
@@ -34,6 +39,10 @@ async function main() {
         imageTaskTimeoutMs: config.IMAGE_TASK_TIMEOUT_MS,
         imageStaleTaskMs: config.IMAGE_STALE_TASK_MS,
         counts,
+        retrying: {
+          count: retrying._count._all,
+          earliestNextRetryAt: retrying._min.nextRetryAt?.toISOString() ?? null,
+        },
         activeJobIds,
         staleRunningImageTaskCount,
         staleRunningImageTasks,

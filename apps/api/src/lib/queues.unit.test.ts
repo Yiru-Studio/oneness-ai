@@ -51,4 +51,16 @@ describe('queue helpers', () => {
       { jobId: 'task-text-1' },
     );
   });
+
+  it('checks whether a task job already exists', async () => {
+    const { hasTaskJob } = await import('./queues.js');
+    queueMocks.instances[QueueNames.IMAGE].getJob.mockResolvedValueOnce({ id: 'task-image-2' });
+    queueMocks.instances[QueueNames.TEXT].getJob.mockResolvedValueOnce(null);
+
+    await expect(hasTaskJob(QueueNames.IMAGE, 'task-image-2')).resolves.toBe(true);
+    await expect(hasTaskJob(QueueNames.TEXT, 'task-text-2')).resolves.toBe(false);
+
+    expect(queueMocks.instances[QueueNames.IMAGE].getJob).toHaveBeenCalledWith('task-image-2');
+    expect(queueMocks.instances[QueueNames.TEXT].getJob).toHaveBeenCalledWith('task-text-2');
+  });
 });

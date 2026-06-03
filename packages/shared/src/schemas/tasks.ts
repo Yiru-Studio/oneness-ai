@@ -7,6 +7,7 @@ const TaskTypeSchema = z.enum([TaskType.IMAGE, TaskType.VIDEO, TaskType.TEXT_ANA
 const TaskStatusSchema = z.enum([
   TaskStatus.QUEUED,
   TaskStatus.RUNNING,
+  TaskStatus.RETRYING,
   TaskStatus.SUCCEEDED,
   TaskStatus.FAILED,
   TaskStatus.CANCELLED,

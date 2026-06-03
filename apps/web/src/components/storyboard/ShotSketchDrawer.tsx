@@ -27,6 +27,7 @@ import {
 import { IMAGE_MODEL_OPTIONS } from '@/data/style-presets';
 import { ImagePreview } from '@/components/ImagePreview';
 import { ReferencePickerDialog } from './ReferencePickerDialog';
+import { isTaskPending } from '@/lib/task-status';
 
 type ExistingImage = {
   id: string;
@@ -153,7 +154,7 @@ export function ShotSketchDrawer({
       ) ?? null,
     [compositionTasks, shot.episodeId, shot.sceneIndex],
   );
-  const isGenerating = shot.sketchTaskStatus === 'QUEUED' || shot.sketchTaskStatus === 'RUNNING';
+  const isGenerating = isTaskPending(shot.sketchTaskStatus);
   const previewGenerating = generateSubmitting || isGenerating || Boolean(optimisticSketchTaskId);
   const sketchFailed = shot.sketchTaskStatus === 'FAILED' && !shot.sketch;
   const disabled = busy || localBusy || isGenerating;
@@ -209,8 +210,7 @@ export function ShotSketchDrawer({
     if (
       optimisticSketchTaskId &&
       shot.sketchTaskId === optimisticSketchTaskId &&
-      shot.sketchTaskStatus !== 'QUEUED' &&
-      shot.sketchTaskStatus !== 'RUNNING'
+      !isTaskPending(shot.sketchTaskStatus)
     ) {
       setOptimisticSketchTaskId(null);
     }
@@ -225,7 +225,7 @@ export function ShotSketchDrawer({
   useEffect(() => {
     if (!open) return;
     const hasActiveRun = (context?.sketchHistory ?? []).some(
-      (run) => run.status === 'QUEUED' || run.status === 'RUNNING',
+      (run) => isTaskPending(run.status),
     );
     if (!hasActiveRun && !previewGenerating) return;
     const timer = window.setInterval(() => {
@@ -665,7 +665,7 @@ function SketchHistoryRail({
         ) : (
           history.map((run) => {
             const image = run.image ?? run.sourceImage;
-            const isRunning = run.status === 'QUEUED' || run.status === 'RUNNING';
+            const isRunning = isTaskPending(run.status);
             const isFailed = run.status === 'FAILED' || run.status === 'CANCELLED';
             const current = run.current || Boolean(image?.url && image.url === currentSketchUrl);
             return (
@@ -823,7 +823,7 @@ function AddReferenceButton({ disabled, onClick }: { disabled: boolean; onClick:
 }
 
 function historyLabel(run: ShotSketchHistoryRun): string {
-  if (run.status === 'QUEUED' || run.status === 'RUNNING') return '生成中';
+  if (isTaskPending(run.status)) return '生成中';
   if (run.status === 'FAILED') return '失败';
   if (run.status === 'CANCELLED') return '取消';
   if (run.source === 'applied_scene_image') return '场景图';

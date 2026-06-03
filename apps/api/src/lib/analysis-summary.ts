@@ -100,6 +100,10 @@ function emptySubjects(): AnalysisSubjects {
 
 function toSubjectState(status: TaskStatus): AnalysisSubjectState {
   if (status === TaskStatus.SUCCEEDED) return 'completed';
-  if (status === TaskStatus.QUEUED || status === TaskStatus.RUNNING) return 'running';
+  if (
+    status === TaskStatus.QUEUED ||
+    status === TaskStatus.RUNNING ||
+    status === TaskStatus.RETRYING
+  ) return 'running';
   return 'failed';
 }
