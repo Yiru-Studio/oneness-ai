@@ -1,0 +1,1935 @@
+{
+  "run_id": "2026-05-31T09-44-57-488Z",
+  "generated_at": "2026-05-31T09:44:57.502Z",
+  "dataset": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/chi_qingming.annotated.dataset.json",
+  "scope": {
+    "phase": "edit_shot_sample_benchmark",
+    "total_edit_shots": 163,
+    "sample_size": 38,
+    "required_review_shots": [
+      1,
+      90,
+      96,
+      103,
+      104,
+      125,
+      131,
+      148,
+      149,
+      163
+    ],
+    "real_image_generation": "not_started_for_sample"
+  },
+  "thresholds": {
+    "scene_coverage_rate": 1,
+    "scene_alignment_accuracy": 0.85,
+    "prompt_completeness_rate": 0.95,
+    "asset_reference_integrity_rate": 0.9,
+    "critical_visual_constraint_rate": 1
+  },
+  "threshold_results": {
+    "scene_coverage_rate": true,
+    "scene_alignment_accuracy": true,
+    "prompt_completeness_rate": true,
+    "asset_reference_integrity_rate": true,
+    "critical_visual_constraint_rate": true
+  },
+  "passed": true,
+  "metrics": {
+    "sample_size": 38,
+    "scene_coverage_rate": 1,
+    "scene_alignment_accuracy": 1,
+    "prompt_completeness_rate": 1,
+    "asset_reference_integrity_rate": 1,
+    "critical_visual_constraint_rate": 1,
+    "manual_review_rate": 0.2632,
+    "passed_rate": 1
+  },
+  "scene_coverage": {
+    "expected": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "7A",
+      "7B",
+      "8"
+    ],
+    "covered": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "7A",
+      "7B",
+      "8"
+    ],
+    "missing": []
+  },
+  "failures": [],
+  "items": [
+    {
+      "shot_id": "edit_shot_0001",
+      "shot_number": 1,
+      "scene_number": "1",
+      "start": 0,
+      "end": 15.967,
+      "duration": 15.967,
+      "sample_reasons": [
+        "required_long_or_low_confidence_review",
+        "scene_start_coverage",
+        "key_prop_手机"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0001_00-00-00.000.jpg",
+      "alignment_status": "needs_manual_review",
+      "confidence": "medium",
+      "scene": "校办公室",
+      "characters": [
+        "吴翊杰",
+        "石琦"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦",
+        "闫老师"
+      ],
+      "props": [
+        "手机"
+      ],
+      "original_props": [
+        "手机",
+        "试卷/讲义",
+        "茶杯"
+      ],
+      "prompt": "吴翊杰、石琦在校办公室，涉及手机，窗外蝉鸣聒噪。 旁边的空办公桌前，放着好几摞高高的试卷和讲义，有人（石琦）坐在纸堆后清点试卷，分成等量的各小份，只能看到那人忙碌的胳膊，她穿着校服，戴着套袖，脸被挡住了。 吴翊杰（os）：池清明已经五天没来上学了，电话一直占线，他们家我也去了，总是没人，闫老师，我觉得真得报警了……。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": true,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0015",
+      "shot_number": 15,
+      "scene_number": "1",
+      "start": 45.9,
+      "end": 48.033,
+      "duration": 2.133,
+      "sample_reasons": [
+        "scene_midpoint_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0015_00-00-45.900.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "校办公室",
+      "characters": [
+        "吴翊杰",
+        "石琦"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦",
+        "闫老师"
+      ],
+      "props": [
+        "手机"
+      ],
+      "original_props": [
+        "手机",
+        "试卷/讲义",
+        "茶杯"
+      ],
+      "prompt": "吴翊杰、石琦在校办公室，涉及手机，后景办公桌纸堆之间，石琦只露出半张脸，她抬起眼睛，看向吴翊杰。 闫老师继续训斥道：还什么池清明，真能编，有编这些的工夫，能写完多少道题！（气得盖杯盖，不小心碰倒了杯子，茶水弄湿了桌上的空白卷子，上面写着吴翊杰的名字） 石琦赶忙拿着抹布过来收拾。 上课铃响起。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0028",
+      "shot_number": 28,
+      "scene_number": "1",
+      "start": 93.267,
+      "end": 95.133,
+      "duration": 1.866,
+      "sample_reasons": [
+        "scene_end_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0028_00-01-33.267.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "校办公室",
+      "characters": [
+        "吴翊杰"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦",
+        "闫老师"
+      ],
+      "props": [
+        "手机"
+      ],
+      "original_props": [
+        "手机",
+        "试卷/讲义",
+        "茶杯"
+      ],
+      "prompt": "吴翊杰在校办公室，涉及手机，吴翊杰错愕。 出片名《池清明到底是谁》。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0029",
+      "shot_number": 29,
+      "scene_number": "2",
+      "start": 95.133,
+      "end": 96.567,
+      "duration": 1.434,
+      "sample_reasons": [
+        "scene_start_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0029_00-01-35.133.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "网吧",
+      "characters": [
+        "吴翊杰"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明"
+      ],
+      "props": [],
+      "original_props": [
+        "手机",
+        "通讯本",
+        "QQ/blog/404 页面"
+      ],
+      "prompt": "吴翊杰在网吧，吴翊杰坐在电脑前，登录QQ，发现好友列表里的池清明头像旁边标注“已注销”。 吴翊杰挠头，又查找池清明的blog，发现也查无此人。 吴翊杰再次刷新网页，显示「404 not found」。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0031",
+      "shot_number": 31,
+      "scene_number": "2",
+      "start": 100.733,
+      "end": 101.8,
+      "duration": 1.067,
+      "sample_reasons": [
+        "key_prop_通讯本"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0031_00-01-40.733.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "网吧",
+      "characters": [
+        "吴翊杰"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明"
+      ],
+      "props": [
+        "手机",
+        "通讯本"
+      ],
+      "original_props": [
+        "手机",
+        "通讯本",
+        "QQ/blog/404 页面"
+      ],
+      "prompt": "吴翊杰在网吧，涉及手机、通讯本，吴翊杰坐在电脑前，登录QQ，发现好友列表里的池清明头像旁边标注“已注销”。 吴翊杰挠头，又查找池清明的blog，发现也查无此人。 吴翊杰再次刷新网页，显示「404 not found」。 吴翊杰下意识从书包里翻手机，一摸是空的，想到手机被没收了，改拿出通讯本。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0032",
+      "shot_number": 32,
+      "scene_number": "2",
+      "start": 101.8,
+      "end": 105.633,
+      "duration": 3.833,
+      "sample_reasons": [
+        "scene_midpoint_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0032_00-01-41.800.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "网吧",
+      "characters": [
+        "吴翊杰"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明"
+      ],
+      "props": [
+        "手机",
+        "通讯本"
+      ],
+      "original_props": [
+        "手机",
+        "通讯本",
+        "QQ/blog/404 页面"
+      ],
+      "prompt": "吴翊杰在网吧，涉及手机、通讯本，吴翊杰坐在电脑前，登录QQ，发现好友列表里的池清明头像旁边标注“已注销”。 吴翊杰挠头，又查找池清明的blog，发现也查无此人。 吴翊杰再次刷新网页，显示「404 not found」。 吴翊杰下意识从书包里翻手机，一摸是空的，想到手机被没收了，改拿出通讯本。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0035",
+      "shot_number": 35,
+      "scene_number": "2",
+      "start": 108.167,
+      "end": 109.367,
+      "duration": 1.2,
+      "sample_reasons": [
+        "scene_end_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0035_00-01-48.167.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "网吧",
+      "characters": [
+        "吴翊杰"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明"
+      ],
+      "props": [
+        "手机",
+        "通讯本"
+      ],
+      "original_props": [
+        "手机",
+        "通讯本",
+        "QQ/blog/404 页面"
+      ],
+      "prompt": "吴翊杰在网吧，涉及手机、通讯本，吴翊杰再次刷新网页，显示「404 not found」。 吴翊杰下意识从书包里翻手机，一摸是空的，想到手机被没收了，改拿出通讯本。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0036",
+      "shot_number": 36,
+      "scene_number": "3",
+      "start": 109.367,
+      "end": 115.6,
+      "duration": 6.233,
+      "sample_reasons": [
+        "scene_start_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0036_00-01-49.367.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "电话亭",
+      "characters": [
+        "吴翊杰"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "中年女声"
+      ],
+      "props": [
+        "手机",
+        "通讯本"
+      ],
+      "original_props": [
+        "手机",
+        "通讯本"
+      ],
+      "prompt": "吴翊杰在电话亭，涉及手机、通讯本，吴翊杰看着通讯本上池清明的联系方式，先拨打了手机，无人接听，又改拨打家庭座机，终于接通了。 吴翊杰喜出望外：喂。是刘阿姨吗？【全景，前景过车】 中年女声OS：嗯。你哪位？【近景】。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0040",
+      "shot_number": 40,
+      "scene_number": "3",
+      "start": 125.767,
+      "end": 128.567,
+      "duration": 2.8,
+      "sample_reasons": [
+        "scene_midpoint_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0040_00-02-05.767.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "电话亭",
+      "characters": [
+        "吴翊杰"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "中年女声"
+      ],
+      "props": [
+        "通讯本"
+      ],
+      "original_props": [
+        "手机",
+        "通讯本"
+      ],
+      "prompt": "吴翊杰在电话亭，涉及通讯本，吴翊杰：我是小杰。阿姨，池清明在家吗？ 中年女声OS：孩子，你打错了吧？【特写本】 吴翊杰又看了一眼通讯本：您是刘莉阿姨吗？【侧近景】 中年女声OS：我是刘莉，但我不认识池清明啊……。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0044",
+      "shot_number": 44,
+      "scene_number": "3",
+      "start": 148.033,
+      "end": 152.9,
+      "duration": 4.867,
+      "sample_reasons": [
+        "scene_end_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0044_00-02-28.033.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "电话亭",
+      "characters": [],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "中年女声"
+      ],
+      "props": [
+        "通讯本"
+      ],
+      "original_props": [
+        "手机",
+        "通讯本"
+      ],
+      "prompt": "主体在电话亭，涉及通讯本，吴翊杰：我是他同学吴翊杰，他…… 中年女声OS：你打错了，我根本就没孩子。 吴翊杰还想说话，电话被挂断。【大特写】。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0045",
+      "shot_number": 45,
+      "scene_number": "4",
+      "start": 152.9,
+      "end": 157.633,
+      "duration": 4.733,
+      "sample_reasons": [
+        "scene_start_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0045_00-02-32.900.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "学校篮球场",
+      "characters": [
+        "吴翊杰",
+        "池清明"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "闫老师"
+      ],
+      "props": [],
+      "original_props": [
+        "篮球"
+      ],
+      "prompt": "吴翊杰、池清明在学校篮球场，吴翊杰和池清明在投篮，吴翊杰投不中，池清明百发百中。 池清明欢呼：我赢了，今天的可乐还是你请。 吴翊杰感到无语：我都连请多少天了……。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0059",
+      "shot_number": 59,
+      "scene_number": "4",
+      "start": 199.767,
+      "end": 206.133,
+      "duration": 6.366,
+      "sample_reasons": [
+        "key_prop_篮球"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0059_00-03-19.767.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "学校篮球场",
+      "characters": [
+        "吴翊杰",
+        "池清明"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "闫老师"
+      ],
+      "props": [
+        "篮球"
+      ],
+      "original_props": [
+        "篮球"
+      ],
+      "prompt": "吴翊杰、池清明在学校篮球场，涉及篮球，池清明冲他勾勾手指，示意他把球传过来，吴翊杰照做，池清明闭眼投球，中了。 吴翊杰惊呆：蒙的吧…… 池清明笑：这不算出老千吧？又没人规定投球必须睁着眼。 吴翊杰把篮球接住，检查篮球：你不会在球上动手脚吧……。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0063",
+      "shot_number": 63,
+      "scene_number": "4",
+      "start": 213.367,
+      "end": 216,
+      "duration": 2.633,
+      "sample_reasons": [
+        "scene_midpoint_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0063_00-03-33.367.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "学校篮球场",
+      "characters": [
+        "吴翊杰",
+        "池清明"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "闫老师"
+      ],
+      "props": [
+        "篮球"
+      ],
+      "original_props": [
+        "篮球"
+      ],
+      "prompt": "吴翊杰、池清明在学校篮球场，涉及篮球，吴翊杰把篮球接住，检查篮球：你不会在球上动手脚吧…… 池清明：问题不在篮球，在于篮筐。 吴翊杰惊讶：你对篮筐动手脚了？什么时候？！那么高，你怎么爬上去的？ 池清明白了吴翊杰一眼：当你盯着篮筐，这里就只有篮筐，随之而来的还有规则，比赛规则，物理规则，心理规则……。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0080",
+      "shot_number": 80,
+      "scene_number": "4",
+      "start": 261.6,
+      "end": 266.667,
+      "duration": 5.067,
+      "sample_reasons": [
+        "scene_end_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0080_00-04-21.600.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "学校篮球场",
+      "characters": [
+        "吴翊杰",
+        "池清明"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "闫老师"
+      ],
+      "props": [],
+      "original_props": [
+        "篮球"
+      ],
+      "prompt": "吴翊杰、池清明在学校篮球场，闫老师表情诡异：池清明到底是谁？ 吴翊杰惊醒。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0081",
+      "shot_number": 81,
+      "scene_number": "5",
+      "start": 266.667,
+      "end": 268.667,
+      "duration": 2,
+      "sample_reasons": [
+        "scene_start_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0081_00-04-26.667.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "学校走廊/教室",
+      "characters": [
+        "吴翊杰",
+        "大光"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦",
+        "闫老师",
+        "大光",
+        "双马尾女生",
+        "眼镜男",
+        "丸子头女生"
+      ],
+      "props": [],
+      "original_props": [
+        "篮球"
+      ],
+      "prompt": "吴翊杰、大光在学校走廊/教室，吴翊杰单肩背着书包，跌跌撞撞、有点丢神地进教室，瞬间锁定最后一排的角落座位，大光（寸头体育生）正在吃薯片。 吴翊杰冲过去：你坐这儿干嘛？ 大光抓了一把薯片塞嘴里嚼着，指了指自己的嘴，示意自己在吃薯片。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0089",
+      "shot_number": 89,
+      "scene_number": "5",
+      "start": 293.6,
+      "end": 304.267,
+      "duration": 10.667,
+      "sample_reasons": [
+        "scene_midpoint_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0089_00-04-53.600.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "学校走廊/教室",
+      "characters": [
+        "吴翊杰",
+        "石琦"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦",
+        "闫老师",
+        "大光",
+        "双马尾女生",
+        "眼镜男",
+        "丸子头女生"
+      ],
+      "props": [],
+      "original_props": [
+        "篮球"
+      ],
+      "prompt": "吴翊杰、石琦在学校走廊/教室，丸子头女生：疯了吧你。 周围的人都对吴翊杰侧目，指指点点。 石琦保持距离关注着一切。 吴翊杰在指点声中踉跄地往前走，石琦保持距离跟上。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0090",
+      "shot_number": 90,
+      "scene_number": "5",
+      "start": 304.267,
+      "end": 344.467,
+      "duration": 40.2,
+      "sample_reasons": [
+        "required_long_or_low_confidence_review"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0090_00-05-04.267.jpg",
+      "alignment_status": "needs_manual_review",
+      "confidence": "medium",
+      "scene": "学校走廊/教室",
+      "characters": [
+        "吴翊杰",
+        "石琦"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦",
+        "闫老师",
+        "大光",
+        "双马尾女生",
+        "眼镜男",
+        "丸子头女生"
+      ],
+      "props": [],
+      "original_props": [
+        "篮球"
+      ],
+      "prompt": "吴翊杰、石琦在学校走廊/教室，石琦保持距离关注着一切。 吴翊杰在指点声中踉跄地往前走，石琦保持距离跟上。 吴翊杰在转角处拐弯，上楼梯，石琦拨开挡在前面的同学，快步跟上去。 石琦在转角处拐弯，发现吴翊杰就站在高几级的台阶上居高临下看着自己，显然发现了她的跟踪。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": true,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0096",
+      "shot_number": 96,
+      "scene_number": "5",
+      "start": 370.167,
+      "end": 408.7,
+      "duration": 38.533,
+      "sample_reasons": [
+        "required_long_or_low_confidence_review",
+        "scene_end_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0096_00-06-10.167.jpg",
+      "alignment_status": "needs_manual_review",
+      "confidence": "medium",
+      "scene": "学校走廊/教室",
+      "characters": [
+        "吴翊杰",
+        "石琦"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦",
+        "闫老师",
+        "大光",
+        "双马尾女生",
+        "眼镜男",
+        "丸子头女生"
+      ],
+      "props": [],
+      "original_props": [
+        "篮球"
+      ],
+      "prompt": "吴翊杰、石琦在学校走廊/教室，吴翊杰：池清明就是…是…那个…（语塞，仿佛有点想不起来了） 石琦：我不会给你答案的。 吴翊杰感觉一阵眩晕感袭来，天旋地转，时空扭曲，闪回网吧、篮球场等回忆碎片。 黑屏。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": true,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0097",
+      "shot_number": 97,
+      "scene_number": "6",
+      "start": 408.7,
+      "end": 411.767,
+      "duration": 3.067,
+      "sample_reasons": [
+        "scene_start_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0097_00-06-48.700.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "校图书馆",
+      "characters": [
+        "吴翊杰",
+        "石琦"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦",
+        "闫老师"
+      ],
+      "props": [],
+      "original_props": [
+        "篮球",
+        "借阅记录纸",
+        "《借阅守则》"
+      ],
+      "prompt": "吴翊杰、石琦在校图书馆，死寂沉沉，只有尘埃在惨白的光柱中缓慢翻滚，像悬浮的代码微粒。 吴翊杰惊醒，发现自己躺在图书馆地上，他揉着头坐起来，看到石琦坐在一旁椅子上。 石琦：醒了？。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0098",
+      "shot_number": 98,
+      "scene_number": "6",
+      "start": 411.767,
+      "end": 414.733,
+      "duration": 2.966,
+      "sample_reasons": [
+        "key_prop_借阅记录纸",
+        "key_prop_《借阅守则》"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0098_00-06-51.767.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "校图书馆",
+      "characters": [
+        "吴翊杰",
+        "石琦"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦",
+        "闫老师"
+      ],
+      "props": [
+        "借阅记录纸",
+        "《借阅守则》"
+      ],
+      "original_props": [
+        "篮球",
+        "借阅记录纸",
+        "《借阅守则》"
+      ],
+      "prompt": "吴翊杰、石琦在校图书馆，涉及借阅记录纸、《借阅守则》，石琦：醒了？ 吴翊杰看到石琦坐在一旁椅子上，起身坐到她对面。 石琦把桌上泛黄的借阅记录纸推到吴翊杰面前。 石琦松开吴翊杰的手腕，反手锁上了阅览室的门，她走到借阅台后，从一本厚重的《借阅守则》里，抽出了一张泛黄的借阅记录纸，递给吴翊杰。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n关键视觉约束：借阅记录纸必须位于前景或桌面焦点位置，体现泛黄借阅登记线索。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0103",
+      "shot_number": 103,
+      "scene_number": "6",
+      "start": 444.067,
+      "end": 492.133,
+      "duration": 48.066,
+      "sample_reasons": [
+        "required_long_or_low_confidence_review"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0103_00-07-24.067.jpg",
+      "alignment_status": "needs_manual_review",
+      "confidence": "medium",
+      "scene": "校图书馆",
+      "characters": [
+        "吴翊杰",
+        "石琦"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦",
+        "闫老师"
+      ],
+      "props": [],
+      "original_props": [
+        "篮球",
+        "借阅记录纸",
+        "《借阅守则》"
+      ],
+      "prompt": "吴翊杰、石琦在校图书馆，吴翊杰感觉头疼。 石琦：算了，问个简单，沉思者的雕像是什么样的？ 吴翊杰把手举到额头，做了个沉思的动作。 石琦将一本艺术史的书翻给吴翊杰，上面的沉思者雕像是手托下巴。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": true,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0104",
+      "shot_number": 104,
+      "scene_number": "6",
+      "start": 492.133,
+      "end": 576.667,
+      "duration": 84.534,
+      "sample_reasons": [
+        "required_long_or_low_confidence_review",
+        "scene_midpoint_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0104_00-08-12.133.jpg",
+      "alignment_status": "needs_manual_review",
+      "confidence": "medium",
+      "scene": "校图书馆",
+      "characters": [
+        "吴翊杰",
+        "石琦"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦",
+        "闫老师"
+      ],
+      "props": [
+        "借阅记录纸"
+      ],
+      "original_props": [
+        "篮球",
+        "借阅记录纸",
+        "《借阅守则》"
+      ],
+      "prompt": "吴翊杰、石琦在校图书馆，涉及借阅记录纸，吴翊杰不敢置信。 吴翊杰又看了看桌上的借阅记录。 吴翊杰：那…这就是记忆错位啊……也就是说，这些人我都认识？ 石琦：林小美，你前桌。赵百丽，咱们班纪律委员。高天蕾，上学期运动会，你送她去过医务室。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n关键视觉约束：借阅记录纸必须位于前景或桌面焦点位置，体现泛黄借阅登记线索。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": true,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0110",
+      "shot_number": 110,
+      "scene_number": "6",
+      "start": 600.133,
+      "end": 605.967,
+      "duration": 5.834,
+      "sample_reasons": [
+        "scene_end_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0110_00-10-00.133.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "校图书馆",
+      "characters": [
+        "吴翊杰",
+        "石琦"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦",
+        "闫老师"
+      ],
+      "props": [],
+      "original_props": [
+        "篮球",
+        "借阅记录纸",
+        "《借阅守则》"
+      ],
+      "prompt": "吴翊杰、石琦在校图书馆，吴翊杰笑了笑：你又不会告诉我答案。 石琦：你会被抹除的！连我也会慢慢忘记你…… 吴翊杰：那就忘记吧。反正这个世界，也没什么好记的，（停顿）但我相信，值得记住的东西，是一定不会忘的。 吴翊杰拉开阅览室的门，冲了出去。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0111",
+      "shot_number": 111,
+      "scene_number": "7",
+      "start": 605.967,
+      "end": 609.233,
+      "duration": 3.266,
+      "sample_reasons": [
+        "scene_start_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0111_00-10-05.967.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "校园广场",
+      "characters": [
+        "吴翊杰",
+        "大光"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "大光"
+      ],
+      "props": [
+        "篮球"
+      ],
+      "original_props": [
+        "篮球"
+      ],
+      "prompt": "吴翊杰、大光在校园广场，涉及篮球，夕阳下的奔跑，镜头跟着吴翊杰剧烈晃动。 突然，一只大汗淋漓的手臂猛地横入镜头，死死拽住了他，惯性让吴翊杰差点摔倒。来者是大光。他穿着红色篮球队球衣，手里抱着篮球，满脸焦急。 大光（急促，带着火气）：小杰！你疯了？全队都在等你！。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0118",
+      "shot_number": 118,
+      "scene_number": "7",
+      "start": 622.233,
+      "end": 622.733,
+      "duration": 0.5,
+      "sample_reasons": [
+        "scene_midpoint_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0118_00-10-22.233.jpg",
+      "alignment_status": "auto_aligned_short_shot",
+      "confidence": "medium",
+      "scene": "校园广场",
+      "characters": [
+        "吴翊杰",
+        "大光"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "大光"
+      ],
+      "props": [
+        "篮球"
+      ],
+      "original_props": [
+        "篮球"
+      ],
+      "prompt": "吴翊杰、大光在校园广场，涉及篮球，吴翊杰（用力推搡）：放手！我有急事！ 大光（根本不撒手，语气变严肃）： 有什么事比训练重要？教练刚说了，今天缺一个人，全队罚跑二十圈！你想害死大家吗？ 快走！ 吴翊杰拗不过大光的蛮劲，不停解释着“我真有急事！”，然而大光就是不放手。 吴翊杰没办法，突然一脚踢在大光的小腿上。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0125",
+      "shot_number": 125,
+      "scene_number": "7",
+      "start": 635,
+      "end": 649.533,
+      "duration": 14.533,
+      "sample_reasons": [
+        "required_long_or_low_confidence_review",
+        "scene_end_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0125_00-10-35.000.jpg",
+      "alignment_status": "needs_manual_review",
+      "confidence": "medium",
+      "scene": "校园广场",
+      "characters": [
+        "吴翊杰",
+        "大光"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "大光"
+      ],
+      "props": [
+        "篮球"
+      ],
+      "original_props": [
+        "篮球"
+      ],
+      "prompt": "吴翊杰、大光在校园广场，涉及篮球，吴翊杰趁机挣脱，头也不回地狂奔。身后传来大光气急败坏的骂声。 大光：吴翊杰！有种你别来比赛！你他妈就是个叛徒！。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": true,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0126",
+      "shot_number": 126,
+      "scene_number": "7A",
+      "start": 649.533,
+      "end": 652.867,
+      "duration": 3.334,
+      "sample_reasons": [
+        "scene_start_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0126_00-10-49.533.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "校园主楼·门口大厅",
+      "characters": [
+        "吴翊杰",
+        "双马尾女生"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "双马尾女生"
+      ],
+      "props": [],
+      "original_props": [],
+      "prompt": "吴翊杰、双马尾女生在校园主楼·门口大厅，吴翊杰跑到教学主楼门口。 双马尾女生正好从楼里背着包抱着书本出来，两人不可避免地撞在一起。 一声闷响。双马尾女生摔倒在地，书包掉落，手中的书本散落一地。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0131",
+      "shot_number": 131,
+      "scene_number": "7A",
+      "start": 660.233,
+      "end": 674.967,
+      "duration": 14.734,
+      "sample_reasons": [
+        "required_long_or_low_confidence_review"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0131_00-11-00.233.jpg",
+      "alignment_status": "needs_manual_review",
+      "confidence": "medium",
+      "scene": "校园主楼·门口大厅",
+      "characters": [
+        "吴翊杰",
+        "双马尾女生"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "双马尾女生"
+      ],
+      "props": [],
+      "original_props": [],
+      "prompt": "吴翊杰、双马尾女生在校园主楼·门口大厅，吴翊杰脚步一顿，喘着粗气停下。 吴翊杰（下意识的）：你没事吧？ 双马尾女生抬起头，眼眶瞬间红了，伸出一只手。 双马尾女生（颤抖）：我的脚好像扭了……能扶我去趟医务室吗？我站不起来……。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": true,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0132",
+      "shot_number": 132,
+      "scene_number": "7A",
+      "start": 674.967,
+      "end": 676.9,
+      "duration": 1.933,
+      "sample_reasons": [
+        "scene_midpoint_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0132_00-11-14.967.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "校园主楼·门口大厅",
+      "characters": [
+        "吴翊杰",
+        "双马尾女生"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "双马尾女生"
+      ],
+      "props": [],
+      "original_props": [],
+      "prompt": "吴翊杰、双马尾女生在校园主楼·门口大厅，吴翊杰（下意识的）：你没事吧？ 双马尾女生抬起头，眼眶瞬间红了，伸出一只手。 双马尾女生（颤抖）：我的脚好像扭了……能扶我去趟医务室吗？我站不起来…… 周围路过的几个学生停下脚步，目光聚焦在吴翊杰身上。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0137",
+      "shot_number": 137,
+      "scene_number": "7A",
+      "start": 691.533,
+      "end": 698.567,
+      "duration": 7.034,
+      "sample_reasons": [
+        "scene_end_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0137_00-11-31.533.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "校园主楼·门口大厅",
+      "characters": [
+        "双马尾女生"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "双马尾女生"
+      ],
+      "props": [],
+      "original_props": [],
+      "prompt": "双马尾女生在校园主楼·门口大厅，他草草将周围散落的书本汇聚一起交给女生，随后继续冲向楼梯。 双马尾女生（尖利，恶毒）：吴翊杰，你之前可不是这样的！。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0138",
+      "shot_number": 138,
+      "scene_number": "7B",
+      "start": 698.567,
+      "end": 704.1,
+      "duration": 5.533,
+      "sample_reasons": [
+        "scene_start_coverage",
+        "key_prop_旧课桌椅"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0138_00-11-38.567.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "校园主楼·楼梯间",
+      "characters": [
+        "石琦"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦"
+      ],
+      "props": [
+        "旧课桌椅"
+      ],
+      "original_props": [
+        "广播",
+        "旧课桌椅"
+      ],
+      "prompt": "石琦在校园主楼·楼梯间，涉及旧课桌椅，楼梯间被堵得水泄不通。几十个学生正费力地搬运着旧课桌椅，金属刮擦地面的声音极其刺耳。 学生A： 让让，大扫除。 学生B： 借过，别挡道。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0142",
+      "shot_number": 142,
+      "scene_number": "7B",
+      "start": 721.933,
+      "end": 728.133,
+      "duration": 6.2,
+      "sample_reasons": [
+        "key_prop_广播"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0142_00-12-01.933.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "校园主楼·楼梯间",
+      "characters": [
+        "石琦"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦"
+      ],
+      "props": [
+        "广播",
+        "旧课桌椅"
+      ],
+      "original_props": [
+        "广播",
+        "旧课桌椅"
+      ],
+      "prompt": "石琦在校园主楼·楼梯间，涉及广播、旧课桌椅，吴翊杰被卡在由上至下的人群中，寸步难行。 好不容易挤到上一层，面前是一堵由桌椅和校服组成的墙。 无论他怎么推，前面的人只是冷漠地回一句“别挤”，然后被倒逼地不得不退回下层。 一声极其尖锐、刺耳的啸叫声划破了操场的上空。那是麦克风贴近音响时产生的爆鸣音，带着某种破坏性的频率。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0143",
+      "shot_number": 143,
+      "scene_number": "7B",
+      "start": 728.133,
+      "end": 730.333,
+      "duration": 2.2,
+      "sample_reasons": [
+        "scene_midpoint_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0143_00-12-08.133.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "校园主楼·楼梯间",
+      "characters": [
+        "石琦"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦"
+      ],
+      "props": [
+        "广播",
+        "旧课桌椅"
+      ],
+      "original_props": [
+        "广播",
+        "旧课桌椅"
+      ],
+      "prompt": "石琦在校园主楼·楼梯间，涉及广播、旧课桌椅，好不容易挤到上一层，面前是一堵由桌椅和校服组成的墙。 无论他怎么推，前面的人只是冷漠地回一句“别挤”，然后被倒逼地不得不退回下层。 一声极其尖锐、刺耳的啸叫声划破了操场的上空。那是麦克风贴近音响时产生的爆鸣音，带着某种破坏性的频率。 蜂拥的学生们动作瞬间卡顿，痛苦地捂住耳朵。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0147",
+      "shot_number": 147,
+      "scene_number": "7B",
+      "start": 740.367,
+      "end": 744.6,
+      "duration": 4.233,
+      "sample_reasons": [
+        "scene_end_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0147_00-12-20.367.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "校园主楼·楼梯间",
+      "characters": [
+        "吴翊杰"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦"
+      ],
+      "props": [
+        "广播",
+        "旧课桌椅"
+      ],
+      "original_props": [
+        "广播",
+        "旧课桌椅"
+      ],
+      "prompt": "吴翊杰在校园主楼·楼梯间，涉及广播、旧课桌椅，石琦通过全校广播，嘶吼（OS）：池清明，林小美，赵百丽，高天蕾，张晴，董文斌…… 众人捂着耳朵，后退，一个缺口露了出来。 吴翊杰侧身挤过缝隙，手脚并用爬过堆叠的课桌，冲向顶楼。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0148",
+      "shot_number": 148,
+      "scene_number": "8",
+      "start": 744.6,
+      "end": 756.833,
+      "duration": 12.233,
+      "sample_reasons": [
+        "required_long_or_low_confidence_review",
+        "scene_start_coverage",
+        "key_prop_透明薄膜",
+        "key_prop_蜻蜓"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0148_00-12-24.600.jpg",
+      "alignment_status": "needs_manual_review",
+      "confidence": "medium",
+      "scene": "教学楼天台",
+      "characters": [
+        "吴翊杰",
+        "闫老师"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "闫老师"
+      ],
+      "props": [
+        "旧课桌椅",
+        "透明薄膜",
+        "蜻蜓"
+      ],
+      "original_props": [
+        "篮球",
+        "旧课桌椅",
+        "透明薄膜",
+        "蜻蜓"
+      ],
+      "prompt": "吴翊杰、闫老师在教学楼天台，涉及旧课桌椅、透明薄膜、蜻蜓，空旷的教学楼天台上四处堆砌着废旧的桌椅，一只蜻蜓出现在吴翊杰的视野（剧本第一个镜头出现的蜻蜓），它像是引导者，带领吴翊杰走向天台的另一侧。 在边缘之外，吴翊杰看到空中的异常：一个透明薄膜好像巨大的气泡一般静静的悬浮着，像一块没擦干净的玻璃污渍。 就在吴翊杰想要向前时，闫老师突然出现，挡住了吴翊杰的去路。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n关键视觉约束：透明薄膜必须作为核心视觉出现：巨大半透明气泡状异常入口悬浮在天台边缘外。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": true,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0149",
+      "shot_number": 149,
+      "scene_number": "8",
+      "start": 756.833,
+      "end": 773.667,
+      "duration": 16.834,
+      "sample_reasons": [
+        "required_long_or_low_confidence_review"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0149_00-12-36.833.jpg",
+      "alignment_status": "needs_manual_review",
+      "confidence": "medium",
+      "scene": "教学楼天台",
+      "characters": [
+        "吴翊杰",
+        "闫老师"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "闫老师"
+      ],
+      "props": [
+        "旧课桌椅",
+        "透明薄膜",
+        "蜻蜓"
+      ],
+      "original_props": [
+        "篮球",
+        "旧课桌椅",
+        "透明薄膜",
+        "蜻蜓"
+      ],
+      "prompt": "吴翊杰、闫老师在教学楼天台，涉及旧课桌椅、透明薄膜、蜻蜓，空旷的教学楼天台上四处堆砌着废旧的桌椅，一只蜻蜓出现在吴翊杰的视野（剧本第一个镜头出现的蜻蜓），它像是引导者，带领吴翊杰走向天台的另一侧。 在边缘之外，吴翊杰看到空中的异常：一个透明薄膜好像巨大的气泡一般静静的悬浮着，像一块没擦干净的玻璃污渍。 就在吴翊杰想要向前时，闫老师突然出现，挡住了吴翊杰的去路。 闫老师（语气冰冷）：吴翊杰，马上就要模考了，你闹够了没有？。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n关键视觉约束：透明薄膜必须作为核心视觉出现：巨大半透明气泡状异常入口悬浮在天台边缘外。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": true,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0156",
+      "shot_number": 156,
+      "scene_number": "8",
+      "start": 793.933,
+      "end": 798.6,
+      "duration": 4.667,
+      "sample_reasons": [
+        "scene_midpoint_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0156_00-13-13.933.jpg",
+      "alignment_status": "auto_aligned_cleaned",
+      "confidence": "high",
+      "scene": "教学楼天台",
+      "characters": [
+        "吴翊杰",
+        "闫老师"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "闫老师"
+      ],
+      "props": [
+        "透明薄膜"
+      ],
+      "original_props": [
+        "篮球",
+        "旧课桌椅",
+        "透明薄膜",
+        "蜻蜓"
+      ],
+      "prompt": "吴翊杰、闫老师在教学楼天台，涉及透明薄膜，吴翊杰低着头，似乎在颤抖。 闫老师满意地笑了，向前走了一步，伸出手想拍他的肩膀。 闫老师：回来吧。听话。 就在手掌即将触碰的瞬间，吴翊杰猛地抬起头。 他的眼里没有犹豫，只有一种彻底的决绝。 吴翊杰：如果你说的“栋梁”就是忘记真相……那我宁愿当个废物。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n关键视觉约束：透明薄膜必须作为核心视觉出现：巨大半透明气泡状异常入口悬浮在天台边缘外。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": false,
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "shot_id": "edit_shot_0163",
+      "shot_number": 163,
+      "scene_number": "8",
+      "start": 821.167,
+      "end": 842.9,
+      "duration": 21.733,
+      "sample_reasons": [
+        "required_long_or_low_confidence_review",
+        "scene_end_coverage"
+      ],
+      "keyframe_path": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/keyframes/shot_0163_00-13-41.167.jpg",
+      "alignment_status": "needs_manual_review",
+      "confidence": "medium",
+      "scene": "教学楼天台",
+      "characters": [
+        "吴翊杰",
+        "闫老师"
+      ],
+      "original_characters": [
+        "吴翊杰",
+        "池清明",
+        "闫老师"
+      ],
+      "props": [
+        "透明薄膜"
+      ],
+      "original_props": [
+        "篮球",
+        "旧课桌椅",
+        "透明薄膜",
+        "蜻蜓"
+      ],
+      "prompt": "吴翊杰、闫老师在教学楼天台，涉及透明薄膜，【现实】 吴翊杰的身体腾空而起，像投篮一样，划出一道抛物线。 闫老师冲过来扑了个空。 他准确无误地坠入那片透明的薄膜，像是水滴融入大海。 吴翊杰消失了，天台上只剩下空荡荡的风声，和一脸铁青、死死抓着栏杆的闫老师。。画面定格在该剪辑镜头最明确的剧情动作瞬间。\n关键视觉约束：透明薄膜必须作为核心视觉出现：巨大半透明气泡状异常入口悬浮在天台边缘外。\n风格：写实电影感，画幅 16:9；保持人物身份、场景结构和道具外观连续；避免文字、水印、logo、多格漫画感。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action_or_evidence": true,
+        "has_style": true
+      },
+      "prompt_complete": true,
+      "scene_aligned": true,
+      "unknown_references": {
+        "characters": [],
+        "props": []
+      },
+      "critical_visual_ok": true,
+      "needs_manual_review": true,
+      "passed": true,
+      "failure_reasons": []
+    }
+  ],
+  "next_stage": "Edit-shot sample rule layer passed; visual sample generation can be enabled for optimization-blocking items."
+}

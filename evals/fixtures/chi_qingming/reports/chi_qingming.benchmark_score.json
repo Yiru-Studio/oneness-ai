@@ -1,0 +1,36 @@
+{
+  "dataset": "structured_cases/chi_qingming/chi_qingming.cleaned.dataset.json",
+  "ok": true,
+  "threshold": 90.0,
+  "hard_check_errors": [],
+  "overall_score": 99.39,
+  "metrics": {
+    "scene_breakdown_coverage": 1.0,
+    "asset_reference_integrity": 1.0,
+    "character_asset_presence": 1.0,
+    "scene_asset_presence": 1.0,
+    "prop_asset_presence": 1.0,
+    "core_asset_prompt_completeness": 1.0,
+    "image_prompt_completeness": 1.0,
+    "keyframe_coverage": 1.0,
+    "shot_alignment_clean_rate": 0.9387,
+    "shot_confidence_medium_plus": 1.0
+  },
+  "counts": {
+    "assets": 31,
+    "characters": 9,
+    "scenes": 10,
+    "props": 12,
+    "core_assets": 17,
+    "edit_shots": 163,
+    "alignment_status": {
+      "needs_manual_review": 10,
+      "auto_aligned_cleaned": 147,
+      "auto_aligned_short_shot": 6
+    },
+    "confidence": {
+      "medium": 16,
+      "high": 147
+    }
+  }
+}

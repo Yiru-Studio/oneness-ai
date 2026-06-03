@@ -1,0 +1,1957 @@
+{
+  "run_id": "goal-real-20260529-210656",
+  "generated_at": "2026-05-29T13:53:31.526Z",
+  "dataset": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/chi_qingming.cleaned.dataset.json",
+  "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23",
+  "api_base": "http://127.0.0.1:8038",
+  "scope": {
+    "phase": "image_34_baseline",
+    "requested_assets": 34,
+    "requested_storyboard_shots": 10,
+    "edit_shot_stage": "deferred_until_34_image_baseline_passes"
+  },
+  "task_ids": {
+    "assets": "task-generate_assets-mpqxrw2t-1",
+    "asset_prompts": "task-generate_asset_prompts-mpqxsenz-2",
+    "storyboard": "task-generate_storyboard-mpqxsg7v-3",
+    "asset_images": "task-reference_image-mpqxthd3-4",
+    "shot_images": [
+      {
+        "shot_id": "scene-1",
+        "task_id": "task-generate_image-mpqyies5-40",
+        "status": "succeeded",
+        "attempts": [
+          {
+            "attempt": 1,
+            "task_id": "task-generate_image-mpqyfmxa-39",
+            "status": "failed",
+            "error": "Upstream request failed"
+          },
+          {
+            "attempt": 2,
+            "task_id": "task-generate_image-mpqyies5-40",
+            "status": "succeeded",
+            "error": null
+          }
+        ]
+      },
+      {
+        "shot_id": "scene-2",
+        "task_id": "task-generate_image-mpqylw6a-41",
+        "status": "succeeded",
+        "attempts": [
+          {
+            "attempt": 1,
+            "task_id": "task-generate_image-mpqylw6a-41",
+            "status": "succeeded",
+            "error": null
+          }
+        ]
+      },
+      {
+        "shot_id": "scene-3",
+        "task_id": "task-generate_image-mpqyr0ea-42",
+        "status": "succeeded",
+        "attempts": [
+          {
+            "attempt": 1,
+            "task_id": "task-generate_image-mpqyr0ea-42",
+            "status": "succeeded",
+            "error": null
+          }
+        ]
+      },
+      {
+        "shot_id": "scene-4",
+        "task_id": "task-generate_image-mpqyu3vo-43",
+        "status": "succeeded",
+        "attempts": [
+          {
+            "attempt": 1,
+            "task_id": "task-generate_image-mpqyu3vo-43",
+            "status": "succeeded",
+            "error": null
+          }
+        ]
+      },
+      {
+        "shot_id": "scene-5",
+        "task_id": "task-generate_image-mpqywy3h-44",
+        "status": "succeeded",
+        "attempts": [
+          {
+            "attempt": 1,
+            "task_id": "task-generate_image-mpqywy3h-44",
+            "status": "succeeded",
+            "error": null
+          }
+        ]
+      },
+      {
+        "shot_id": "scene-6",
+        "task_id": "task-generate_image-mpqz0ten-45",
+        "status": "succeeded",
+        "attempts": [
+          {
+            "attempt": 1,
+            "task_id": "task-generate_image-mpqz0ten-45",
+            "status": "succeeded",
+            "error": null
+          }
+        ]
+      },
+      {
+        "shot_id": "scene-7",
+        "task_id": "task-generate_image-mpqz3zyb-46",
+        "status": "succeeded",
+        "attempts": [
+          {
+            "attempt": 1,
+            "task_id": "task-generate_image-mpqz3zyb-46",
+            "status": "succeeded",
+            "error": null
+          }
+        ]
+      },
+      {
+        "shot_id": "scene-7A",
+        "task_id": "task-generate_image-mpqz73eq-47",
+        "status": "succeeded",
+        "attempts": [
+          {
+            "attempt": 1,
+            "task_id": "task-generate_image-mpqz73eq-47",
+            "status": "succeeded",
+            "error": null
+          }
+        ]
+      },
+      {
+        "shot_id": "scene-7B",
+        "task_id": "task-generate_image-mpqz9xkr-48",
+        "status": "succeeded",
+        "attempts": [
+          {
+            "attempt": 1,
+            "task_id": "task-generate_image-mpqz9xkr-48",
+            "status": "succeeded",
+            "error": null
+          }
+        ]
+      },
+      {
+        "shot_id": "scene-8",
+        "task_id": "task-generate_image-mpqzd2lr-49",
+        "status": "succeeded",
+        "attempts": [
+          {
+            "attempt": 1,
+            "task_id": "task-generate_image-mpqzd2lr-49",
+            "status": "succeeded",
+            "error": null
+          }
+        ]
+      }
+    ]
+  },
+  "semantic_prerequisites": {
+    "passed": true,
+    "checks": {
+      "characters": {
+        "matched": [
+          "吴翊杰",
+          "池清明",
+          "石琦",
+          "闫老师",
+          "大光",
+          "双马尾女生",
+          "眼镜男",
+          "丸子头女生",
+          "中年女声"
+        ],
+        "missing": [],
+        "score": 1
+      },
+      "scenes": {
+        "matched": [
+          "校办公室",
+          "网吧",
+          "电话亭",
+          "学校篮球场",
+          "学校走廊/教室",
+          "校图书馆",
+          "校园广场",
+          "校园主楼·门口大厅",
+          "校园主楼·楼梯间",
+          "教学楼天台"
+        ],
+        "missing": [],
+        "score": 1
+      },
+      "coreProps": {
+        "matched": [
+          "篮球",
+          "借阅记录纸",
+          "透明薄膜"
+        ],
+        "missing": [],
+        "score": 1
+      },
+      "storyboardShotCount": {
+        "expected": 10,
+        "actual": 10,
+        "passed": true
+      }
+    },
+    "counts": {
+      "gold": {
+        "characters": 9,
+        "scenes": 10,
+        "coreProps": 3
+      },
+      "generated": {
+        "assets": 35,
+        "characters": 9,
+        "scenes": 10,
+        "props": 16,
+        "shots": 10
+      }
+    },
+    "gold_backfill": []
+  },
+  "model_judge_status": "blocked",
+  "model_judge": {
+    "status": "blocked",
+    "reason": "Set CHI_QINGMING_IMAGE_MODEL_JUDGE=true to enable multimodal judge.",
+    "model": "gpt-5.4-mini",
+    "average_score": null,
+    "items": []
+  },
+  "thresholds": {
+    "asset_reference_success_rate": 0.9,
+    "storyboard_image_success_rate": 0.9,
+    "storyboard_scene_coverage": 1,
+    "storyboard_unique_scene_rate": 1,
+    "prompt_completeness_rate": 0.95,
+    "quality_gate_pass_rate": 1,
+    "visual_judge_average": 80
+  },
+  "threshold_results": {
+    "asset_reference_success_rate": true,
+    "storyboard_image_success_rate": true,
+    "storyboard_scene_coverage": true,
+    "storyboard_unique_scene_rate": true,
+    "prompt_completeness_rate": true,
+    "quality_gate_pass_rate": true,
+    "visual_judge_average": false
+  },
+  "rule_passed": true,
+  "overall_passed": false,
+  "metrics": {
+    "asset_reference_success_rate": 1,
+    "storyboard_image_success_rate": 1,
+    "storyboard_scene_coverage": 1,
+    "storyboard_unique_scene_rate": 1,
+    "prompt_completeness_rate": 1,
+    "quality_gate_pass_rate": 1,
+    "visual_judge_average": null,
+    "image_duration_seconds": 2718.02
+  },
+  "counts": {
+    "assets": 34,
+    "asset_by_kind": {
+      "character": {
+        "total": 8,
+        "succeeded": 8,
+        "success_rate": 1
+      },
+      "scene": {
+        "total": 10,
+        "succeeded": 10,
+        "success_rate": 1
+      },
+      "prop": {
+        "total": 16,
+        "succeeded": 16,
+        "success_rate": 1
+      }
+    },
+    "storyboard_shots": 10,
+    "storyboard_unique_scene_keys": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "7A",
+      "7B",
+      "8"
+    ],
+    "failures": 0
+  },
+  "artifacts": {
+    "contact_sheet": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/chi_qingming.image_contact_sheet.goal-real-20260529-210656.jpg"
+  },
+  "failures": [],
+  "assets": [
+    {
+      "id": "role-吴翊杰",
+      "asset_id": "role-吴翊杰",
+      "name": "吴翊杰",
+      "kind": "character",
+      "group": "角色",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-character-%E5%90%B4%E7%BF%8A%E6%9D%B0-mpqxy4bh.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成角色参考图。角色名：吴翊杰。\n角色设定：15岁初三男生，身形偏瘦、略显单薄，黑色短发凌乱，面容清秀但常带紧张与倔强神情，穿黑白校服、校裤和黑白运动鞋，情绪上易急躁、困惑又固执。\n角色参考图只画角色本体和固定穿戴；独立道具、剧情动作和具体场景应留给道具/场景/分镜阶段。\n固定穿戴可以出现：项圈、围巾、衣服、雨衣、小围裙、帽子、鞋。\n如果角色描述里混有场景动作或独立道具，只提取外形、年龄/物种、体型、毛发/发型、服装和固定穿戴。\n类型：纯角色设定图 / character reference portrait，不是分镜合成图。\n要求：单一角色为唯一主体，全身或中全身，正面或 3/4 正面静态站姿/坐姿，身份特征、体型、毛发/发型、服装和随身小配件稳定。\n背景：干净浅灰、浅色渐变或简洁影棚背景。不要球场、街道、房间、码头等剧情场景；不要表现正在打球、奔跑、对话等剧情动作。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。 不要生成剧情镜头、动作场面、球场/街道/室内等具体叙事环境。 不要融合场景参考图或分镜合成图。 不要把角色放进正在表演的事件里。 除角色随身穿戴的小配件外，不要突出大型道具或环境道具。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:09:52.227Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthd6-5",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "吴翊杰",
+        "kind": "角色",
+        "description": "15岁初三男生，身形偏瘦、略显单薄，黑色短发凌乱，面容清秀但常带紧张与倔强神情，穿黑白校服、校裤和黑白运动鞋，情绪上易急躁、困惑又固执。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "role-池清明",
+      "asset_id": "role-池清明",
+      "name": "池清明",
+      "kind": "character",
+      "group": "角色",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-character-%E6%B1%A0%E6%B8%85%E6%98%8E-mpqxvwy1.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成角色参考图。角色名：池清明。\n角色设定：15岁初三男生，身形清瘦挺拔，黑色短发利落，五官干净，神情带一点神秘和从容，穿蓝白校服、校裤和运动鞋，整体视觉稳定但在他人记忆中容易变得模糊。\n角色参考图只画角色本体和固定穿戴；独立道具、剧情动作和具体场景应留给道具/场景/分镜阶段。\n固定穿戴可以出现：项圈、围巾、衣服、雨衣、小围裙、帽子、鞋。\n如果角色描述里混有场景动作或独立道具，只提取外形、年龄/物种、体型、毛发/发型、服装和固定穿戴。\n类型：纯角色设定图 / character reference portrait，不是分镜合成图。\n要求：单一角色为唯一主体，全身或中全身，正面或 3/4 正面静态站姿/坐姿，身份特征、体型、毛发/发型、服装和随身小配件稳定。\n背景：干净浅灰、浅色渐变或简洁影棚背景。不要球场、街道、房间、码头等剧情场景；不要表现正在打球、奔跑、对话等剧情动作。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。 不要生成剧情镜头、动作场面、球场/街道/室内等具体叙事环境。 不要融合场景参考图或分镜合成图。 不要把角色放进正在表演的事件里。 除角色随身穿戴的小配件外，不要突出大型道具或环境道具。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:08:12.058Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthd8-6",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "池清明",
+        "kind": "角色",
+        "description": "15岁初三男生，身形清瘦挺拔，黑色短发利落，五官干净，神情带一点神秘和从容，穿蓝白校服、校裤和运动鞋，整体视觉稳定但在他人记忆中容易变得模糊。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "role-石琦",
+      "asset_id": "role-石琦",
+      "name": "石琦",
+      "kind": "character",
+      "group": "角色",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-character-%E7%9F%B3%E7%90%A6-mpqxuq9i.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成角色参考图。角色名：石琦。\n角色设定：15岁初中女生，身形纤细，黑色长发或中长发扎得整齐，脸部线条清淡，眼神冷静疏离，穿黑白校服，戴套袖，常显得克制、警觉、说话冷静。\n角色参考图只画角色本体和固定穿戴；独立道具、剧情动作和具体场景应留给道具/场景/分镜阶段。\n固定穿戴可以出现：项圈、围巾、衣服、雨衣、小围裙、帽子、鞋。\n如果角色描述里混有场景动作或独立道具，只提取外形、年龄/物种、体型、毛发/发型、服装和固定穿戴。\n类型：纯角色设定图 / character reference portrait，不是分镜合成图。\n要求：单一角色为唯一主体，全身或中全身，正面或 3/4 正面静态站姿/坐姿，身份特征、体型、毛发/发型、服装和随身小配件稳定。\n背景：干净浅灰、浅色渐变或简洁影棚背景。不要球场、街道、房间、码头等剧情场景；不要表现正在打球、奔跑、对话等剧情动作。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。 不要生成剧情镜头、动作场面、球场/街道/室内等具体叙事环境。 不要融合场景参考图或分镜合成图。 不要把角色放进正在表演的事件里。 除角色随身穿戴的小配件外，不要突出大型道具或环境道具。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:08:12.061Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdb-7",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "石琦",
+        "kind": "角色",
+        "description": "15岁初中女生，身形纤细，黑色长发或中长发扎得整齐，脸部线条清淡，眼神冷静疏离，穿黑白校服，戴套袖，常显得克制、警觉、说话冷静。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "role-闫老师",
+      "asset_id": "role-闫老师",
+      "name": "闫老师",
+      "kind": "character",
+      "group": "角色",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-character-%E9%97%AB%E8%80%81%E5%B8%88-mpqxxwrb.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成角色参考图。角色名：闫老师。\n角色设定：40多岁女班主任，体型中等偏瘦，黑色短发整齐，面容严肃、眼神压迫感强，穿深色教师服或深色上衣，动作利落，常带不耐与控制欲的神情。\n角色参考图只画角色本体和固定穿戴；独立道具、剧情动作和具体场景应留给道具/场景/分镜阶段。\n固定穿戴可以出现：项圈、围巾、衣服、雨衣、小围裙、帽子、鞋。\n如果角色描述里混有场景动作或独立道具，只提取外形、年龄/物种、体型、毛发/发型、服装和固定穿戴。\n类型：纯角色设定图 / character reference portrait，不是分镜合成图。\n要求：单一角色为唯一主体，全身或中全身，正面或 3/4 正面静态站姿/坐姿，身份特征、体型、毛发/发型、服装和随身小配件稳定。\n背景：干净浅灰、浅色渐变或简洁影棚背景。不要球场、街道、房间、码头等剧情场景；不要表现正在打球、奔跑、对话等剧情动作。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。 不要生成剧情镜头、动作场面、球场/街道/室内等具体叙事环境。 不要融合场景参考图或分镜合成图。 不要把角色放进正在表演的事件里。 除角色随身穿戴的小配件外，不要突出大型道具或环境道具。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:09:10.167Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdf-8",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "闫老师",
+        "kind": "角色",
+        "description": "40多岁女班主任，体型中等偏瘦，黑色短发整齐，面容严肃、眼神压迫感强，穿深色教师服或深色上衣，动作利落，常带不耐与控制欲的神情。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "role-大光",
+      "asset_id": "role-大光",
+      "name": "大光",
+      "kind": "character",
+      "group": "角色",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-character-%E5%A4%A7%E5%85%89-mpqxx8zv.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成角色参考图。角色名：大光。\n角色设定：15岁男生，寸头、体格高壮结实，脸型硬朗，常带不耐烦的表情，穿红色篮球队球衣、运动短裤和球鞋，身上有明显体育生的力量感与火气。\n角色参考图只画角色本体和固定穿戴；独立道具、剧情动作和具体场景应留给道具/场景/分镜阶段。\n固定穿戴可以出现：项圈、围巾、衣服、雨衣、小围裙、帽子、鞋。\n如果角色描述里混有场景动作或独立道具，只提取外形、年龄/物种、体型、毛发/发型、服装和固定穿戴。\n不要画网球拍、网球、相机、旧照片、纸风车、手机、钥匙、书包等独立道具；这些应作为单独道具参考图。\n类型：纯角色设定图 / character reference portrait，不是分镜合成图。\n要求：单一角色为唯一主体，全身或中全身，正面或 3/4 正面静态站姿/坐姿，身份特征、体型、毛发/发型、服装和随身小配件稳定。\n背景：干净浅灰、浅色渐变或简洁影棚背景。不要球场、街道、房间、码头等剧情场景；不要表现正在打球、奔跑、对话等剧情动作。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。 不要生成剧情镜头、动作场面、球场/街道/室内等具体叙事环境。 不要融合场景参考图或分镜合成图。 不要把角色放进正在表演的事件里。 除角色随身穿戴的小配件外，不要突出大型道具或环境道具。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "warning",
+        "score": 55,
+        "warnings": [
+          "生成前已修正：角色参考图提示词仍包含独立道具，不能自动设为当前"
+        ],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:10:05.480Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdh-9",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "大光",
+        "kind": "角色",
+        "description": "15岁男生，寸头、体格高壮结实，脸型硬朗，常带不耐烦的表情，穿红色篮球队球衣、运动短裤和球鞋，身上有明显体育生的力量感与火气。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "role-眼镜男",
+      "asset_id": "role-眼镜男",
+      "name": "眼镜男",
+      "kind": "character",
+      "group": "角色",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-character-%E7%9C%BC%E9%95%9C%E7%94%B7-mpqxy3i1.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成角色参考图。角色名：眼镜男。\n角色设定：15岁男生，身形普通偏瘦，戴黑框眼镜，短发整齐，穿普通校服，神情胆怯、被突然搭话时明显惊慌。\n角色参考图只画角色本体和固定穿戴；独立道具、剧情动作和具体场景应留给道具/场景/分镜阶段。\n固定穿戴可以出现：项圈、围巾、衣服、雨衣、小围裙、帽子、鞋。\n如果角色描述里混有场景动作或独立道具，只提取外形、年龄/物种、体型、毛发/发型、服装和固定穿戴。\n类型：纯角色设定图 / character reference portrait，不是分镜合成图。\n要求：单一角色为唯一主体，全身或中全身，正面或 3/4 正面静态站姿/坐姿，身份特征、体型、毛发/发型、服装和随身小配件稳定。\n背景：干净浅灰、浅色渐变或简洁影棚背景。不要球场、街道、房间、码头等剧情场景；不要表现正在打球、奔跑、对话等剧情动作。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。 不要生成剧情镜头、动作场面、球场/街道/室内等具体叙事环境。 不要融合场景参考图或分镜合成图。 不要把角色放进正在表演的事件里。 除角色随身穿戴的小配件外，不要突出大型道具或环境道具。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:11:07.775Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdi-10",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "眼镜男",
+        "kind": "角色",
+        "description": "15岁男生，身形普通偏瘦，戴黑框眼镜，短发整齐，穿普通校服，神情胆怯、被突然搭话时明显惊慌。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "role-双马尾女生",
+      "asset_id": "role-双马尾女生",
+      "name": "双马尾女生",
+      "kind": "character",
+      "group": "角色",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-character-%E5%8F%8C%E9%A9%AC%E5%B0%BE%E5%A5%B3%E7%94%9F-mpqy0szv.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成角色参考图。角色名：双马尾女生。\n角色设定：15岁女生，身形娇小，黑发扎双马尾，脸型偏圆，穿校服和书包，表情容易受惊、委屈或尖锐反击。\n角色参考图只画角色本体和固定穿戴；独立道具、剧情动作和具体场景应留给道具/场景/分镜阶段。\n固定穿戴可以出现：项圈、围巾、衣服、雨衣、小围裙、帽子、鞋。\n如果角色描述里混有场景动作或独立道具，只提取外形、年龄/物种、体型、毛发/发型、服装和固定穿戴。\n不要画网球拍、网球、相机、旧照片、纸风车、手机、钥匙、书包等独立道具；这些应作为单独道具参考图。\n类型：纯角色设定图 / character reference portrait，不是分镜合成图。\n要求：单一角色为唯一主体，全身或中全身，正面或 3/4 正面静态站姿/坐姿，身份特征、体型、毛发/发型、服装和随身小配件稳定。\n背景：干净浅灰、浅色渐变或简洁影棚背景。不要球场、街道、房间、码头等剧情场景；不要表现正在打球、奔跑、对话等剧情动作。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。 不要生成剧情镜头、动作场面、球场/街道/室内等具体叙事环境。 不要融合场景参考图或分镜合成图。 不要把角色放进正在表演的事件里。 除角色随身穿戴的小配件外，不要突出大型道具或环境道具。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "warning",
+        "score": 55,
+        "warnings": [
+          "生成前已修正：角色参考图提示词仍包含独立道具，不能自动设为当前"
+        ],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:11:38.549Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdk-11",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "双马尾女生",
+        "kind": "角色",
+        "description": "15岁女生，身形娇小，黑发扎双马尾，脸型偏圆，穿校服和书包，表情容易受惊、委屈或尖锐反击。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "role-丸子头女生",
+      "asset_id": "role-丸子头女生",
+      "name": "丸子头女生",
+      "kind": "character",
+      "group": "角色",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-character-%E4%B8%B8%E5%AD%90%E5%A4%B4%E5%A5%B3%E7%94%9F-mpqxz1wf.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成角色参考图。角色名：丸子头女生。\n角色设定：15岁女生，身形清瘦，头发扎丸子头，穿校服，神情警惕、护短，站在人群中常带明显的防备感。\n角色参考图只画角色本体和固定穿戴；独立道具、剧情动作和具体场景应留给道具/场景/分镜阶段。\n固定穿戴可以出现：项圈、围巾、衣服、雨衣、小围裙、帽子、鞋。\n如果角色描述里混有场景动作或独立道具，只提取外形、年龄/物种、体型、毛发/发型、服装和固定穿戴。\n类型：纯角色设定图 / character reference portrait，不是分镜合成图。\n要求：单一角色为唯一主体，全身或中全身，正面或 3/4 正面静态站姿/坐姿，身份特征、体型、毛发/发型、服装和随身小配件稳定。\n背景：干净浅灰、浅色渐变或简洁影棚背景。不要球场、街道、房间、码头等剧情场景；不要表现正在打球、奔跑、对话等剧情动作。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。 不要生成剧情镜头、动作场面、球场/街道/室内等具体叙事环境。 不要融合场景参考图或分镜合成图。 不要把角色放进正在表演的事件里。 除角色随身穿戴的小配件外，不要突出大型道具或环境道具。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:11:47.284Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdl-12",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "丸子头女生",
+        "kind": "角色",
+        "description": "15岁女生，身形清瘦，头发扎丸子头，穿校服，神情警惕、护短，站在人群中常带明显的防备感。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-校办公室",
+      "asset_id": "scene-校办公室",
+      "name": "校办公室",
+      "kind": "scene",
+      "group": "场景",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-scene-%E6%A0%A1%E5%8A%9E%E5%85%AC%E5%AE%A4-mpqxzdbh.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成场景参考图。场景名：校办公室。\n场景设定：校办公室，日，室内空间。窗外蝉鸣聒噪。 旁边的空办公桌前，放着好几摞高高的试卷和讲义，有人（石琦）坐在纸堆后清点试卷，分成等量的各小份，只能看到那人忙碌的胳膊，她穿着校服，戴着套袖，脸被挡住了。 吴翊杰（os）：池清明已经五天没来上学了，电话一直占线，他们家我也去了，总是没人，闫老师，我觉得真得报警了……\n要求：环境结构清晰，天气、光线、空间锚点稳定，可作为后续分镜统一场景参考。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:11:48.357Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdn-13",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "校办公室",
+        "kind": "场景",
+        "description": "校办公室，日，室内空间。窗外蝉鸣聒噪。 旁边的空办公桌前，放着好几摞高高的试卷和讲义，有人（石琦）坐在纸堆后清点试卷，分成等量的各小份，只能看到那人忙碌的胳膊，她穿着校服，戴着套袖，脸被挡住了。 吴翊杰（os）：池清明已经五天没来上学了，电话一直占线，他们家我也去了，总是没人，闫老师，我觉得真得报警了……"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-网吧",
+      "asset_id": "scene-网吧",
+      "name": "网吧",
+      "kind": "scene",
+      "group": "场景",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-scene-%E7%BD%91%E5%90%A7-mpqy634a.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成场景参考图。场景名：网吧。\n场景设定：网吧，夜，室内空间。吴翊杰坐在电脑前，登录QQ，发现好友列表里的池清明头像旁边标注“已注销”。 吴翊杰挠头，又查找池清明的blog，发现也查无此人。 吴翊杰再次刷新网页，显示「404 not found」。\n要求：环境结构清晰，天气、光线、空间锚点稳定，可作为后续分镜统一场景参考。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:15:39.919Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdo-14",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "网吧",
+        "kind": "场景",
+        "description": "网吧，夜，室内空间。吴翊杰坐在电脑前，登录QQ，发现好友列表里的池清明头像旁边标注“已注销”。 吴翊杰挠头，又查找池清明的blog，发现也查无此人。 吴翊杰再次刷新网页，显示「404 not found」。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-电话亭",
+      "asset_id": "scene-电话亭",
+      "name": "电话亭",
+      "kind": "scene",
+      "group": "场景",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-scene-%E7%94%B5%E8%AF%9D%E4%BA%AD-mpqy32eq.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成场景参考图。场景名：电话亭。\n场景设定：电话亭，夜，室内空间。吴翊杰看着通讯本上池清明的联系方式，先拨打了手机，无人接听，又改拨打家庭座机，终于接通了。 吴翊杰喜出望外：喂。是刘阿姨吗？【全景，前景过车】 中年女声OS：嗯。你哪位？【近景】\n要求：环境结构清晰，天气、光线、空间锚点稳定，可作为后续分镜统一场景参考。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:12:46.678Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdr-15",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "电话亭",
+        "kind": "场景",
+        "description": "电话亭，夜，室内空间。吴翊杰看着通讯本上池清明的联系方式，先拨打了手机，无人接听，又改拨打家庭座机，终于接通了。 吴翊杰喜出望外：喂。是刘阿姨吗？【全景，前景过车】 中年女声OS：嗯。你哪位？【近景】"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-学校篮球场",
+      "asset_id": "scene-学校篮球场",
+      "name": "学校篮球场",
+      "kind": "scene",
+      "group": "场景",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-scene-%E5%AD%A6%E6%A0%A1%E7%AF%AE%E7%90%83%E5%9C%BA-mpqy28zz.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成场景参考图。场景名：学校篮球场。\n场景设定：学校篮球场，日，外景空间。吴翊杰和池清明在投篮，吴翊杰投不中，池清明百发百中。 池清明欢呼：我赢了，今天的可乐还是你请。 吴翊杰感到无语：我都连请多少天了……\n要求：环境结构清晰，天气、光线、空间锚点稳定，可作为后续分镜统一场景参考。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:13:53.647Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdt-16",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "学校篮球场",
+        "kind": "场景",
+        "description": "学校篮球场，日，外景空间。吴翊杰和池清明在投篮，吴翊杰投不中，池清明百发百中。 池清明欢呼：我赢了，今天的可乐还是你请。 吴翊杰感到无语：我都连请多少天了……"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-学校走廊-教室",
+      "asset_id": "scene-学校走廊-教室",
+      "name": "学校走廊/教室",
+      "kind": "scene",
+      "group": "场景",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-scene-%E5%AD%A6%E6%A0%A1%E8%B5%B0%E5%BB%8A-%E6%95%99%E5%AE%A4-mpqy5fni.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成场景参考图。场景名：学校走廊/教室。\n场景设定：学校走廊/教室，日，室内空间。吴翊杰单肩背着书包，跌跌撞撞、有点丢神地进教室，瞬间锁定最后一排的角落座位，大光（寸头体育生）正在吃薯片。 吴翊杰冲过去：你坐这儿干嘛？ 大光抓了一把薯片塞嘴里嚼着，指了指自己的嘴，示意自己在吃薯片。\n要求：环境结构清晰，天气、光线、空间锚点稳定，可作为后续分镜统一场景参考。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:15:01.067Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdu-17",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "学校走廊/教室",
+        "kind": "场景",
+        "description": "学校走廊/教室，日，室内空间。吴翊杰单肩背着书包，跌跌撞撞、有点丢神地进教室，瞬间锁定最后一排的角落座位，大光（寸头体育生）正在吃薯片。 吴翊杰冲过去：你坐这儿干嘛？ 大光抓了一把薯片塞嘴里嚼着，指了指自己的嘴，示意自己在吃薯片。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-校图书馆",
+      "asset_id": "scene-校图书馆",
+      "name": "校图书馆",
+      "kind": "scene",
+      "group": "场景",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-scene-%E6%A0%A1%E5%9B%BE%E4%B9%A6%E9%A6%86-mpqy4mcn.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成场景参考图。场景名：校图书馆。\n场景设定：校图书馆，日，室内空间。死寂沉沉，只有尘埃在惨白的光柱中缓慢翻滚，像悬浮的代码微粒。 吴翊杰惊醒，发现自己躺在图书馆地上，他揉着头坐起来，看到石琦坐在一旁椅子上。 石琦：醒了？\n要求：环境结构清晰，天气、光线、空间锚点稳定，可作为后续分镜统一场景参考。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:15:39.171Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdv-18",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "校图书馆",
+        "kind": "场景",
+        "description": "校图书馆，日，室内空间。死寂沉沉，只有尘埃在惨白的光柱中缓慢翻滚，像悬浮的代码微粒。 吴翊杰惊醒，发现自己躺在图书馆地上，他揉着头坐起来，看到石琦坐在一旁椅子上。 石琦：醒了？"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-校园广场",
+      "asset_id": "scene-校园广场",
+      "name": "校园广场",
+      "kind": "scene",
+      "group": "场景",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-scene-%E6%A0%A1%E5%9B%AD%E5%B9%BF%E5%9C%BA-mpqy7k9c.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成场景参考图。场景名：校园广场。\n场景设定：校园广场，昏，外景空间。夕阳下的奔跑，镜头跟着吴翊杰剧烈晃动。 突然，一只大汗淋漓的手臂猛地横入镜头，死死拽住了他，惯性让吴翊杰差点摔倒。来者是大光。他穿着红色篮球队球衣，手里抱着篮球，满脸焦急。 大光（急促，带着火气）：小杰！你疯了？全队都在等你！\n要求：环境结构清晰，天气、光线、空间锚点稳定，可作为后续分镜统一场景参考。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:16:51.665Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdw-19",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "校园广场",
+        "kind": "场景",
+        "description": "校园广场，昏，外景空间。夕阳下的奔跑，镜头跟着吴翊杰剧烈晃动。 突然，一只大汗淋漓的手臂猛地横入镜头，死死拽住了他，惯性让吴翊杰差点摔倒。来者是大光。他穿着红色篮球队球衣，手里抱着篮球，满脸焦急。 大光（急促，带着火气）：小杰！你疯了？全队都在等你！"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-校园主楼-门口大厅",
+      "asset_id": "scene-校园主楼-门口大厅",
+      "name": "校园主楼·门口大厅",
+      "kind": "scene",
+      "group": "场景",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-scene-%E6%A0%A1%E5%9B%AD%E4%B8%BB%E6%A5%BC-%E9%97%A8%E5%8F%A3%E5%A4%A7%E5%8E%85-mpqy8g6o.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成场景参考图。场景名：校园主楼·门口大厅。\n场景设定：校园主楼·门口大厅，昏，室内空间。吴翊杰跑到教学主楼门口。 双马尾女生正好从楼里背着包抱着书本出来，两人不可避免地撞在一起。 一声闷响。双马尾女生摔倒在地，书包掉落，手中的书本散落一地。\n要求：环境结构清晰，天气、光线、空间锚点稳定，可作为后续分镜统一场景参考。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:17:29.645Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdy-20",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "校园主楼·门口大厅",
+        "kind": "场景",
+        "description": "校园主楼·门口大厅，昏，室内空间。吴翊杰跑到教学主楼门口。 双马尾女生正好从楼里背着包抱着书本出来，两人不可避免地撞在一起。 一声闷响。双马尾女生摔倒在地，书包掉落，手中的书本散落一地。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-校园主楼-楼梯间",
+      "asset_id": "scene-校园主楼-楼梯间",
+      "name": "校园主楼·楼梯间",
+      "kind": "scene",
+      "group": "场景",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-scene-%E6%A0%A1%E5%9B%AD%E4%B8%BB%E6%A5%BC-%E6%A5%BC%E6%A2%AF%E9%97%B4-mpqy9g8o.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成场景参考图。场景名：校园主楼·楼梯间。\n场景设定：校园主楼·楼梯间，昏，室内空间。楼梯间被堵得水泄不通。几十个学生正费力地搬运着旧课桌椅，金属刮擦地面的声音极其刺耳。 学生A： 让让，大扫除。 学生B： 借过，别挡道。\n要求：环境结构清晰，天气、光线、空间锚点稳定，可作为后续分镜统一场景参考。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:18:00.054Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthdz-21",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "校园主楼·楼梯间",
+        "kind": "场景",
+        "description": "校园主楼·楼梯间，昏，室内空间。楼梯间被堵得水泄不通。几十个学生正费力地搬运着旧课桌椅，金属刮擦地面的声音极其刺耳。 学生A： 让让，大扫除。 学生B： 借过，别挡道。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-教学楼天台",
+      "asset_id": "scene-教学楼天台",
+      "name": "教学楼天台",
+      "kind": "scene",
+      "group": "场景",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-scene-%E6%95%99%E5%AD%A6%E6%A5%BC%E5%A4%A9%E5%8F%B0-mpqy8zvz.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成场景参考图。场景名：教学楼天台。\n场景设定：教学楼天台，昏，外景空间。空旷的教学楼天台上四处堆砌着废旧的桌椅，一只蜻蜓出现在吴翊杰的视野（剧本第一个镜头出现的蜻蜓），它像是引导者，带领吴翊杰走向天台的另一侧。 在边缘之外，吴翊杰看到空中的异常：一个透明薄膜好像巨大的气泡一般静静的悬浮着，像一块没擦干净的玻璃污渍。 就在吴翊杰想要向前时，闫老师突然出现，挡住了吴翊杰的去路。\n要求：环境结构清晰，天气、光线、空间锚点稳定，可作为后续分镜统一场景参考。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:19:08.923Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthe0-22",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "教学楼天台",
+        "kind": "场景",
+        "description": "教学楼天台，昏，外景空间。空旷的教学楼天台上四处堆砌着废旧的桌椅，一只蜻蜓出现在吴翊杰的视野（剧本第一个镜头出现的蜻蜓），它像是引导者，带领吴翊杰走向天台的另一侧。 在边缘之外，吴翊杰看到空中的异常：一个透明薄膜好像巨大的气泡一般静静的悬浮着，像一块没擦干净的玻璃污渍。 就在吴翊杰想要向前时，闫老师突然出现，挡住了吴翊杰的去路。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-手机",
+      "asset_id": "prop-手机",
+      "name": "手机",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E6%89%8B%E6%9C%BA-mpqy9drf.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：手机。\n道具设定：闫老师使用的黑色手机，平时可开关机并放在桌上或抽屉里，是师生对峙和被没收管理的关键物件。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:19:50.292Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthe1-23",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "手机",
+        "kind": "道具",
+        "description": "闫老师使用的黑色手机，平时可开关机并放在桌上或抽屉里，是师生对峙和被没收管理的关键物件。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-茶杯",
+      "asset_id": "prop-茶杯",
+      "name": "茶杯",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E8%8C%B6%E6%9D%AF-mpqy9rwy.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：茶杯。\n道具设定：办公室桌上的普通陶瓷茶杯，带杯盖，颜色偏浅，容易被放置、打翻并弄湿试卷，是办公室冲突中最醒目的桌面道具。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:20:15.834Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthe3-24",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "茶杯",
+        "kind": "道具",
+        "description": "办公室桌上的普通陶瓷茶杯，带杯盖，颜色偏浅，容易被放置、打翻并弄湿试卷，是办公室冲突中最醒目的桌面道具。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-试卷与讲义",
+      "asset_id": "prop-试卷与讲义",
+      "name": "试卷与讲义",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E8%AF%95%E5%8D%B7%E4%B8%8E%E8%AE%B2%E4%B9%89-mpqyarid.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：试卷与讲义。\n道具设定：成摞的白色试卷和讲义，纸张数量很多，常堆放在办公桌与后景桌面上，用于体现学校压力、批改和清点的连续性。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:20:33.817Z"
+      },
+      "score": 88,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthe4-25",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "试卷与讲义",
+        "kind": "道具",
+        "description": "成摞的白色试卷和讲义，纸张数量很多，常堆放在办公桌与后景桌面上，用于体现学校压力、批改和清点的连续性。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-篮球",
+      "asset_id": "prop-篮球",
+      "name": "篮球",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E7%AF%AE%E7%90%83-mpqya41v.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：篮球。\n道具设定：学校篮球场上使用的标准橙色篮球，表面为皮质或仿皮纹理，是池清明和吴翊杰投篮、传球、抛球与规则隐喻的核心连续道具。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:20:37.014Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthe5-26",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "篮球",
+        "kind": "道具",
+        "description": "学校篮球场上使用的标准橙色篮球，表面为皮质或仿皮纹理，是池清明和吴翊杰投篮、传球、抛球与规则隐喻的核心连续道具。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-通讯本",
+      "asset_id": "prop-通讯本",
+      "name": "通讯本",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E9%80%9A%E8%AE%AF%E6%9C%AC-mpqyat58.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：通讯本。\n道具设定：吴翊杰随身携带的纸质通讯本，封面普通、内页密集记录联系人姓名和号码，是他在手机被没收后继续寻找池清明线索的关键道具。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:20:52.163Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthe6-27",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "通讯本",
+        "kind": "道具",
+        "description": "吴翊杰随身携带的纸质通讯本，封面普通、内页密集记录联系人姓名和号码，是他在手机被没收后继续寻找池清明线索的关键道具。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-书包",
+      "asset_id": "prop-书包",
+      "name": "书包",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E4%B9%A6%E5%8C%85-mpqyb5og.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：书包。\n道具设定：吴翊杰和学生们常背的校用书包，布面或帆布材质，颜色偏深，能装课本与散落书本，在走廊、门厅和奔跑镜头中承担连续性。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:21:07.891Z"
+      },
+      "score": 88,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthe7-28",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "书包",
+        "kind": "道具",
+        "description": "吴翊杰和学生们常背的校用书包，布面或帆布材质，颜色偏深，能装课本与散落书本，在走廊、门厅和奔跑镜头中承担连续性。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-借阅记录纸",
+      "asset_id": "prop-借阅记录纸",
+      "name": "借阅记录纸",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E5%80%9F%E9%98%85%E8%AE%B0%E5%BD%95%E7%BA%B8-mpqyca0d.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：借阅记录纸。\n道具设定：图书馆里泛黄的借阅登记纸，纸张旧、边缘发黄，上面有多行不同字迹的借阅记录，是揭示记忆错位和人物消失规则的关键证据道具。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:21:38.282Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthe9-29",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "借阅记录纸",
+        "kind": "道具",
+        "description": "图书馆里泛黄的借阅登记纸，纸张旧、边缘发黄，上面有多行不同字迹的借阅记录，是揭示记忆错位和人物消失规则的关键证据道具。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-借阅守则",
+      "asset_id": "prop-借阅守则",
+      "name": "《借阅守则》",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E5%80%9F%E9%98%85%E5%AE%88%E5%88%99-mpqybttz.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：《借阅守则》。\n道具设定：图书馆中一本厚重的规则书，封面旧、体积大，用来夹取和隐藏借阅记录纸，代表学校内部规则的实体化线索。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:21:40.400Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthea-30",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "《借阅守则》",
+        "kind": "道具",
+        "description": "图书馆中一本厚重的规则书，封面旧、体积大，用来夹取和隐藏借阅记录纸，代表学校内部规则的实体化线索。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-薯片",
+      "asset_id": "prop-薯片",
+      "name": "薯片",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E8%96%AF%E7%89%87-mpqycbqz.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：薯片。\n道具设定：薯片，单个独立道具，外观、材质、颜色和叙事功能清晰，可用于后续分镜主体参考。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:21:56.659Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthec-31",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "薯片",
+        "kind": "道具",
+        "description": "薯片，单个独立道具，外观、材质、颜色和叙事功能清晰，可用于后续分镜主体参考。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-书本",
+      "asset_id": "prop-书本",
+      "name": "书本",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E4%B9%A6%E6%9C%AC-mpqydaux.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：书本。\n道具设定：书本，单个独立道具，外观、材质、颜色和叙事功能清晰，可用于后续分镜主体参考。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:22:27.953Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthed-32",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "书本",
+        "kind": "道具",
+        "description": "书本，单个独立道具，外观、材质、颜色和叙事功能清晰，可用于后续分镜主体参考。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-旧课桌椅",
+      "asset_id": "prop-旧课桌椅",
+      "name": "旧课桌椅",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E6%97%A7%E8%AF%BE%E6%A1%8C%E6%A4%85-mpqydezb.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：旧课桌椅。\n道具设定：旧课桌椅，单个独立道具，外观、材质、颜色和叙事功能清晰，可用于后续分镜主体参考。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:22:48.936Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthee-33",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "旧课桌椅",
+        "kind": "道具",
+        "description": "旧课桌椅，单个独立道具，外观、材质、颜色和叙事功能清晰，可用于后续分镜主体参考。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-蜻蜓",
+      "asset_id": "prop-蜻蜓",
+      "name": "蜻蜓",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E8%9C%BB%E8%9C%93-mpqydpy6.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：蜻蜓。\n道具设定：蜻蜓，单个独立道具，外观、材质、颜色和叙事功能清晰，可用于后续分镜主体参考。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:22:51.180Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthef-34",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "蜻蜓",
+        "kind": "道具",
+        "description": "蜻蜓，单个独立道具，外观、材质、颜色和叙事功能清晰，可用于后续分镜主体参考。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-试卷",
+      "asset_id": "prop-试卷",
+      "name": "试卷",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E8%AF%95%E5%8D%B7-mpqyehas.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：试卷。\n道具设定：试卷，剧本第 1 场明确出现的道具或物件，用于场内主体参考和连续性判断。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:23:36.696Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxtheg-35",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "试卷",
+        "kind": "道具",
+        "description": "试卷，剧本第 1 场明确出现的道具或物件，用于场内主体参考和连续性判断。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-讲义",
+      "asset_id": "prop-讲义",
+      "name": "讲义",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E8%AE%B2%E4%B9%89-mpqyelz1.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：讲义。\n道具设定：讲义，剧本第 1 场明确出现的道具或物件，用于场内主体参考和连续性判断。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:23:42.020Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxtheh-36",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "讲义",
+        "kind": "道具",
+        "description": "讲义，剧本第 1 场明确出现的道具或物件，用于场内主体参考和连续性判断。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-借阅记录",
+      "asset_id": "prop-借阅记录",
+      "name": "借阅记录",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E5%80%9F%E9%98%85%E8%AE%B0%E5%BD%95-mpqyflgk.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：借阅记录。\n道具设定：借阅记录，剧本第 6 场明确出现的道具或物件，用于场内主体参考和连续性判断。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:23:56.243Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthei-37",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "借阅记录",
+        "kind": "道具",
+        "description": "借阅记录，剧本第 6 场明确出现的道具或物件，用于场内主体参考和连续性判断。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "prop-透明薄膜",
+      "asset_id": "prop-透明薄膜",
+      "name": "透明薄膜",
+      "kind": "prop",
+      "group": "道具",
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/reference-prop-%E9%80%8F%E6%98%8E%E8%96%84%E8%86%9C-mpqyf1in.png",
+      "prompt": "为短片《池清明到底是谁 Benchmark Image》生成道具参考图。道具名：透明薄膜。\n道具设定：透明薄膜，剧本第 8 场明确出现的道具或物件，用于场内主体参考和连续性判断。\n类型：单物体道具参考图 / product-style prop reference，不是角色手持画面，也不是剧情截图。\n要求：单个道具为唯一主体，外观、材质、颜色、尺度和叙事功能清晰，可用于后续分镜主体参考。\n背景：白底、浅灰底或干净影棚背景；不要角色、手、嘴、动物、人物身体、场景环境、动作过程。\n风格：写实电影感，写实电影感，画幅 16:9。不要文字、水印、logo、边框、拼贴说明文字；主体清晰，画面干净。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_subject": true,
+        "has_style": true,
+        "has_ratio_or_background": true
+      },
+      "prompt_complete": true,
+      "quality": {
+        "status": "passed",
+        "score": 100,
+        "warnings": [],
+        "blockers": [],
+        "checkedAt": "2026-05-29T13:24:31.699Z"
+      },
+      "score": 100,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image_for_asset-mpqxthek-38",
+      "judge_target": "asset_reference",
+      "expected": {
+        "name": "透明薄膜",
+        "kind": "道具",
+        "description": "透明薄膜，剧本第 8 场明确出现的道具或物件，用于场内主体参考和连续性判断。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    }
+  ],
+  "storyboard_shots": [
+    {
+      "id": "scene-1",
+      "shot_id": "scene-1",
+      "title": "1 校办公室 日 内",
+      "scene_number": 1,
+      "scene": "校办公室",
+      "characters": [
+        "吴翊杰",
+        "石琦"
+      ],
+      "props": [
+        "手机",
+        "茶杯"
+      ],
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/shot-1-mpqylw3x.png",
+      "prompt": "吴翊杰、石琦在校办公室，涉及手机、茶杯，吴翊杰（os）：池清明已经五天没来上学了，电话一直占线，他们家我也去了，总是没人，闫老师，我觉得真得报警了…… 班主任闫老师将手机关机放到桌上，吴翊杰坐在一旁。中远景，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。\n保持角色参考图连续：吴翊杰（15岁初三男生，身形偏瘦、略显单薄，黑色短发凌乱，面容清秀但常带紧张与倔强神情，穿黑白校服、校裤和黑白运动鞋，情绪上易急躁、困惑又固执。）；石琦（15岁初中女生，身形纤细，黑色长发或中长发扎得整齐，脸部线条清淡，眼神冷静疏离，穿黑白校服，戴套袖，常显得克制、警觉、说话冷静。）。\n保持关键道具参考图连续：手机（闫老师使用的黑色手机，平时可开关机并放在桌上或抽屉里，是师生对峙和被没收管理的关键物件。）；茶杯（办公室桌上的普通陶瓷茶杯，带杯盖，颜色偏浅，容易被放置、打翻并弄湿试卷，是办公室冲突中最醒目的桌面道具。）。\n风格：写实电影感，画幅 16:9，保持人物身份、服装、场景结构和道具外观与参考图一致；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action": true,
+        "has_style": true,
+        "has_reference_context": true
+      },
+      "prompt_complete": true,
+      "quality": null,
+      "score": null,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image-mpqyies5-40",
+      "judge_target": "storyboard_image",
+      "expected": {
+        "scene": "校办公室",
+        "characters": [
+          "吴翊杰",
+          "石琦"
+        ],
+        "props": [
+          "手机",
+          "茶杯"
+        ],
+        "description": "吴翊杰、石琦在校办公室，涉及手机、茶杯，1 校办公室 日 内 窗外蝉鸣聒噪。。中远景，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。 保持校办公室、吴翊杰、石琦、手机、茶杯与参考图中的身份、外观、空间结构和道具细节一致。 写实电影感，画幅 16:9；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-2",
+      "shot_id": "scene-2",
+      "title": "2 网吧 夜 内",
+      "scene_number": 2,
+      "scene": "网吧",
+      "characters": [
+        "吴翊杰"
+      ],
+      "props": [
+        "手机",
+        "通讯本"
+      ],
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/shot-2-mpqyqz4s.png",
+      "prompt": "吴翊杰在网吧，涉及手机、通讯本，吴翊杰下意识从书包里翻手机，一摸是空的，想到手机被没收了，改拿出通讯本。中景，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。\n保持角色参考图连续：吴翊杰（15岁初三男生，身形偏瘦、略显单薄，黑色短发凌乱，面容清秀但常带紧张与倔强神情，穿黑白校服、校裤和黑白运动鞋，情绪上易急躁、困惑又固执。）。\n保持关键道具参考图连续：手机（闫老师使用的黑色手机，平时可开关机并放在桌上或抽屉里，是师生对峙和被没收管理的关键物件。）；通讯本（吴翊杰随身携带的纸质通讯本，封面普通、内页密集记录联系人姓名和号码，是他在手机被没收后继续寻找池清明线索的关键道具。）。\n风格：写实电影感，画幅 16:9，保持人物身份、服装、场景结构和道具外观与参考图一致；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action": true,
+        "has_style": true,
+        "has_reference_context": true
+      },
+      "prompt_complete": true,
+      "quality": null,
+      "score": null,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image-mpqylw6a-41",
+      "judge_target": "storyboard_image",
+      "expected": {
+        "scene": "网吧",
+        "characters": [
+          "吴翊杰"
+        ],
+        "props": [
+          "手机",
+          "通讯本"
+        ],
+        "description": "吴翊杰在网吧，涉及手机、通讯本，2 网吧 夜 内 吴翊杰坐在电脑前，登录QQ，发现好友列表里的池清明头像旁边标注“已注销”。。中景，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。 保持网吧、吴翊杰、手机、通讯本与参考图中的身份、外观、空间结构和道具细节一致。 写实电影感，画幅 16:9；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-3",
+      "shot_id": "scene-3",
+      "title": "3 电话亭 夜 内",
+      "scene_number": 3,
+      "scene": "电话亭",
+      "characters": [
+        "吴翊杰"
+      ],
+      "props": [
+        "手机",
+        "通讯本"
+      ],
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/shot-3-mpqyu3il.png",
+      "prompt": "吴翊杰在电话亭，涉及手机、通讯本，3 电话亭 夜 内 吴翊杰看着通讯本上池清明的联系方式，先拨打了手机，无人接听，又改拨打家庭座机，终于接通了。中近景，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。\n保持角色参考图连续：吴翊杰（15岁初三男生，身形偏瘦、略显单薄，黑色短发凌乱，面容清秀但常带紧张与倔强神情，穿黑白校服、校裤和黑白运动鞋，情绪上易急躁、困惑又固执。）。\n保持关键道具参考图连续：手机（闫老师使用的黑色手机，平时可开关机并放在桌上或抽屉里，是师生对峙和被没收管理的关键物件。）；通讯本（吴翊杰随身携带的纸质通讯本，封面普通、内页密集记录联系人姓名和号码，是他在手机被没收后继续寻找池清明线索的关键道具。）。\n风格：写实电影感，画幅 16:9，保持人物身份、服装、场景结构和道具外观与参考图一致；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action": true,
+        "has_style": true,
+        "has_reference_context": true
+      },
+      "prompt_complete": true,
+      "quality": null,
+      "score": null,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image-mpqyr0ea-42",
+      "judge_target": "storyboard_image",
+      "expected": {
+        "scene": "电话亭",
+        "characters": [
+          "吴翊杰"
+        ],
+        "props": [
+          "手机",
+          "通讯本"
+        ],
+        "description": "吴翊杰在电话亭，涉及手机、通讯本，3 电话亭 夜 内 吴翊杰看着通讯本上池清明的联系方式，先拨打了手机，无人接听，又改拨打家庭座机，终于接通了。。中近景，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。 保持电话亭、吴翊杰、手机、通讯本与参考图中的身份、外观、空间结构和道具细节一致。 写实电影感，画幅 16:9；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-4",
+      "shot_id": "scene-4",
+      "title": "4 学校篮球场 日 外",
+      "scene_number": 4,
+      "scene": "学校篮球场",
+      "characters": [
+        "吴翊杰",
+        "池清明",
+        "闫老师"
+      ],
+      "props": [
+        "篮球"
+      ],
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/shot-4-mpqywwul.png",
+      "prompt": "吴翊杰、池清明、闫老师在学校篮球场，涉及篮球，吴翊杰回头一看，原本池清明站的地方竟换成了闫老师。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。\n保持角色参考图连续：吴翊杰（15岁初三男生，身形偏瘦、略显单薄，黑色短发凌乱，面容清秀但常带紧张与倔强神情，穿黑白校服、校裤和黑白运动鞋，情绪上易急躁、困惑又固执。）；池清明（15岁初三男生，身形清瘦挺拔，黑色短发利落，五官干净，神情带一点神秘和从容，穿蓝白校服、校裤和运动鞋，整体视觉稳定但在他人记忆中容易变得模糊）；闫老师（40多岁女班主任，体型中等偏瘦，黑色短发整齐，面容严肃、眼神压迫感强，穿深色教师服或深色上衣，动作利落，常带不耐与控制欲的神情。）。\n保持关键道具参考图连续：篮球（学校篮球场上使用的标准橙色篮球，表面为皮质或仿皮纹理，是池清明和吴翊杰投篮、传球、抛球与规则隐喻的核心连续道具。）。\n风格：写实电影感，画幅 16:9，保持人物身份、服装、场景结构和道具外观与参考图一致；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action": true,
+        "has_style": true,
+        "has_reference_context": true
+      },
+      "prompt_complete": true,
+      "quality": null,
+      "score": null,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image-mpqyu3vo-43",
+      "judge_target": "storyboard_image",
+      "expected": {
+        "scene": "学校篮球场",
+        "characters": [
+          "吴翊杰",
+          "池清明",
+          "闫老师"
+        ],
+        "props": [
+          "篮球"
+        ],
+        "description": "吴翊杰、池清明、闫老师在学校篮球场，涉及篮球，4 学校篮球场 日 外 吴翊杰和池清明在投篮，吴翊杰投不中，池清明百发百中。。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。 保持学校篮球场、吴翊杰、池清明、闫老师、篮球与参考图中的身份、外观、空间结构和道具细节一致。 写实电影感，画幅 16:9；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-5",
+      "shot_id": "scene-5",
+      "title": "5 学校走廊/教室 日 内",
+      "scene_number": 5,
+      "scene": "学校走廊/教室",
+      "characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦"
+      ],
+      "props": [
+        "篮球",
+        "书包"
+      ],
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/shot-5-mpqz0tbl.png",
+      "prompt": "吴翊杰、池清明、石琦在学校走廊/教室，涉及篮球、书包，吴翊杰在走廊抓住一个要进班的眼镜男：池清明，你记得吗。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。\n保持角色参考图连续：吴翊杰（15岁初三男生，身形偏瘦、略显单薄，黑色短发凌乱，面容清秀但常带紧张与倔强神情，穿黑白校服、校裤和黑白运动鞋，情绪上易急躁、困惑又固执。）；池清明（15岁初三男生，身形清瘦挺拔，黑色短发利落，五官干净，神情带一点神秘和从容，穿蓝白校服、校裤和运动鞋，整体视觉稳定但在他人记忆中容易变得模糊）；石琦（15岁初中女生，身形纤细，黑色长发或中长发扎得整齐，脸部线条清淡，眼神冷静疏离，穿黑白校服，戴套袖，常显得克制、警觉、说话冷静。）。\n保持关键道具参考图连续：篮球（学校篮球场上使用的标准橙色篮球，表面为皮质或仿皮纹理，是池清明和吴翊杰投篮、传球、抛球与规则隐喻的核心连续道具。）；书包（吴翊杰和学生们常背的校用书包，布面或帆布材质，颜色偏深，能装课本与散落书本，在走廊、门厅和奔跑镜头中承担连续性。）。\n风格：写实电影感，画幅 16:9，保持人物身份、服装、场景结构和道具外观与参考图一致；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action": true,
+        "has_style": true,
+        "has_reference_context": true
+      },
+      "prompt_complete": true,
+      "quality": null,
+      "score": null,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image-mpqywy3h-44",
+      "judge_target": "storyboard_image",
+      "expected": {
+        "scene": "学校走廊/教室",
+        "characters": [
+          "吴翊杰",
+          "池清明",
+          "石琦"
+        ],
+        "props": [
+          "篮球",
+          "书包"
+        ],
+        "description": "吴翊杰、池清明、石琦在学校走廊/教室，涉及篮球、书包，5 学校走廊/教室 日 内 吴翊杰单肩背着书包，跌跌撞撞、有点丢神地进教室，瞬间锁定最后一排的角落座位，大光（寸头体育生）正在吃薯片。。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。 保持学校走廊/教室、吴翊杰、池清明、石琦、篮球、书包与参考图中的身份、外观、空间结构和道具细节一致。 写实电影感，画幅 16:9；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-6",
+      "shot_id": "scene-6",
+      "title": "6 校图书馆 日 内",
+      "scene_number": 6,
+      "scene": "校图书馆",
+      "characters": [
+        "吴翊杰",
+        "池清明",
+        "闫老师"
+      ],
+      "props": [
+        "借阅记录纸",
+        "《借阅守则》"
+      ],
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/shot-6-mpqz3yst.png",
+      "prompt": "吴翊杰、池清明、闫老师在校图书馆，涉及借阅记录纸、《借阅守则》，石琦把桌上泛黄的借阅记录纸推到吴翊杰面前。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。\n保持角色参考图连续：吴翊杰（15岁初三男生，身形偏瘦、略显单薄，黑色短发凌乱，面容清秀但常带紧张与倔强神情，穿黑白校服、校裤和黑白运动鞋，情绪上易急躁、困惑又固执。）；池清明（15岁初三男生，身形清瘦挺拔，黑色短发利落，五官干净，神情带一点神秘和从容，穿蓝白校服、校裤和运动鞋，整体视觉稳定但在他人记忆中容易变得模糊）；闫老师（40多岁女班主任，体型中等偏瘦，黑色短发整齐，面容严肃、眼神压迫感强，穿深色教师服或深色上衣，动作利落，常带不耐与控制欲的神情。）。\n保持关键道具参考图连续：借阅记录纸（图书馆里泛黄的借阅登记纸，纸张旧、边缘发黄，上面有多行不同字迹的借阅记录，是揭示记忆错位和人物消失规则的关键证据道具。）；《借阅守则》（图书馆中一本厚重的规则书，封面旧、体积大，用来夹取和隐藏借阅记录纸，代表学校内部规则的实体化线索。）。\n关键视觉约束：借阅记录纸必须放在前景或桌面焦点位置，能看出是泛黄的借阅登记纸，而不是普通空白纸。\n风格：写实电影感，画幅 16:9，保持人物身份、服装、场景结构和道具外观与参考图一致；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action": true,
+        "has_style": true,
+        "has_reference_context": true
+      },
+      "prompt_complete": true,
+      "quality": null,
+      "score": null,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image-mpqz0ten-45",
+      "judge_target": "storyboard_image",
+      "expected": {
+        "scene": "校图书馆",
+        "characters": [
+          "吴翊杰",
+          "池清明",
+          "闫老师"
+        ],
+        "props": [
+          "借阅记录纸",
+          "《借阅守则》"
+        ],
+        "description": "吴翊杰、池清明、闫老师在校图书馆，涉及借阅记录纸、《借阅守则》，6 校图书馆 日 内 死寂沉沉，只有尘埃在惨白的光柱中缓慢翻滚，像悬浮的代码微粒。。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。 保持校图书馆、吴翊杰、池清明、闫老师、借阅记录纸、《借阅守则》与参考图中的身份、外观、空间结构和道具细节一致。 写实电影感，画幅 16:9；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-7",
+      "shot_id": "scene-7",
+      "title": "7 校园广场 昏 外",
+      "scene_number": 7,
+      "scene": "校园广场",
+      "characters": [
+        "吴翊杰",
+        "大光"
+      ],
+      "props": [
+        "篮球"
+      ],
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/shot-7-mpqz73c2.png",
+      "prompt": "吴翊杰、大光在校园广场，涉及篮球，7 校园广场 昏 外 夕阳下的奔跑，镜头跟着吴翊杰剧烈晃动。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。\n保持角色参考图连续：吴翊杰（15岁初三男生，身形偏瘦、略显单薄，黑色短发凌乱，面容清秀但常带紧张与倔强神情，穿黑白校服、校裤和黑白运动鞋，情绪上易急躁、困惑又固执。）；大光（15岁男生，寸头、体格高壮结实，脸型硬朗，常带不耐烦的表情，穿红色篮球队球衣、运动短裤和球鞋，身上有明显体育生的力量感与火气。）。\n保持关键道具参考图连续：篮球（学校篮球场上使用的标准橙色篮球，表面为皮质或仿皮纹理，是池清明和吴翊杰投篮、传球、抛球与规则隐喻的核心连续道具。）。\n风格：写实电影感，画幅 16:9，保持人物身份、服装、场景结构和道具外观与参考图一致；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action": true,
+        "has_style": true,
+        "has_reference_context": true
+      },
+      "prompt_complete": true,
+      "quality": null,
+      "score": null,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image-mpqz3zyb-46",
+      "judge_target": "storyboard_image",
+      "expected": {
+        "scene": "校园广场",
+        "characters": [
+          "吴翊杰",
+          "大光"
+        ],
+        "props": [
+          "篮球"
+        ],
+        "description": "吴翊杰、大光在校园广场，涉及篮球，7 校园广场 昏 外 夕阳下的奔跑，跟着吴翊杰剧烈晃动。。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。 保持校园广场、吴翊杰、大光、篮球与参考图中的身份、外观、空间结构和道具细节一致。 写实电影感，画幅 16:9；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-7A",
+      "shot_id": "scene-7A",
+      "title": "7A 校园主楼·门口大厅 昏 内",
+      "scene_number": "7A",
+      "scene": "校园主楼·门口大厅",
+      "characters": [
+        "吴翊杰",
+        "双马尾女生"
+      ],
+      "props": [
+        "书包",
+        "书本"
+      ],
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/shot-8-mpqz9wh4.png",
+      "prompt": "吴翊杰、双马尾女生在校园主楼·门口大厅，涉及书包、书本，双马尾女生（捂着脚踝，眉头紧锁）：嘶……好疼…… 吴翊杰脚步一顿，喘着粗气停下。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。\n保持角色参考图连续：吴翊杰（15岁初三男生，身形偏瘦、略显单薄，黑色短发凌乱，面容清秀但常带紧张与倔强神情，穿黑白校服、校裤和黑白运动鞋，情绪上易急躁、困惑又固执。）；双马尾女生（15岁女生，身形娇小，黑发扎双马尾，脸型偏圆，穿校服和书包，表情容易受惊、委屈或尖锐反击。）。\n保持关键道具参考图连续：书包（吴翊杰和学生们常背的校用书包，布面或帆布材质，颜色偏深，能装课本与散落书本，在走廊、门厅和奔跑镜头中承担连续性。）；书本（书本，单个独立道具，外观、材质、颜色和叙事功能清晰，可用于后续分镜主体参考。）。\n关键视觉约束：门口大厅画面重点是碰撞后散落的书本/书包和受伤的双马尾女生，不要出现篮球。\n风格：写实电影感，画幅 16:9，保持人物身份、服装、场景结构和道具外观与参考图一致；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action": true,
+        "has_style": true,
+        "has_reference_context": true
+      },
+      "prompt_complete": true,
+      "quality": null,
+      "score": null,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image-mpqz73eq-47",
+      "judge_target": "storyboard_image",
+      "expected": {
+        "scene": "校园主楼·门口大厅",
+        "characters": [
+          "吴翊杰",
+          "双马尾女生"
+        ],
+        "props": [
+          "书包",
+          "书本"
+        ],
+        "description": "吴翊杰、双马尾女生在校园主楼·门口大厅，涉及书包、书本，7A 校园主楼·门口大厅 昏 内 吴翊杰跑到教学主楼门口。。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。 保持校园主楼·门口大厅、吴翊杰、双马尾女生、书包、书本与参考图中的身份、外观、空间结构和道具细节一致。 写实电影感，画幅 16:9；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-7B",
+      "shot_id": "scene-7B",
+      "title": "7B 校园主楼·楼梯间 昏 内",
+      "scene_number": "7B",
+      "scene": "校园主楼·楼梯间",
+      "characters": [
+        "吴翊杰",
+        "池清明",
+        "石琦"
+      ],
+      "props": [
+        "旧课桌椅"
+      ],
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/shot-9-mpqzd185.png",
+      "prompt": "吴翊杰、池清明、石琦在校园主楼·楼梯间，涉及旧课桌椅，吴翊杰侧身挤过缝隙，手脚并用爬过堆叠的课桌，冲向顶楼。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。\n保持角色参考图连续：吴翊杰（15岁初三男生，身形偏瘦、略显单薄，黑色短发凌乱，面容清秀但常带紧张与倔强神情，穿黑白校服、校裤和黑白运动鞋，情绪上易急躁、困惑又固执。）；池清明（15岁初三男生，身形清瘦挺拔，黑色短发利落，五官干净，神情带一点神秘和从容，穿蓝白校服、校裤和运动鞋，整体视觉稳定但在他人记忆中容易变得模糊）；石琦（15岁初中女生，身形纤细，黑色长发或中长发扎得整齐，脸部线条清淡，眼神冷静疏离，穿黑白校服，戴套袖，常显得克制、警觉、说话冷静。）。\n保持关键道具参考图连续：旧课桌椅（旧课桌椅，单个独立道具，外观、材质、颜色和叙事功能清晰，可用于后续分镜主体参考。）。\n风格：写实电影感，画幅 16:9，保持人物身份、服装、场景结构和道具外观与参考图一致；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action": true,
+        "has_style": true,
+        "has_reference_context": true
+      },
+      "prompt_complete": true,
+      "quality": null,
+      "score": null,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image-mpqz9xkr-48",
+      "judge_target": "storyboard_image",
+      "expected": {
+        "scene": "校园主楼·楼梯间",
+        "characters": [
+          "吴翊杰",
+          "池清明",
+          "石琦"
+        ],
+        "props": [
+          "旧课桌椅"
+        ],
+        "description": "吴翊杰、池清明、石琦在校园主楼·楼梯间，涉及旧课桌椅，7B 校园主楼·楼梯间 昏 内 楼梯间被堵得水泄不通。。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。 保持校园主楼·楼梯间、吴翊杰、池清明、石琦、旧课桌椅与参考图中的身份、外观、空间结构和道具细节一致。 写实电影感，画幅 16:9；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    },
+    {
+      "id": "scene-8",
+      "shot_id": "scene-8",
+      "title": "8 教学楼天台 昏 外",
+      "scene_number": 8,
+      "scene": "教学楼天台",
+      "characters": [
+        "吴翊杰",
+        "池清明",
+        "闫老师"
+      ],
+      "props": [
+        "篮球",
+        "蜻蜓"
+      ],
+      "status": "passed",
+      "image_url": "http://127.0.0.1:8038/generated-images/project-%E6%B1%A0%E6%B8%85%E6%98%8E%E5%88%B0%E5%BA%95%E6%98%AF%E8%B0%81-benchmark-image-mpqxrw23/shot-10-mpqzfpg1.png",
+      "prompt": "吴翊杰、池清明、闫老师在教学楼天台，涉及篮球、蜻蜓，吴翊杰（停下脚步）：保送。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。\n保持角色参考图连续：吴翊杰（15岁初三男生，身形偏瘦、略显单薄，黑色短发凌乱，面容清秀但常带紧张与倔强神情，穿黑白校服、校裤和黑白运动鞋，情绪上易急躁、困惑又固执。）；池清明（15岁初三男生，身形清瘦挺拔，黑色短发利落，五官干净，神情带一点神秘和从容，穿蓝白校服、校裤和运动鞋，整体视觉稳定但在他人记忆中容易变得模糊）；闫老师（40多岁女班主任，体型中等偏瘦，黑色短发整齐，面容严肃、眼神压迫感强，穿深色教师服或深色上衣，动作利落，常带不耐与控制欲的神情。）。\n保持关键道具参考图连续：篮球（学校篮球场上使用的标准橙色篮球，表面为皮质或仿皮纹理，是池清明和吴翊杰投篮、传球、抛球与规则隐喻的核心连续道具。）；蜻蜓（蜻蜓，单个独立道具，外观、材质、颜色和叙事功能清晰，可用于后续分镜主体参考。）。\n关键视觉约束：透明薄膜必须作为画面核心视觉出现：巨大半透明气泡状异常入口悬浮在天台边缘外，边缘有微弱反光，不能只在提示词中提到。\n风格：写实电影感，画幅 16:9，保持人物身份、服装、场景结构和道具外观与参考图一致；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。",
+      "prompt_checks": {
+        "has_prompt": true,
+        "has_scene": true,
+        "has_character_or_subject": true,
+        "has_action": true,
+        "has_style": true,
+        "has_reference_context": true
+      },
+      "prompt_complete": true,
+      "quality": null,
+      "score": null,
+      "failure_reason": "",
+      "task_status": "succeeded",
+      "task_id": "task-generate_image-mpqzd2lr-49",
+      "judge_target": "storyboard_image",
+      "expected": {
+        "scene": "教学楼天台",
+        "characters": [
+          "吴翊杰",
+          "池清明",
+          "闫老师"
+        ],
+        "props": [
+          "篮球",
+          "蜻蜓"
+        ],
+        "description": "吴翊杰、池清明、闫老师在教学楼天台，涉及篮球、蜻蜓，8 教学楼天台 昏 外 空旷的教学楼天台上四处堆砌着废旧的桌椅，一只蜻蜓出现在吴翊杰的视野（剧本第一个出现的蜻蜓），它像是引导者，带领吴翊杰走向天台的另一侧。。广角，主体关系清楚，画面定格在当前叙事动作最明确的一瞬间。 保持教学楼天台、吴翊杰、池清明、闫老师、篮球、蜻蜓与参考图中的身份、外观、空间结构和道具细节一致。 写实电影感，画幅 16:9；避免文字、水印、logo、多格漫画感、时间轴式镜头说明。"
+      },
+      "project_id": "project-池清明到底是谁-benchmark-image-mpqxrw23"
+    }
+  ],
+  "next_stage": "Keep optimizing the image baseline before starting 163 edit-shot sampling."
+}

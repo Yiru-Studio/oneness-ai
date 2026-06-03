@@ -51,3 +51,4 @@ next-env.d.ts
 # Local temp files
 temp/
 .playwright-mcp/
+evals/outputs/

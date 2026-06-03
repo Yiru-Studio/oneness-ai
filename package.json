@@ -18,6 +18,8 @@
     "db:studio": "dotenv -e .env -- pnpm --filter @oneness/shared exec prisma studio",
     "db:generate": "dotenv -e .env -- pnpm --filter @oneness/shared exec prisma generate",
     "loadtest:openai-images": "tsx scripts/openai-image-loadtest.ts",
+    "eval:text-chain": "pnpm --filter api exec tsx ../../evals/chi-qingming/text-chain-eval.mjs",
+    "eval:openai-text": "pnpm --filter api exec tsx ../../evals/chi-qingming/openai-text-eval.mjs",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test"

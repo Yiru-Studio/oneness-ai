@@ -1,0 +1,114 @@
+{
+  "run_id": "2026-05-31T09-44-57-361Z",
+  "generated_at": "2026-05-31T09:44:57.363Z",
+  "source_image_report": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/chi_qingming.image_benchmark_report.json",
+  "source_image_run_id": "goal-real-20260529-210656",
+  "contact_sheet": "/Users/wanghaoyu/Desktop/当前工作区/AIGC影视/structured_cases/chi_qingming/chi_qingming.image_contact_sheet.goal-real-20260529-210656.jpg",
+  "method": "codex_contact_sheet_first_pass",
+  "status": "completed_first_pass",
+  "counts": {
+    "assets": 34,
+    "storyboard_shots": 10,
+    "total_items": 44
+  },
+  "metrics": {
+    "visual_consistency_average": 84.7,
+    "storyboard_visual_pass_rate": 1,
+    "high_severity_blockers": 0
+  },
+  "threshold_results": {
+    "visual_consistency_average": true,
+    "storyboard_visual_pass_rate": true,
+    "no_high_severity_blockers": true
+  },
+  "passed": true,
+  "items": [
+    {
+      "id": "scene-1",
+      "score": 84,
+      "pass": true,
+      "reason": "办公室空间、吴翊杰与教师办公关系成立，试卷/讲义环境线索清晰。"
+    },
+    {
+      "id": "scene-2",
+      "score": 82,
+      "pass": true,
+      "reason": "网吧电脑调查动作明确，画面聚焦吴翊杰和屏幕线索。"
+    },
+    {
+      "id": "scene-3",
+      "score": 84,
+      "pass": true,
+      "reason": "夜间电话亭和通讯本/电话动作成立，未把中年女声画成可见角色。"
+    },
+    {
+      "id": "scene-4",
+      "score": 84,
+      "pass": true,
+      "reason": "篮球场投篮与规则隐喻成立，人物关系可接受。"
+    },
+    {
+      "id": "scene-5",
+      "score": 85,
+      "pass": true,
+      "reason": "走廊/教室冲突画面成立，大光、同学与走廊阻滞感明确，未见明显篮球污染。"
+    },
+    {
+      "id": "scene-6",
+      "score": 86,
+      "pass": true,
+      "reason": "图书馆桌面借阅记录纸成为前景线索，符合本场信息揭示。"
+    },
+    {
+      "id": "scene-7",
+      "score": 82,
+      "pass": true,
+      "reason": "校园广场奔跑和篮球队阻拦关系成立。"
+    },
+    {
+      "id": "scene-7A",
+      "score": 86,
+      "pass": true,
+      "reason": "门口大厅碰撞、摔倒与散落物件关系明确。"
+    },
+    {
+      "id": "scene-7B",
+      "score": 84,
+      "pass": true,
+      "reason": "楼梯间拥堵、旧课桌椅搬运和阻拦空间成立。"
+    },
+    {
+      "id": "scene-8",
+      "score": 90,
+      "pass": true,
+      "reason": "教学楼天台画面中可见巨大的透明气泡/薄膜状异常入口，scene-8 关键视觉缺口已修复。"
+    }
+  ],
+  "observations": [
+    {
+      "id": "role-中年女声",
+      "result": "fixed",
+      "issue_types": [],
+      "note": "voice-only role is not included in generated asset references."
+    },
+    {
+      "id": "scene-5",
+      "result": "fixed",
+      "issue_types": [],
+      "note": "走廊/教室分镜已从篮球污染转向同学阻拦与教室/走廊冲突。"
+    },
+    {
+      "id": "scene-7B",
+      "result": "fixed",
+      "issue_types": [],
+      "note": "楼梯间分镜图已生成。"
+    },
+    {
+      "id": "scene-8",
+      "result": "fixed",
+      "issue_types": [],
+      "note": "天台分镜中透明薄膜/气泡状异常入口已经成为明确画面元素。"
+    }
+  ],
+  "next_stage": "34/44 image visual first pass is clean enough to proceed with edit-shot sample validation; keep model judge optional."
+}
