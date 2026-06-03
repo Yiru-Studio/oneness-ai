@@ -12,6 +12,7 @@ import {
   getOpenAIClient,
   normalizeOpenAIError,
 } from '../lib/openai-client.js';
+import { resolveShotReferencesFromNames } from '../lib/shot-reference-prefill.js';
 import {
   buildResourceImagePrompt,
   normalizeExtractedCharacters,
@@ -30,11 +31,14 @@ import {
   buildSceneImagePlanningMessages,
   canRefreshSceneImageTaskDraft,
   cleanSceneImageSummary,
+  normalizeSceneReferenceVisibility,
   normalizeSceneImagePlans,
   parseSceneImagePlanResponse,
   parseSceneImageReferenceBindingResponse,
+  prefillCompositionReferences,
   referenceLibraryIdSets,
   sanitizeReferenceBinding,
+  completeReferenceBindingForScene,
   type EpisodeScene,
   type ReferenceLibraryForPlanning,
   type SceneImageReferenceIds,
@@ -615,11 +619,13 @@ async function bindCompositionReferencesWithAI(args: {
     );
     const raw = resp.choices[0]?.message?.content ?? '{}';
     const validIds = referenceLibraryIdSets(args.library);
-    const knownSceneIndexes = new Set(args.scenes.map((scene) => scene.index));
+    const scenesByIndex = new Map(args.scenes.map((scene) => [scene.index, scene]));
     const next = new Map<number, SceneImageReferenceIds>();
     for (const binding of parseSceneImageReferenceBindingResponse(raw)) {
-      if (!knownSceneIndexes.has(binding.sceneIndex)) continue;
-      next.set(binding.sceneIndex, sanitizeReferenceBinding(binding, validIds));
+      const scene = scenesByIndex.get(binding.sceneIndex);
+      if (!scene) continue;
+      const sanitized = sanitizeReferenceBinding(binding, validIds);
+      next.set(binding.sceneIndex, completeReferenceBindingForScene(sanitized, scene, args.library));
     }
     return next.size > 0 ? next : fallback;
   } catch (err) {
@@ -731,6 +737,18 @@ function compositionScenesForEpisode(
           ? obj.characters.filter((v): v is string => typeof v === 'string')
           : [],
         environment: typeof obj.environment === 'string' ? obj.environment : '',
+        sceneReferences: normalizeSceneReferenceVisibility(
+          typeof obj.sceneReferences === 'object' && obj.sceneReferences !== null
+            ? obj.sceneReferences as Record<string, string[]>
+            : null,
+          {
+            characters: Array.isArray(obj.characters)
+              ? obj.characters.filter((v): v is string => typeof v === 'string')
+              : [],
+            scenes: [],
+            items: [],
+          },
+        ),
       };
     })
     .filter((item): item is EpisodeScene => Boolean(item));
@@ -782,27 +800,6 @@ function sceneSearchTerms(sceneName: string): string[] {
   return Array.from(new Set(terms.filter(Boolean)));
 }
 
-function prefillCompositionReferences(
-  scene: EpisodeScene,
-  library: ReferenceLibraryForPlanning,
-): SceneImageReferenceIds {
-  const haystack = [scene.title, scene.content, scene.environment, ...scene.characters].join('\n');
-  const characterStyleIds = library.characters
-    .filter((character) => textMentions(haystack, character.name) || scene.characters.some((name) => textMentions(character.name, name)))
-    .map((character) => character.styles.find((style) => style.assetId)?.id ?? character.styles[0]?.id)
-    .filter((id): id is string => Boolean(id));
-  const sceneIds = library.scenes
-    .filter((item) => textMentions(haystack, item.name) || textMentions(item.name, scene.environment))
-    .map((item) => item.id);
-  if (scene.referenceSceneId && !sceneIds.includes(scene.referenceSceneId)) {
-    sceneIds.unshift(scene.referenceSceneId);
-  }
-  const itemIds = library.items
-    .filter((item) => textMentions(haystack, item.name))
-    .map((item) => item.id);
-  return { characterStyleIds, sceneIds, itemIds };
-}
-
 function buildCompositionPrompt(
   project: { stylePrompt: string; ratio: string },
   scene: EpisodeScene,
@@ -826,12 +823,6 @@ function buildCompositionPrompt(
     sceneLabels,
     itemLabels,
   });
-}
-
-function textMentions(text: string, term: string): boolean {
-  const needle = term.trim();
-  if (!needle) return false;
-  return text.includes(needle) || needle.includes(text.trim());
 }
 
 export function defaultCharacterStyleForExtractedCharacter(
@@ -1053,6 +1044,15 @@ type AnalyzedScene = {
   content: string;
   characters: string[];
   environment: string;
+  sceneReferences?: {
+    visibleCharacters: string[];
+    mentionedCharacters: string[];
+    voiceCharacters: string[];
+    backgroundCharacters: string[];
+    visibleItems: string[];
+    mentionedItems: string[];
+    backgroundItems: string[];
+  };
 };
 
 function sceneListSystemPrompt(): string {
@@ -1063,13 +1063,20 @@ function sceneListSystemPrompt(): string {
     'episode summary.',
     '',
     'Return a single JSON object EXACTLY of this shape:',
-    '{ "summary": string, "scenes": [{ "title": string, "content": string, "characters": string[], "environment": string }] }',
+    '{ "summary": string, "scenes": [{ "title": string, "content": string, "characters": string[], "environment": string, "sceneReferences": { "visibleCharacters": string[], "mentionedCharacters": string[], "voiceCharacters": string[], "backgroundCharacters": string[], "visibleItems": string[], "mentionedItems": string[], "backgroundItems": string[] } }] }',
     '',
     'Rules:',
     "- Use the script's native language for every field (Chinese in → Chinese out).",
     '- `title` = the scene heading (location + 日/夜 + 内/外), short.',
     '- `content` = the script text for that scene: keep short scenes close to verbatim; for long scenes, condense to the key action beats + important dialogue (a few sentences). Stay concrete — this drives shot generation.',
-    '- `characters` = names of characters who appear or speak in the scene.',
+    '- `characters` = compatibility list of characters who appear or speak in the scene.',
+    '- `sceneReferences.visibleCharacters` = characters visible on screen or performing concrete actions.',
+    '- `sceneReferences.voiceCharacters` = phone/OS/narration/dialogue-only voices with no visible body.',
+    '- `sceneReferences.mentionedCharacters` = people only mentioned in dialogue/backstory/memory and not visible.',
+    '- `sceneReferences.backgroundCharacters` = crowd/extras/background people.',
+    '- `sceneReferences.visibleItems` = props visibly used or clearly seen in the scene.',
+    '- `sceneReferences.mentionedItems` = props only mentioned but not visible.',
+    '- `sceneReferences.backgroundItems` = visible environmental objects that are useful as references but not core action props.',
     '- `environment` = one vivid sentence describing the physical setting for image/video generation (lighting, space, mood).',
     '- Identify up to 24 of the most important scenes, in story order. Merge trivially short fragments into a neighbour.',
     '- NEVER use double-quote characters (") inside field values; use single quotes or 「」 instead.',
@@ -1079,7 +1086,7 @@ function sceneListSystemPrompt(): string {
 
 function safeParseSceneList(raw: string): {
   summary: string;
-  scenes: Array<{ title: string; content: string; characters: string[]; environment: string }>;
+  scenes: Array<Omit<AnalyzedScene, 'index'>>;
 } {
   const cleaned = extractJsonObject(raw);
   try {
@@ -1087,14 +1094,23 @@ function safeParseSceneList(raw: string): {
     const scenesRaw = Array.isArray(obj.scenes) ? obj.scenes : [];
     const scenes = scenesRaw
       .filter((s): s is Record<string, unknown> => typeof s === 'object' && s !== null)
-      .map((s) => ({
-        title: String(s.title ?? '').trim(),
-        content: String(s.content ?? '').trim(),
-        characters: Array.isArray(s.characters)
+      .map((s) => {
+        const characters = Array.isArray(s.characters)
           ? s.characters.filter((x): x is string => typeof x === 'string').map((x) => x.trim())
-          : [],
-        environment: String(s.environment ?? '').trim(),
-      }))
+          : [];
+        return {
+          title: String(s.title ?? '').trim(),
+          content: String(s.content ?? '').trim(),
+          characters,
+          environment: String(s.environment ?? '').trim(),
+          sceneReferences: normalizeSceneReferenceVisibility(
+            typeof s.sceneReferences === 'object' && s.sceneReferences !== null
+              ? s.sceneReferences as Record<string, string[]>
+              : null,
+            { characters, scenes: [], items: [] },
+          ),
+        };
+      })
       .filter((s) => s.title.length > 0 || s.content.length > 0);
     return { summary: typeof obj.summary === 'string' ? obj.summary : '', scenes };
   } catch {
@@ -1279,6 +1295,11 @@ async function analyzeShotBreakdown(args: {
     select: { ratio: true, stylePrompt: true },
   });
   const ratio = project?.ratio || '16:9';
+  const sceneRefs = normalizeSceneReferenceVisibility(scene.sceneReferences, {
+    characters: scene.characters,
+    scenes: [],
+    items: [],
+  });
 
   ctx.log.info(
     { provider: 'openai', op: 'shot_breakdown', model, episodeId, sceneIndex, sceneTitle: scene.title },
@@ -1297,7 +1318,11 @@ async function analyzeShotBreakdown(args: {
             content:
               `全片设定：\n${episodeSetupForShotBreakdown(ep.content) || '（无）'}\n\n` +
               `场景标题：${scene.title}\n` +
-              `出场角色：${scene.characters.join('、') || '（未知）'}\n` +
+              `可见角色：${sceneRefs.visibleCharacters.join('、') || '（未知）'}\n` +
+              `声音角色（不要作为可见人物引用，除非镜头明确显示其本人）：${sceneRefs.voiceCharacters.join('、') || '无'}\n` +
+              `仅被提及角色（不要作为可见人物引用）：${sceneRefs.mentionedCharacters.join('、') || '无'}\n` +
+              `可见道具：${sceneRefs.visibleItems.join('、') || '无'}\n` +
+              `只被提及道具（不要预填充）：${sceneRefs.mentionedItems.join('、') || '无'}\n` +
               `环境：${scene.environment}\n\n` +
               `剧本内容：\n${scene.content || '(empty)'}`,
           },
@@ -1322,14 +1347,22 @@ async function analyzeShotBreakdown(args: {
   // Resolve role/item names to existing project assets (best-effort).
   const chars = await ctx.prisma.character.findMany({
     where: { projectId: ep.projectId },
-    select: { name: true, styles: { select: { id: true, assetId: true }, orderBy: { createdAt: 'asc' } } },
+    select: {
+      name: true,
+      styles: {
+        select: { id: true, name: true, prompt: true, assetId: true },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
   });
-  const charByName = new Map(chars.map((c) => [c.name, c]));
   const items = await ctx.prisma.item.findMany({
     where: { projectId: ep.projectId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, description: true, prompt: true },
   });
-  const itemIdByName = new Map(items.map((i) => [i.name, i.id]));
+  const sceneRows = await ctx.prisma.scene.findMany({
+    where: { projectId: ep.projectId },
+    select: { id: true, name: true, description: true, prompt: true },
+  });
 
   const createdIds = await ctx.prisma.$transaction(
     async (tx) => {
@@ -1345,16 +1378,14 @@ async function analyzeShotBreakdown(args: {
         displayId += 1;
         const isContinue = s.shotType === 'continue' && prevDisplayId !== null;
 
-        const characterStyleIds: string[] = [];
-        for (const role of s.roles) {
-          const c = charByName.get(role);
-          if (!c) continue;
-          const styled = c.styles.find((st) => st.assetId) ?? c.styles[0];
-          if (styled) characterStyleIds.push(styled.id);
-        }
-        const itemIds = s.items
-          .map((n) => itemIdByName.get(n))
-          .filter((x): x is string => typeof x === 'string');
+        const refs = resolveShotReferencesFromNames({
+          roles: s.roles,
+          items: s.items,
+          characters: chars,
+          itemRows: items,
+          scene,
+          sceneRows,
+        });
 
         const row = await tx.shot.create({
           data: {
@@ -1371,9 +1402,9 @@ async function analyzeShotBreakdown(args: {
             generateAudio: true,
             createType: 'assist',
             roleNames: s.roles as unknown as Prisma.InputJsonValue,
-            characterStyleIds: characterStyleIds as unknown as Prisma.InputJsonValue,
-            itemIds: itemIds as unknown as Prisma.InputJsonValue,
-            sceneIds: [] as unknown as Prisma.InputJsonValue,
+            characterStyleIds: refs.characterStyleIds as unknown as Prisma.InputJsonValue,
+            itemIds: refs.itemIds as unknown as Prisma.InputJsonValue,
+            sceneIds: refs.sceneIds as unknown as Prisma.InputJsonValue,
           },
           select: { id: true },
         });

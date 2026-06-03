@@ -6,6 +6,15 @@ export type EpisodeScene = {
   content: string;
   characters: string[];
   environment: string;
+  sceneReferences?: {
+    visibleCharacters: string[];
+    mentionedCharacters: string[];
+    voiceCharacters: string[];
+    backgroundCharacters: string[];
+    visibleItems: string[];
+    mentionedItems: string[];
+    backgroundItems: string[];
+  };
 };
 
 export type EpisodeDTO = {
@@ -18,6 +27,24 @@ export type EpisodeDTO = {
   scenes: EpisodeScene[];
 };
 
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : [];
+}
+
+function parseSceneReferences(value: unknown): EpisodeScene['sceneReferences'] | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const obj = value as Record<string, unknown>;
+  return {
+    visibleCharacters: stringArray(obj.visibleCharacters),
+    mentionedCharacters: stringArray(obj.mentionedCharacters),
+    voiceCharacters: stringArray(obj.voiceCharacters),
+    backgroundCharacters: stringArray(obj.backgroundCharacters),
+    visibleItems: stringArray(obj.visibleItems),
+    mentionedItems: stringArray(obj.mentionedItems),
+    backgroundItems: stringArray(obj.backgroundItems),
+  };
+}
+
 function parseScenes(v: unknown): EpisodeScene[] {
   if (!Array.isArray(v)) return [];
   return v
@@ -26,10 +53,9 @@ function parseScenes(v: unknown): EpisodeScene[] {
       index: typeof s.index === 'number' ? s.index : i,
       title: typeof s.title === 'string' ? s.title : '',
       content: typeof s.content === 'string' ? s.content : '',
-      characters: Array.isArray(s.characters)
-        ? s.characters.filter((x): x is string => typeof x === 'string')
-        : [],
+      characters: stringArray(s.characters),
       environment: typeof s.environment === 'string' ? s.environment : '',
+      sceneReferences: parseSceneReferences(s.sceneReferences),
     }));
 }
 

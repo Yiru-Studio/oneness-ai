@@ -36,15 +36,20 @@ import { config } from '../config.js';
 import { uniqueAssetIds } from '../lib/character-identity.js';
 import { serializeAsset, type AssetDTO } from '../lib/assets.js';
 import { reconcileShotSketchTask } from '../lib/shot-sketches.js';
+import { jsonStringArray, mergeShotSketchReferenceIds } from '../lib/shot-sketch-reference-prefill.js';
 import {
   buildSceneImageCompositionPrompt,
   buildReferenceBindingMessages,
   buildSceneImagePlanningMessages,
   canRefreshSceneImageTaskDraft,
+  canRefreshCompositionTaskReferences,
   cleanSceneImageSummary,
+  completeReferenceBindingForScene,
+  normalizeSceneReferenceVisibility,
   normalizeSceneImagePlans,
   parseSceneImagePlanResponse,
   parseSceneImageReferenceBindingResponse,
+  prefillCompositionReferences,
   referenceLibraryIdSets,
   requestOpenAIJson,
   sanitizeReferenceBinding,
@@ -1588,14 +1593,21 @@ function scenesForEpisode(
     .map((item, fallbackIndex): EpisodeScene | null => {
       if (!item || typeof item !== 'object') return null;
       const obj = item as Record<string, unknown>;
+      const characters = Array.isArray(obj.characters)
+        ? obj.characters.filter((v): v is string => typeof v === 'string')
+        : [];
       return {
         index: typeof obj.index === 'number' ? obj.index : fallbackIndex,
         title: typeof obj.title === 'string' && obj.title.trim() ? obj.title : `${episode.title} ${fallbackIndex + 1}`,
         content: typeof obj.content === 'string' ? obj.content : episode.content,
-        characters: Array.isArray(obj.characters)
-          ? obj.characters.filter((v): v is string => typeof v === 'string')
-          : [],
+        characters,
         environment: typeof obj.environment === 'string' ? obj.environment : '',
+        sceneReferences: normalizeSceneReferenceVisibility(
+          typeof obj.sceneReferences === 'object' && obj.sceneReferences !== null
+            ? obj.sceneReferences as Record<string, string[]>
+            : null,
+          { characters, scenes: [], items: [] },
+        ),
       };
     })
     .filter((item): item is EpisodeScene => Boolean(item));
@@ -1687,7 +1699,7 @@ async function bindReferencesForEpisode(
   library: ReferenceLibrary,
 ): Promise<Map<number, SceneImageReferenceIds>> {
   const fallback = new Map<number, SceneImageReferenceIds>(
-    scenes.map((scene) => [scene.index, prefillReferences(scene, library)]),
+    scenes.map((scene) => [scene.index, prefillCompositionReferences(scene, library)]),
   );
   if (!canUseTextAI()) return fallback;
   try {
@@ -1703,11 +1715,13 @@ async function bindReferencesForEpisode(
       userPrompt,
     });
     const validIds = referenceLibraryIdSets(library);
-    const knownSceneIndexes = new Set(scenes.map((scene) => scene.index));
+    const scenesByIndex = new Map(scenes.map((scene) => [scene.index, scene]));
     const next = new Map<number, SceneImageReferenceIds>();
     for (const binding of parseSceneImageReferenceBindingResponse(raw)) {
-      if (!knownSceneIndexes.has(binding.sceneIndex)) continue;
-      next.set(binding.sceneIndex, sanitizeReferenceBinding(binding, validIds));
+      const scene = scenesByIndex.get(binding.sceneIndex);
+      if (!scene) continue;
+      const sanitized = sanitizeReferenceBinding(binding, validIds);
+      next.set(binding.sceneIndex, completeReferenceBindingForScene(sanitized, scene, library));
     }
     return next.size > 0 ? next : fallback;
   } catch {
@@ -1719,37 +1733,13 @@ function canUseTextAI(): boolean {
   return config.PROVIDER_TEXT === 'openai' && Boolean(process.env.OPENAI_API_KEY);
 }
 
-function prefillReferences(scene: EpisodeScene, library: ReferenceLibrary) {
-  const haystack = [scene.title, scene.content, scene.environment, ...scene.characters].join('\n');
-  const characterStyleIds = library.characters
-    .filter((character) => textMentions(haystack, character.name) || scene.characters.some((name) => textMentions(character.name, name)))
-    .map((character) => character.styles.find((style) => style.assetId)?.id ?? character.styles[0]?.id)
-    .filter((id): id is string => Boolean(id));
-  const sceneIds = library.scenes
-    .filter((item) => textMentions(haystack, item.name) || textMentions(item.name, scene.environment))
-    .map((item) => item.id);
-  if (scene.referenceSceneId && !sceneIds.includes(scene.referenceSceneId)) {
-    sceneIds.unshift(scene.referenceSceneId);
-  }
-  const itemIds = library.items
-    .filter((item) => textMentions(haystack, item.name))
-    .map((item) => item.id);
-  return { characterStyleIds, sceneIds, itemIds };
-}
-
-function textMentions(text: string, term: string): boolean {
-  const needle = term.trim();
-  if (!needle) return false;
-  return text.includes(needle) || needle.includes(text.trim());
-}
-
 async function ensureCompositionTaskForScene(
-  project: { id: string; stylePrompt: string; ratio: string },
-  episode: { id: string; number: number },
+  project: { id: string; stylePrompt: string; ratio: string; analysisModel?: string },
+  episode: { id: string; number: number; title?: string },
   scene: EpisodeScene,
   library: ReferenceLibrary,
+  providedRefs?: SceneImageReferenceIds,
 ): Promise<string> {
-  const refs = prefillReferences(scene, library);
   const title = `第${episode.number}集 · ${scene.title || `场景 ${scene.index + 1}`}`;
   const where = {
     episodeId_sceneIndex: {
@@ -1765,10 +1755,21 @@ async function ensureCompositionTaskForScene(
       currentImageRunId: true,
       imageAssetId: true,
       imageTaskId: true,
+      characterStyleIds: true,
+      sceneIds: true,
+      itemIds: true,
     },
   });
   const sceneSummary = cleanSceneImageSummary(scene.content);
   const sceneForPrompt = { ...scene, content: sceneSummary };
+  const existingRefs = existing
+    ? {
+        characterStyleIds: jsonStringArray(existing.characterStyleIds),
+        sceneIds: jsonStringArray(existing.sceneIds),
+        itemIds: jsonStringArray(existing.itemIds),
+      }
+    : null;
+  const refs = providedRefs ?? existingRefs ?? await resolveReferencesForNewCompositionTask(project, episode, scene, library);
   if (!existing) {
     const created = await prisma.compositionTask.create({
       data: {
@@ -1787,11 +1788,7 @@ async function ensureCompositionTaskForScene(
     return created.id;
   }
 
-  const canRefreshDraft =
-    existing.status === 'DRAFT' &&
-    !existing.currentImageRunId &&
-    !existing.imageAssetId &&
-    !existing.imageTaskId;
+  const canRefreshDraft = canRefreshCompositionTaskReferences(existing, Boolean(providedRefs));
   await prisma.compositionTask.update({
     where: { id: existing.id },
     data: {
@@ -1811,6 +1808,24 @@ async function ensureCompositionTaskForScene(
     },
   });
   return existing.id;
+}
+
+async function resolveReferencesForNewCompositionTask(
+  project: { ratio: string; stylePrompt: string; analysisModel?: string },
+  episode: { number: number; title?: string },
+  scene: EpisodeScene,
+  library: ReferenceLibrary,
+): Promise<SceneImageReferenceIds> {
+  if (!project.analysisModel || !canUseTextAI()) {
+    return prefillCompositionReferences(scene, library);
+  }
+  const refsBySceneIndex = await bindReferencesForEpisode(
+    { ratio: project.ratio, stylePrompt: project.stylePrompt, analysisModel: project.analysisModel },
+    { number: episode.number, title: episode.title ?? '' },
+    [scene],
+    library,
+  );
+  return refsBySceneIndex.get(scene.index) ?? prefillCompositionReferences(scene, library);
 }
 
 function buildCompositionPrompt(
@@ -1977,20 +1992,10 @@ async function buildShotSketchReferenceAssetIds(
   shot: { compositionTaskIds?: unknown; characterStyleIds: unknown; sceneIds: unknown; itemIds: unknown },
   compositionImageAssetId: string | null,
 ): Promise<string[]> {
+  const refs = mergeShotSketchReferenceIds(compositionTask, shot);
   const assetIds = await resolveReferenceAssetIds(projectId, {
     compositionTaskIds: jsonStringArray(shot.compositionTaskIds),
-    characterStyleIds: uniqueStrings([
-      ...jsonStringArray(shot.characterStyleIds),
-      ...jsonStringArray(compositionTask.characterStyleIds),
-    ]),
-    sceneIds: uniqueStrings([
-      ...jsonStringArray(shot.sceneIds),
-      ...jsonStringArray(compositionTask.sceneIds),
-    ]),
-    itemIds: uniqueStrings([
-      ...jsonStringArray(shot.itemIds),
-      ...jsonStringArray(compositionTask.itemIds),
-    ]),
+    ...refs,
   });
   return uniqueStrings([
     ...(compositionImageAssetId ? [compositionImageAssetId] : []),
@@ -2215,10 +2220,6 @@ async function assertAllItemsOwned(projectId: string, ids: string[], userId: str
   if (ids.length === 0) return;
   const count = await prisma.item.count({ where: { id: { in: ids }, projectId, project: { ownerId: userId } } });
   if (count !== new Set(ids).size) throw AppError.badRequest(ErrorCodes.VALIDATION_FAILED, 'invalid item reference');
-}
-
-function jsonStringArray(v: unknown): string[] {
-  return Array.isArray(v) ? v.filter((item): item is string => typeof item === 'string') : [];
 }
 
 async function readAssetBuffer(bucket: string, key: string): Promise<Buffer> {

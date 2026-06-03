@@ -4,14 +4,14 @@ export type LLMCharacterAnalysis = {
   description: string;
   bio: string;
   avatarPrompt: string;
-  styles: Array<{ name: string; prompt: string }>;
+  styles: Array<{ name: string; prompt: string; phase?: string; outfit?: string; sceneHint?: string }>;
 };
 
 export type LLMCharacterAnalysisJson = {
   description?: string;
   bio?: string;
   avatarPrompt?: string;
-  styles?: Array<{ name?: string; prompt?: string }>;
+  styles?: Array<{ name?: string; prompt?: string; phase?: string; outfit?: string; sceneHint?: string }>;
 };
 
 export function buildCharacterAnalysisMessages(args: {
@@ -49,6 +49,9 @@ ${args.projectStylePrompt ? `项目整体风格指引：${args.projectStylePromp
   "styles": [
     {
       "name": "造型名称（中文，紧扣剧情场景或身份，例如：年轻时消防员制服造型 / 暖阳回忆训练服造型 / 现代日常居家造型）",
+      "phase": "剧情阶段或时间段，例如：雨夜接单 / 校园回忆 / 天台真相；没有则留空字符串",
+      "outfit": "服装/发型/外观关键词，例如：深色夹克、湿发、校服；没有则留空字符串",
+      "sceneHint": "最适合引用该造型的场景或空间关键词，例如：网约车后座、办公室、天台；没有则留空字符串",
       "prompt": "用于生成该造型全身角色参考图的中文 AI 绘画提示词，需包含：年龄段、外貌特征、发型、服装细节、姿态、神态、干净影棚背景、光线氛围等；不要包含剧情场景、手持独立道具、角色互动；300 字以内"
     }
   ]
@@ -77,7 +80,7 @@ export function normalizeCharacterAnalysis(args: {
   const bio = typeof parsed.bio === 'string' ? parsed.bio : '';
 
   const styles = (parsed.styles ?? [])
-    .filter((s): s is { name: string; prompt: string } =>
+    .filter((s): s is { name: string; prompt: string; phase?: string; outfit?: string; sceneHint?: string } =>
       typeof s.name === 'string' &&
       typeof s.prompt === 'string' &&
       s.name.trim().length > 0 &&
@@ -86,15 +89,25 @@ export function normalizeCharacterAnalysis(args: {
     .slice(0, 5)
     .map((s) => ({
       name: s.name.trim(),
-      prompt: buildResourceImagePrompt({
-        kind: 'character-style',
-        name: characterName,
-        description: description || existingDescription,
-        bio,
-        styleName: s.name,
-        userPrompt: s.prompt,
-        projectStylePrompt,
-      }),
+      phase: cleanMetadata(s.phase),
+      outfit: cleanMetadata(s.outfit),
+      sceneHint: cleanMetadata(s.sceneHint),
+      prompt: withStyleMetadata(
+        buildResourceImagePrompt({
+          kind: 'character-style',
+          name: characterName,
+          description: description || existingDescription,
+          bio,
+          styleName: s.name,
+          userPrompt: s.prompt,
+          projectStylePrompt,
+        }),
+        {
+          phase: cleanMetadata(s.phase),
+          outfit: cleanMetadata(s.outfit),
+          sceneHint: cleanMetadata(s.sceneHint),
+        },
+      ),
     }));
 
   const fallbackNames = ['日常造型', '剧情高光造型'];
@@ -103,15 +116,21 @@ export function normalizeCharacterAnalysis(args: {
     const fallbackName = fallbackNames[idx] ?? `造型${idx + 1}`;
     styles.push({
       name: fallbackName,
-      prompt: buildResourceImagePrompt({
-        kind: 'character-style',
-        name: characterName,
-        description: description || existingDescription,
-        bio,
-        styleName: fallbackName,
-        userPrompt: `${characterName} 的${fallbackName}全身图：根据剧情设定还原年龄、外貌、发型与服装，姿态自然，光线柔和，单人，简洁背景。`,
-        projectStylePrompt,
-      }),
+      phase: '',
+      outfit: '',
+      sceneHint: '',
+      prompt: withStyleMetadata(
+        buildResourceImagePrompt({
+          kind: 'character-style',
+          name: characterName,
+          description: description || existingDescription,
+          bio,
+          styleName: fallbackName,
+          userPrompt: `${characterName} 的${fallbackName}全身图：根据剧情设定还原年龄、外貌、发型与服装，姿态自然，光线柔和，单人，简洁背景。`,
+          projectStylePrompt,
+        }),
+        {},
+      ),
     });
   }
 
@@ -129,6 +148,24 @@ export function normalizeCharacterAnalysis(args: {
     }),
     styles,
   };
+}
+
+function cleanMetadata(value: unknown): string {
+  return typeof value === 'string' ? value.trim().replace(/[；;\n\r]+/g, ' ').slice(0, 120) : '';
+}
+
+function withStyleMetadata(
+  prompt: string,
+  metadata: { phase?: string; outfit?: string; sceneHint?: string },
+): string {
+  const phase = cleanMetadata(metadata.phase);
+  const outfit = cleanMetadata(metadata.outfit);
+  const sceneHint = cleanMetadata(metadata.sceneHint);
+  if (!phase && !outfit && !sceneHint) return prompt;
+  return [
+    `造型元数据：phase=${phase || '未指定'}；outfit=${outfit || '未指定'}；sceneHint=${sceneHint || '未指定'}`,
+    prompt,
+  ].join('\n');
 }
 
 export function parseCharacterAnalysisJson(raw: string): LLMCharacterAnalysisJson {

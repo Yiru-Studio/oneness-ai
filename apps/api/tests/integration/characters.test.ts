@@ -23,24 +23,52 @@ describe('characters CRUD', () => {
   beforeAll(async () => {
     const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });
     if (!user) throw new Error('Seed user missing. Run pnpm db:seed.');
-    const project = await prisma.project.findFirst({
-      where: { ownerId: user.id, name: '格斗动画' },
+    const project = await prisma.project.create({
+      data: {
+        ownerId: user.id,
+        name: `角色集成测试-${Date.now()}`,
+        ratio: '16:9',
+        style: '写实电影感',
+        stylePrompt: '写实电影感',
+        analysisModel: 'stub',
+        imageModel: 'stub',
+        videoModel: 'stub',
+        characters: {
+          create: [
+            {
+              name: '潘杰',
+              description: '测试角色描述',
+              bio: '测试角色简介',
+              styles: {
+                create: [
+                  { name: '日常造型', prompt: '日常造型提示词' },
+                  { name: '擂台造型', prompt: '擂台造型提示词' },
+                  { name: '回忆造型', prompt: '回忆造型提示词' },
+                ],
+              },
+            },
+            {
+              name: '铁亮',
+              description: '测试配角描述',
+              bio: '测试配角简介',
+            },
+          ],
+        },
+      },
     });
-    if (!project) throw new Error('Seed project "格斗动画" missing.');
     projectId = project.id;
   });
 
   afterAll(async () => {
-    if (characterId)
-      await prisma.character.deleteMany({ where: { id: characterId } });
+    if (projectId) await prisma.project.deleteMany({ where: { id: projectId } });
     await prisma.$disconnect();
   });
 
-  it('GET /projects/:id/characters returns the 9 seeded characters', async () => {
+  it('GET /projects/:id/characters returns project-scoped characters', async () => {
     const res = await app.request(`/api/projects/${projectId}/characters`, { headers: auth });
     expect(res.status).toBe(200);
     const body = (await res.json()) as Array<{ name: string; styles: unknown[] }>;
-    expect(body.length).toBe(9);
+    expect(body.length).toBe(2);
     expect(body.find((c) => c.name === '潘杰')?.styles.length).toBe(3);
   });
 

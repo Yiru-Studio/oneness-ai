@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 import { Worker } from 'bullmq';
 import { taskRoutes } from '../../src/routes/tasks.js';
+import { compositionTaskRoutes } from '../../src/routes/composition-tasks.js';
 import { requestIdMiddleware } from '../../src/middleware/request-id.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { prisma } from '../../src/lib/prisma.js';
@@ -16,6 +17,7 @@ const app = new Hono();
 app.use('*', requestIdMiddleware);
 app.onError(errorHandler);
 app.route('/api', taskRoutes);
+app.route('/api', compositionTaskRoutes);
 
 const auth = { authorization: 'Bearer test_token' };
 const connection = { url: config.REDIS_URL };
@@ -61,6 +63,33 @@ async function pollCreditsAtLeast(
     select: { credits: true },
   });
   return user?.credits ?? 0;
+}
+
+async function createQueuedTextTask(
+  ownerId: string,
+  projectId: string,
+  input: Record<string, unknown>,
+) {
+  return prisma.task.create({
+    data: {
+      ownerId,
+      projectId,
+      type: TaskType.TEXT_ANALYZE,
+      provider: 'stub',
+      status: TaskStatus.QUEUED,
+      costCredits: 0,
+      input,
+    },
+  });
+}
+
+async function styleNamesForIds(ids: string[]): Promise<string[]> {
+  const rows = await prisma.characterStyle.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true, character: { select: { name: true } } },
+  });
+  const byId = new Map(rows.map((row) => [row.id, `${row.character.name} · ${row.name}`]));
+  return ids.map((id) => byId.get(id)).filter((name): name is string => Boolean(name));
 }
 
 describe('tasks lifecycle', () => {
@@ -948,6 +977,283 @@ describe('tasks lifecycle', () => {
     } finally {
       await prisma.task.deleteMany({ where: { id: task.id } });
       await prisma.character.deleteMany({ where: { id: character.id } });
+    }
+  });
+
+  it('pure text chain persists scene reference visibility and style-aware refs through composition and shots', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true },
+    });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.create({
+      data: {
+        ownerId: user.id,
+        name: `纯文本链路集成测试-${Date.now()}`,
+        ratio: '16:9',
+        style: '写实电影感',
+        stylePrompt: '写实电影感，雨夜车内压抑氛围',
+        analysisModel: 'stub-text-chain',
+        imageModel: 'stub',
+        videoModel: 'stub',
+      },
+    });
+    const episode = await prisma.storyboardEpisode.create({
+      data: {
+        projectId: project.id,
+        number: 1,
+        title: '雨夜网约车',
+        content: '雨夜，我坐进网约车后座，司机透过后视镜观察我。电话里的中年女声提到池清明和篮球。',
+      },
+    });
+
+    try {
+      const sceneTask = await createQueuedTextTask(user.id, project.id, {
+        episodeId: episode.id,
+        analysisType: 'scene_list',
+        model: 'stub-text-chain',
+      });
+      await processTask(sceneTask.id);
+
+      const analyzedEpisode = await prisma.storyboardEpisode.findUniqueOrThrow({
+        where: { id: episode.id },
+        select: { analyzed: true, scenesJson: true },
+      });
+      expect(analyzedEpisode.analyzed).toBe(true);
+      const [sceneJson] = analyzedEpisode.scenesJson as Array<{
+        sceneReferences?: {
+          visibleCharacters: string[];
+          mentionedCharacters: string[];
+          voiceCharacters: string[];
+          visibleItems: string[];
+          mentionedItems: string[];
+        };
+      }>;
+      expect(sceneJson?.sceneReferences).toMatchObject({
+        visibleCharacters: ['我', '司机'],
+        mentionedCharacters: ['池清明'],
+        voiceCharacters: ['中年女声'],
+        visibleItems: ['手机'],
+        mentionedItems: ['篮球'],
+      });
+
+      const [passenger, driver, voice, mentioned] = await Promise.all([
+        prisma.character.create({ data: { projectId: project.id, name: '我', description: '后座乘客', bio: '' } }),
+        prisma.character.create({ data: { projectId: project.id, name: '司机', description: '中年网约车司机', bio: '' } }),
+        prisma.character.create({ data: { projectId: project.id, name: '中年女声', description: '电话声音', bio: '' } }),
+        prisma.character.create({ data: { projectId: project.id, name: '池清明', description: '被提及的人', bio: '' } }),
+      ]);
+      for (const character of [passenger, driver, voice, mentioned]) {
+        const detailTask = await createQueuedTextTask(user.id, project.id, {
+          episodeId: episode.id,
+          characterId: character.id,
+          analysisType: 'character_detail',
+          model: 'stub-text-chain',
+        });
+        await processTask(detailTask.id);
+      }
+
+      const [carScene, phoneItem, basketballItem] = await Promise.all([
+        prisma.scene.create({
+          data: {
+            projectId: project.id,
+            name: '网约车车内',
+            description: '后座、驾驶室、后视镜和雨夜车窗',
+            prompt: '雨夜网约车车内空间',
+          },
+        }),
+        prisma.item.create({
+          data: {
+            projectId: project.id,
+            name: '手机',
+            description: '订单页面亮起的手机',
+            prompt: '屏幕微光照亮手指',
+          },
+        }),
+        prisma.item.create({
+          data: {
+            projectId: project.id,
+            name: '篮球',
+            description: '只在台词中被提到的篮球',
+            prompt: '篮球',
+          },
+        }),
+      ]);
+      void basketballItem;
+
+      const compositionTask = await createQueuedTextTask(user.id, project.id, {
+        projectId: project.id,
+        episodeId: episode.id,
+        analysisType: 'composition_scene_planning',
+        model: 'stub-text-chain',
+      });
+      await processTask(compositionTask.id);
+
+      const composition = await prisma.compositionTask.findUniqueOrThrow({
+        where: { episodeId_sceneIndex: { episodeId: episode.id, sceneIndex: 0 } },
+        select: { characterStyleIds: true, sceneIds: true, itemIds: true, prompt: true },
+      });
+      const styleNames = await styleNamesForIds(composition.characterStyleIds as string[]);
+      expect(styleNames).toEqual(expect.arrayContaining(['我 · 后座乘客造型', '司机 · 雨夜接单造型']));
+      expect(styleNames).not.toEqual(expect.arrayContaining(['中年女声 · 日常造型', '池清明 · 日常造型']));
+      expect(composition.itemIds).toEqual([phoneItem.id]);
+      expect(composition.sceneIds).toEqual([carScene.id]);
+      expect(composition.prompt).toContain('声音角色仅作为画外声处理');
+      expect(composition.prompt).toContain('中年女声');
+      expect(composition.prompt).toContain('只被提及的角色不要出现在画面中');
+
+      const shotTask = await createQueuedTextTask(user.id, project.id, {
+        episodeId: episode.id,
+        sceneIndex: 0,
+        analysisType: 'shot_breakdown',
+        model: 'stub-text-chain',
+      });
+      await processTask(shotTask.id);
+
+      const shots = await prisma.shot.findMany({
+        where: { episodeId: episode.id, sceneIndex: 0, createType: 'assist' },
+        orderBy: { displayId: 'asc' },
+        select: { characterStyleIds: true, sceneIds: true, itemIds: true, roleNames: true },
+      });
+      expect(shots).toHaveLength(2);
+      const firstShotStyleNames = await styleNamesForIds(shots[0]!.characterStyleIds as string[]);
+      expect(firstShotStyleNames).toEqual(expect.arrayContaining(['我 · 后座乘客造型', '司机 · 雨夜接单造型']));
+      expect(firstShotStyleNames).not.toEqual(expect.arrayContaining(['司机 · 下班居家造型']));
+      expect(shots[0]!.itemIds).toEqual([phoneItem.id]);
+      expect(shots[0]!.sceneIds).toEqual([carScene.id]);
+      expect(shots[1]!.characterStyleIds).toHaveLength(1);
+      expect(await styleNamesForIds(shots[1]!.characterStyleIds as string[])).toEqual(['我 · 后座乘客造型']);
+    } finally {
+      await prisma.project.deleteMany({ where: { id: project.id } });
+    }
+  }, 20000);
+
+  it('keeps manually edited composition refs when shot-sketch context refreshes existing draft tasks', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true },
+    });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.create({
+      data: {
+        ownerId: user.id,
+        name: `人工引用保护测试-${Date.now()}`,
+        ratio: '16:9',
+        style: '写实电影感',
+        stylePrompt: '写实电影感',
+        analysisModel: 'stub-text-chain',
+        imageModel: 'stub',
+        videoModel: 'stub',
+      },
+    });
+    const episode = await prisma.storyboardEpisode.create({
+      data: {
+        projectId: project.id,
+        number: 1,
+        title: '雨夜网约车',
+        content: '我坐进网约车后座，司机在驾驶室。',
+        analyzed: true,
+        scenesJson: [{
+          index: 0,
+          title: 'INT. 网约车后座 - 夜',
+          content: '我坐进网约车后座，司机在驾驶室。',
+          characters: ['我', '司机'],
+          environment: '网约车车内',
+          sceneReferences: {
+            visibleCharacters: ['我', '司机'],
+            mentionedCharacters: [],
+            voiceCharacters: [],
+            backgroundCharacters: [],
+            visibleItems: ['手机'],
+            mentionedItems: [],
+            backgroundItems: [],
+          },
+        }],
+      },
+    });
+
+    try {
+      const [passenger, driver, carScene, phoneItem] = await Promise.all([
+        prisma.character.create({ data: { projectId: project.id, name: '我', description: '乘客', bio: '' } }),
+        prisma.character.create({ data: { projectId: project.id, name: '司机', description: '司机', bio: '' } }),
+        prisma.scene.create({ data: { projectId: project.id, name: '网约车车内', description: '后座驾驶室', prompt: '' } }),
+        prisma.item.create({ data: { projectId: project.id, name: '手机', description: '亮屏手机', prompt: '' } }),
+      ]);
+      const [passengerStyle, driverStyle] = await Promise.all([
+        prisma.characterStyle.create({
+          data: {
+            characterId: passenger.id,
+            name: '用户手选乘客造型',
+            prompt: '造型元数据：phase=雨夜乘车；outfit=浅色外套；sceneHint=网约车后座\n乘客造型。',
+          },
+        }),
+        prisma.characterStyle.create({
+          data: {
+            characterId: driver.id,
+            name: '用户未选司机造型',
+            prompt: '造型元数据：phase=雨夜接单；outfit=深色夹克；sceneHint=网约车驾驶室\n司机造型。',
+          },
+        }),
+      ]);
+      void driverStyle;
+      const composition = await prisma.compositionTask.create({
+        data: {
+          projectId: project.id,
+          episodeId: episode.id,
+          sceneIndex: 0,
+          title: '第1集 · INT. 网约车后座 - 夜',
+          scriptExcerpt: '我坐进网约车后座，司机在驾驶室。',
+          prompt: '用户手动改过的场景图 prompt',
+          characterStyleIds: [passengerStyle.id],
+          sceneIds: [carScene.id],
+          itemIds: [phoneItem.id],
+        },
+      });
+      const shot = await prisma.shot.create({
+        data: {
+          episodeId: episode.id,
+          displayId: 1,
+          sceneIndex: 0,
+          prompt: '我坐在后座看手机。',
+          model: 'stub',
+          ratio: project.ratio,
+          createType: 'assist',
+          characterStyleIds: [passengerStyle.id],
+          sceneIds: [carScene.id],
+          itemIds: [phoneItem.id],
+          compositionTaskIds: [composition.id],
+        },
+      });
+
+      const patch = await app.request(`/api/composition-tasks/${composition.id}`, {
+        method: 'PATCH',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: '用户二次手动编辑 prompt',
+          characterStyleIds: [passengerStyle.id],
+          sceneIds: [carScene.id],
+          itemIds: [phoneItem.id],
+        }),
+      });
+      expect(patch.status).toBe(200);
+
+      const context = await app.request(`/api/projects/${project.id}/composition-tasks/shot-sketch-context`, {
+        method: 'POST',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify({ shotId: shot.id }),
+      });
+      expect(context.status).toBe(200);
+
+      const fresh = await prisma.compositionTask.findUniqueOrThrow({
+        where: { id: composition.id },
+        select: { prompt: true, characterStyleIds: true, sceneIds: true, itemIds: true },
+      });
+      expect(fresh.prompt).toBe('用户二次手动编辑 prompt');
+      expect(fresh.characterStyleIds).toEqual([passengerStyle.id]);
+      expect(fresh.sceneIds).toEqual([carScene.id]);
+      expect(fresh.itemIds).toEqual([phoneItem.id]);
+    } finally {
+      await prisma.project.deleteMany({ where: { id: project.id } });
     }
   });
 

@@ -9,12 +9,23 @@ export type EpisodeScene = {
   referenceSceneId?: string;
   prompt?: string;
   requiredReferences?: SceneImageRequiredReferences;
+  sceneReferences?: SceneReferenceVisibility;
 };
 
 export type SceneImageRequiredReferences = {
   characters: string[];
   scenes: string[];
   items: string[];
+};
+
+export type SceneReferenceVisibility = {
+  visibleCharacters: string[];
+  mentionedCharacters: string[];
+  voiceCharacters: string[];
+  backgroundCharacters: string[];
+  visibleItems: string[];
+  mentionedItems: string[];
+  backgroundItems: string[];
 };
 
 export type SceneImagePlan = {
@@ -24,6 +35,7 @@ export type SceneImagePlan = {
   scriptExcerpt: string;
   prompt: string;
   requiredReferences: SceneImageRequiredReferences;
+  sceneReferences?: SceneReferenceVisibility;
 };
 
 export type SceneImageReferenceBinding = {
@@ -56,6 +68,9 @@ export type ReferenceLibraryForPlanning = {
       name: string;
       prompt: string;
       assetId: string | null;
+      phase?: string | null;
+      outfit?: string | null;
+      sceneHint?: string | null;
     }>;
   }>;
   scenes: Array<{
@@ -80,6 +95,16 @@ const RequiredReferencesSchema = z.object({
   items: z.array(z.string()).default([]),
 });
 
+const SceneReferenceVisibilitySchema = z.object({
+  visibleCharacters: z.array(z.string()).optional(),
+  mentionedCharacters: z.array(z.string()).optional(),
+  voiceCharacters: z.array(z.string()).optional(),
+  backgroundCharacters: z.array(z.string()).optional(),
+  visibleItems: z.array(z.string()).optional(),
+  mentionedItems: z.array(z.string()).optional(),
+  backgroundItems: z.array(z.string()).optional(),
+});
+
 const SceneImagePlanSchema = z.object({
   sceneIndex: z.coerce.number().int().min(0),
   name: z.string().min(1).max(160),
@@ -87,6 +112,7 @@ const SceneImagePlanSchema = z.object({
   scriptExcerpt: z.string().min(1).max(6000),
   prompt: z.string().min(1).max(8000),
   requiredReferences: RequiredReferencesSchema.default({ characters: [], scenes: [], items: [] }),
+  sceneReferences: SceneReferenceVisibilitySchema.optional(),
 });
 
 const SceneImageReferenceBindingSchema = z.object({
@@ -131,6 +157,7 @@ export function normalizeSceneImagePlans(
         scenes: uniqueStrings(plan.requiredReferences.scenes),
         items: uniqueStrings(plan.requiredReferences.items),
       },
+      sceneReferences: normalizeSceneReferenceVisibility(plan.sceneReferences, plan.requiredReferences),
     });
   }
 
@@ -152,12 +179,102 @@ export function sanitizeReferenceBinding(
   };
 }
 
+export function filterReferenceBindingForScene(
+  refs: SceneImageReferenceIds,
+  scene: EpisodeScene,
+  library: ReferenceLibraryForPlanning,
+): SceneImageReferenceIds {
+  const references = sceneReferenceVisibility(scene);
+  const hasExplicitSceneReferences = Boolean(scene.sceneReferences);
+  if (!hasExplicitSceneReferences) return refs;
+
+  const visibleCharacters = references.visibleCharacters.length > 0
+    ? references.visibleCharacters
+    : scene.characters;
+  const visualItems = uniqueStrings([...references.visibleItems, ...references.backgroundItems]);
+  const visualItemText = visualItems.join('\n');
+  return {
+    characterStyleIds: refs.characterStyleIds.filter((id) => {
+      const character = library.characters.find((item) => item.styles.some((style) => style.id === id));
+      if (!character) return false;
+      return visibleCharacters.some((name) => textMentions(character.name, name) || textMentions(name, character.name));
+    }),
+    sceneIds: refs.sceneIds,
+    itemIds: refs.itemIds.filter((id) => {
+      const item = library.items.find((row) => row.id === id);
+      if (!item) return false;
+      return (
+        visualItems.some((name) => textMentions(item.name, name) || textMentions(name, item.name)) ||
+        referenceTextMatches(visualItemText, [], item.name, item.description, item.prompt)
+      );
+    }),
+  };
+}
+
+export function completeReferenceBindingForScene(
+  refs: SceneImageReferenceIds,
+  scene: EpisodeScene,
+  library: ReferenceLibraryForPlanning,
+): SceneImageReferenceIds {
+  const filtered = filterReferenceBindingForScene(refs, scene, library);
+  const fallback = filterReferenceBindingForScene(prefillCompositionReferences(scene, library), scene, library);
+  return {
+    characterStyleIds: uniqueStrings([...filtered.characterStyleIds, ...fallback.characterStyleIds]),
+    sceneIds: uniqueStrings([...filtered.sceneIds, ...fallback.sceneIds]),
+    itemIds: uniqueStrings([...filtered.itemIds, ...fallback.itemIds]),
+  };
+}
+
 export function referenceLibraryIdSets(library: ReferenceLibraryForPlanning) {
   return {
     characterStyleIds: new Set(library.characters.flatMap((character) => character.styles.map((style) => style.id))),
     sceneIds: new Set(library.scenes.map((scene) => scene.id)),
     itemIds: new Set(library.items.map((item) => item.id)),
   };
+}
+
+export function prefillCompositionReferences(
+  scene: EpisodeScene,
+  library: ReferenceLibraryForPlanning,
+): SceneImageReferenceIds {
+  const references = sceneReferenceVisibility(scene);
+  const visibleCharacters = references.visibleCharacters.length > 0
+    ? references.visibleCharacters
+    : scene.characters;
+  const hasExplicitSceneReferences = Boolean(scene.sceneReferences);
+  const visualItems = hasExplicitSceneReferences
+    ? uniqueStrings([...references.visibleItems, ...references.backgroundItems])
+    : scene.requiredReferences?.items ?? [];
+  const haystack = [
+    scene.title,
+    hasExplicitSceneReferences ? '' : scene.content,
+    scene.environment,
+    ...visibleCharacters,
+    ...(scene.requiredReferences?.scenes ?? []),
+    ...visualItems,
+  ].join('\n');
+  const ignoredReferenceTerms = library.characters.flatMap((character) => [
+    character.name,
+    ...visibleCharacters,
+  ]);
+  const characterStyleIds = library.characters
+    .filter((character) => visibleCharacters.some((name) => textMentions(character.name, name) || textMentions(name, character.name)))
+    .map((character) => selectBestCharacterStyleForScene(haystack, character)?.id)
+    .filter((id): id is string => Boolean(id));
+  const sceneIds = library.scenes
+    .filter((item) => textMentions(haystack, item.name) || textMentions(item.name, scene.environment))
+    .map((item) => item.id);
+  if (scene.referenceSceneId && !sceneIds.includes(scene.referenceSceneId)) {
+    sceneIds.unshift(scene.referenceSceneId);
+  }
+  const itemIds = library.items
+    .filter((item) => (
+      hasExplicitSceneReferences
+        ? visualItems.some((name) => textMentions(item.name, name) || textMentions(name, item.name))
+        : referenceTextMatches(haystack, ignoredReferenceTerms, item.name, item.description, item.prompt)
+    ))
+    .map((item) => item.id);
+  return { characterStyleIds, sceneIds, itemIds };
 }
 
 export function canRefreshSceneImageTaskDraft(existing: {
@@ -172,6 +289,18 @@ export function canRefreshSceneImageTaskDraft(existing: {
     !existing.imageAssetId &&
     !existing.imageTaskId
   );
+}
+
+export function canRefreshCompositionTaskReferences(
+  existing: {
+    status: string;
+    currentImageRunId: string | null;
+    imageAssetId: string | null;
+    imageTaskId: string | null;
+  },
+  hasProvidedReferences: boolean,
+): boolean {
+  return canRefreshSceneImageTaskDraft(existing) && hasProvidedReferences;
 }
 
 export function buildSceneImagePlanningMessages(args: {
@@ -196,7 +325,7 @@ export function buildSceneImagePlanningMessages(args: {
     '例如“小区雨夜外景”之后人物坐进网约车后座，应规划“INT. 网约车后座 - 夜”或“网约车车内雨夜”这类独立场景图，而不是只保留“EXT. 小区 - 夜”。',
     '如果同一场次存在外部建立镜头和内部主要戏剧空间，可以拆成两张场景图：外部空间锚点 + 内部空间锚点。',
     '输出 JSON 结构必须是：',
-    '{ "plans": [{ "sceneIndex": number, "name": string, "storyBeat": string, "scriptExcerpt": string, "prompt": string, "requiredReferences": { "characters": string[], "scenes": string[], "items": string[] } }] }',
+    '{ "plans": [{ "sceneIndex": number, "name": string, "storyBeat": string, "scriptExcerpt": string, "prompt": string, "requiredReferences": { "characters": string[], "scenes": string[], "items": string[] }, "sceneReferences": { "visibleCharacters": string[], "mentionedCharacters": string[], "voiceCharacters": string[], "backgroundCharacters": string[], "visibleItems": string[], "mentionedItems": string[], "backgroundItems": string[] } }] }',
     '',
     '字段要求：',
     '- sceneIndex 从 0 开始，按剧情顺序递增，不能重复。',
@@ -205,6 +334,8 @@ export function buildSceneImagePlanningMessages(args: {
     '- scriptExcerpt 必须是一行中文视觉/剧情短描述，保留 1-3 句核心画面信息；不要复制剧本全文、场次列表或对白长段。',
     '- prompt 是可直接用于生成单张场景图的中文提示词，要求人物、环境、道具自然同框，电影感构图，不能要求九宫格或拼贴。',
     '- requiredReferences 用自然语言列出需要参考的角色、地点/环境、道具名称。',
+    '- sceneReferences 必须区分引用可见性：visibleCharacters 是画面中可见/行动的人；voiceCharacters 是只有声音/电话/旁白的人；mentionedCharacters 是只被台词或回忆提到的人；backgroundCharacters 是群演/人群；visibleItems 是画面可见或被使用的关键道具；mentionedItems 是只被提到的物件；backgroundItems 是环境中可见但非动作核心的物件。',
+    '- 场景图和后续分镜只会优先引用 visibleCharacters、visibleItems、backgroundItems；不要把 voice/mentioned 内容当成可见参考图。',
     '',
     `剧本：\n${truncateText(args.episode.content, 12000)}`,
   ].filter(Boolean).join('\n');
@@ -246,10 +377,13 @@ export function buildSceneImageCompositionPrompt(
 ): string {
   const summary = cleanSceneImageSummary(scene.content);
   const sceneTitle = cleanSceneTitle(scene.title);
-  const characters = uniqueStrings(scene.characters.map((item) => item.trim()));
+  const references = sceneReferenceVisibility(scene);
+  const characters = uniqueStrings((references.visibleCharacters.length > 0 ? references.visibleCharacters : scene.characters).map((item) => item.trim()));
   const visualDescription = [
     summary,
     scene.environment ? `画面环境应体现${stripSentenceEnd(scene.environment)}。` : '',
+    references.voiceCharacters.length > 0 ? `声音角色仅作为画外声处理，不要画成人物：${references.voiceCharacters.join('、')}。` : '',
+    references.mentionedCharacters.length > 0 ? `只被提及的角色不要出现在画面中：${references.mentionedCharacters.join('、')}。` : '',
   ].filter(Boolean).join(' ');
   return [
     `场景图：${buildSceneImageGoal(sceneTitle, characters)}`,
@@ -285,6 +419,7 @@ export function buildReferenceBindingMessages(args: {
       storyBeat: scene.content,
       prompt: scene.prompt ?? '',
       requiredReferences: scene.requiredReferences ?? { characters: scene.characters, scenes: [scene.environment].filter(Boolean), items: [] },
+      sceneReferences: sceneReferenceVisibility(scene),
     })), null, 2),
     '',
     '可选角色造型 ID：',
@@ -308,6 +443,8 @@ export function buildReferenceBindingMessages(args: {
     '- characterStyleIds 选择最符合剧情阶段/服装状态的角色造型。',
     '- sceneIds 选择空间、时间、气氛最匹配的环境素材。',
     '- itemIds 选择剧情中明确出现且影响画面的关键道具。',
+    '- 只为 visibleCharacters 选择 characterStyleIds；voiceCharacters、mentionedCharacters 不应选择人物图。',
+    '- itemIds 只选择 visibleItems 和必要的 backgroundItems；mentionedItems 不应进入预填充。',
     '- 没有合适素材时返回空数组。',
   ].filter(Boolean).join('\n');
 
@@ -418,6 +555,39 @@ function relevantCharacterStyleLabels(labels: string[], characters: string[]): s
   });
 }
 
+export function normalizeSceneReferenceVisibility(
+  value?: Partial<SceneReferenceVisibility> | null,
+  fallback?: SceneImageRequiredReferences,
+): SceneReferenceVisibility {
+  return {
+    visibleCharacters: uniqueStrings(referenceField(value, 'visibleCharacters', fallback?.characters ?? [])),
+    mentionedCharacters: uniqueStrings(value?.mentionedCharacters ?? []),
+    voiceCharacters: uniqueStrings(value?.voiceCharacters ?? []),
+    backgroundCharacters: uniqueStrings(value?.backgroundCharacters ?? []),
+    visibleItems: uniqueStrings(referenceField(value, 'visibleItems', fallback?.items ?? [])),
+    mentionedItems: uniqueStrings(value?.mentionedItems ?? []),
+    backgroundItems: uniqueStrings(value?.backgroundItems ?? []),
+  };
+}
+
+function referenceField(
+  value: Partial<SceneReferenceVisibility> | null | undefined,
+  key: keyof SceneReferenceVisibility,
+  fallback: string[],
+): string[] {
+  if (!value || !Object.prototype.hasOwnProperty.call(value, key)) return fallback;
+  const field = value[key];
+  return Array.isArray(field) ? field : [];
+}
+
+export function sceneReferenceVisibility(scene: EpisodeScene): SceneReferenceVisibility {
+  return normalizeSceneReferenceVisibility(scene.sceneReferences, scene.requiredReferences ?? {
+    characters: scene.characters,
+    scenes: [scene.environment].filter(Boolean),
+    items: [],
+  });
+}
+
 function relevantReferenceLabels(labels: string[], haystack: string): string[] {
   const normalizedHaystack = normalizeReferenceText(haystack);
   if (!normalizedHaystack) return [];
@@ -456,6 +626,7 @@ function normalizePlan(plan: z.infer<typeof SceneImagePlanSchema>): SceneImagePl
       scenes: uniqueStrings(plan.requiredReferences.scenes.map((item) => item.trim())),
       items: uniqueStrings(plan.requiredReferences.items.map((item) => item.trim())),
     },
+    sceneReferences: normalizeSceneReferenceVisibility(plan.sceneReferences, plan.requiredReferences),
   };
 }
 
@@ -566,6 +737,136 @@ function uniqueStrings(values: Array<string | null | undefined>): string[] {
 
 function truncateText(value: string, maxLength: number): string {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+}
+
+function referenceTextMatches(
+  haystack: string,
+  ignoredTerms: string[],
+  ...values: Array<string | null | undefined>
+): boolean {
+  return values.some((value) => value
+    ? textMentions(haystack, value) || hasSharedReferencePhrase(haystack, value, ignoredTerms)
+    : false);
+}
+
+function selectBestCharacterStyleForScene(
+  haystack: string,
+  character: ReferenceLibraryForPlanning['characters'][number],
+) {
+  const scored = character.styles
+    .map((style) => ({ style, score: characterStyleSceneScore(haystack, style) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return scored[0]?.style ?? character.styles.find((style) => style.assetId) ?? character.styles[0];
+}
+
+function characterStyleSceneScore(
+  haystack: string,
+  style: ReferenceLibraryForPlanning['characters'][number]['styles'][number],
+): number {
+  const metadata = characterStyleSceneMetadata(style);
+  let score = 0;
+  if (metadata.phase && referenceTextMatches(haystack, [], metadata.phase)) score += 8;
+  if (metadata.sceneHint && referenceTextMatches(haystack, [], metadata.sceneHint)) score += 6;
+  if (metadata.outfit && referenceTextMatches(haystack, [], metadata.outfit)) score += 4;
+  if (referenceTextMatches(haystack, [], style.name)) score += 3;
+  if (score === 0 && referenceTextMatches(haystack, [], style.prompt)) score += 1;
+  return score;
+}
+
+function characterStyleSceneMetadata(style: {
+  name: string;
+  prompt: string;
+  phase?: string | null;
+  outfit?: string | null;
+  sceneHint?: string | null;
+}) {
+  const fromPrompt = parseCharacterStyleMetadata(style.prompt);
+  return {
+    phase: style.phase ?? fromPrompt.phase,
+    outfit: style.outfit ?? fromPrompt.outfit,
+    sceneHint: style.sceneHint ?? fromPrompt.sceneHint,
+  };
+}
+
+function parseCharacterStyleMetadata(prompt: string): { phase?: string; outfit?: string; sceneHint?: string } {
+  const metaLine = prompt.split('\n').find((line) => line.trim().startsWith('造型元数据：'));
+  if (!metaLine) return {};
+  return {
+    phase: extractMetadataValue(metaLine, 'phase'),
+    outfit: extractMetadataValue(metaLine, 'outfit'),
+    sceneHint: extractMetadataValue(metaLine, 'sceneHint'),
+  };
+}
+
+function extractMetadataValue(line: string, key: string): string | undefined {
+  const match = new RegExp(`${key}=([^；;\\n]+)`, 'u').exec(line);
+  return match?.[1]?.trim() || undefined;
+}
+
+function textMentions(text: string, term: string): boolean {
+  const needle = term.trim();
+  if (!needle) return false;
+  return text.includes(needle) || needle.includes(text.trim());
+}
+
+function hasSharedReferencePhrase(left: string, right: string, ignoredTerms: string[]): boolean {
+  const leftText = left.trim();
+  const rightText = right.trim();
+  if (!leftText || !rightText) return false;
+  const phrases = referencePhrases(rightText, ignoredTerms);
+  return phrases.some((phrase) => leftText.includes(phrase));
+}
+
+function referencePhrases(value: string, ignoredTerms: string[]): string[] {
+  const direct = value
+    .split(/[^\p{Script=Han}\p{Letter}\p{Number}]+/u)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2 && !isGenericReferencePhrase(item, ignoredTerms));
+  const grams: string[] = [];
+  for (const token of direct) {
+    if (!/[\p{Script=Han}]/u.test(token)) continue;
+    const max = Math.min(6, token.length);
+    if (token.length > 10) continue;
+    for (let size = max; size >= 2; size -= 1) {
+      for (let i = 0; i <= token.length - size; i += 1) {
+        const gram = token.slice(i, i + size);
+        if (!isGenericReferencePhrase(gram, ignoredTerms)) grams.push(gram);
+      }
+    }
+  }
+  return uniqueStrings([...direct, ...grams]);
+}
+
+function isGenericReferencePhrase(value: string, ignoredTerms: string[]): boolean {
+  if (ignoredTerms.some((term) => term && (term.includes(value) || value.includes(term)))) return true;
+  return new Set([
+    '一个',
+    '一部',
+    '一名',
+    '一位',
+    '道具',
+    '场景',
+    '角色',
+    '画面',
+    '参考',
+    '出现',
+    '使用',
+    '手持',
+    '日间',
+    '夜间',
+    '昏色',
+    '校园',
+    '学校',
+    '学生',
+    '老师',
+    '同学',
+    '线索',
+    '证据',
+    '核心',
+    '隐喻',
+    '规则',
+  ]).has(value);
 }
 
 function text(value: unknown): string {

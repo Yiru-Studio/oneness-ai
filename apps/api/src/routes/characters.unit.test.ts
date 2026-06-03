@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCharacterAnalysisJson } from '@oneness/shared/character-analysis';
+import { normalizeCharacterAnalysis, parseCharacterAnalysisJson } from '@oneness/shared/character-analysis';
 import { CreateTaskSchema } from '@oneness/shared/schemas';
 import { TaskType } from '@oneness/shared/enums';
 
@@ -35,6 +35,38 @@ describe('character analysis JSON parser', () => {
 
     expect(parsed.description).toContain('style: realistic');
     expect(parsed.styles?.[0]?.prompt).toContain('prompt: 保留');
+  });
+
+  it('normalizes missing style metadata from uneven LLM output without failing', () => {
+    const parsed = parseCharacterAnalysisJson(JSON.stringify({
+      description: '中年网约车司机',
+      bio: '雨夜接单，语气烦躁。',
+      avatarPrompt: '短发，中年男性，疲惫神情。',
+      styles: [
+        {
+          name: '雨夜接单造型',
+          prompt: '深色夹克，短发，干净影棚背景。',
+          phase: '雨夜接单',
+          outfit: '深色夹克',
+          sceneHint: '网约车驾驶室',
+        },
+        {
+          name: '下班居家造型',
+          prompt: '灰色毛衣，放松状态，干净影棚背景。',
+        },
+      ],
+    }));
+
+    const normalized = normalizeCharacterAnalysis({
+      characterName: '司机',
+      existingDescription: '',
+      projectStylePrompt: '写实电影感',
+      parsed,
+    });
+
+    expect(normalized.styles).toHaveLength(2);
+    expect(normalized.styles[0]?.prompt).toContain('造型元数据：phase=雨夜接单；outfit=深色夹克；sceneHint=网约车驾驶室');
+    expect(normalized.styles[1]?.prompt).not.toContain('造型元数据');
   });
 });
 

@@ -111,6 +111,15 @@ export interface EpisodeScene {
   content: string;
   characters: string[];
   environment: string;
+  sceneReferences?: {
+    visibleCharacters: string[];
+    mentionedCharacters: string[];
+    voiceCharacters: string[];
+    backgroundCharacters: string[];
+    visibleItems: string[];
+    mentionedItems: string[];
+    backgroundItems: string[];
+  };
 }
 
 export interface StoryboardEpisode {
