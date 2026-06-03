@@ -4,6 +4,7 @@ import { Worker } from 'bullmq';
 import { taskRoutes } from '../../src/routes/tasks.js';
 import { compositionTaskRoutes } from '../../src/routes/composition-tasks.js';
 import { imageGenerationRunRoutes } from '../../src/routes/image-generation-runs.js';
+import { shotRoutes } from '../../src/routes/shots.js';
 import { requestIdMiddleware } from '../../src/middleware/request-id.js';
 import { errorHandler } from '../../src/middleware/error-handler.js';
 import { prisma } from '../../src/lib/prisma.js';
@@ -20,6 +21,7 @@ app.onError(errorHandler);
 app.route('/api', taskRoutes);
 app.route('/api', compositionTaskRoutes);
 app.route('/api', imageGenerationRunRoutes);
+app.route('/api', shotRoutes);
 
 const auth = { authorization: 'Bearer test_token' };
 const connection = { url: config.REDIS_URL };
@@ -247,6 +249,119 @@ describe('tasks lifecycle', () => {
     expect(linkedRun?.outputAssetId).toBe(linked?.sketchAssetId);
 
     await prisma.shot.delete({ where: { id: shot.id } });
+  });
+
+  it('shot video references match the visible shot card images without hidden character fallbacks', async () => {
+    const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.create({
+      data: {
+        ownerId: user.id,
+        name: `视频引用一致性测试-${Date.now()}`,
+        ratio: '16:9',
+        style: '写实',
+        stylePrompt: '写实',
+        analysisModel: 'stub-text-chain',
+        imageModel: 'stub',
+        videoModel: 'stub',
+      },
+    });
+    const episode = await prisma.storyboardEpisode.create({
+      data: { projectId: project.id, number: 1, title: '测试集', content: '测试内容' },
+    });
+    const createAsset = (label: string) =>
+      prisma.asset.create({
+        data: {
+          ownerId: user.id,
+          bucket: 'test-fixtures',
+          key: `${label}-${Date.now()}-${Math.random()}.png`,
+          contentType: 'image/png',
+          sizeBytes: 10,
+        },
+      });
+
+    const [sketchAsset, identityAsset, avatarAsset, styleAsset, itemAsset] = await Promise.all([
+      createAsset('sketch'),
+      createAsset('identity'),
+      createAsset('avatar'),
+      createAsset('style'),
+      createAsset('item'),
+    ]);
+    const character = await prisma.character.create({
+      data: {
+        projectId: project.id,
+        name: '视频引用角色',
+        description: '',
+        bio: '',
+        identityAssetId: identityAsset.id,
+        avatarAssetId: avatarAsset.id,
+      },
+    });
+    const style = await prisma.characterStyle.create({
+      data: {
+        characterId: character.id,
+        name: '卡片显示造型',
+        prompt: '',
+        model: 'stub',
+        ratio: '1:1',
+        assetId: styleAsset.id,
+      },
+    });
+    const item = await prisma.item.create({
+      data: {
+        projectId: project.id,
+        name: '卡片显示道具',
+        assetId: itemAsset.id,
+      },
+    });
+    const shot = await prisma.shot.create({
+      data: {
+        episodeId: episode.id,
+        displayId: 1,
+        sceneIndex: 0,
+        prompt: '生成一个测试视频镜头',
+        model: 'stub',
+        ratio: '16:9',
+        duration: 4,
+        sketchAssetId: sketchAsset.id,
+        characterStyleIds: [style.id],
+        itemIds: [item.id],
+      },
+    });
+
+    try {
+      const res = await app.request(`/api/shots/${shot.id}/generate-video`, {
+        method: 'POST',
+        headers: auth,
+      });
+      expect(res.status).toBe(200);
+      const updatedShot = await prisma.shot.findUniqueOrThrow({
+        where: { id: shot.id },
+        select: { videoTaskId: true },
+      });
+      const task = await prisma.task.findUniqueOrThrow({
+        where: { id: updatedShot.videoTaskId! },
+        select: { input: true },
+      });
+      const input = task.input as { references?: Array<{ assetId: string; role: string }> };
+      expect(input.references).toEqual([
+        { assetId: sketchAsset.id, role: 'reference_image' },
+        { assetId: styleAsset.id, role: 'reference_image' },
+        { assetId: itemAsset.id, role: 'reference_image' },
+      ]);
+      expect(input.references?.map((ref) => ref.assetId)).not.toContain(identityAsset.id);
+      expect(input.references?.map((ref) => ref.assetId)).not.toContain(avatarAsset.id);
+    } finally {
+      await prisma.task.deleteMany({ where: { projectId: project.id } });
+      await prisma.project.delete({ where: { id: project.id } });
+      await prisma.asset.deleteMany({
+        where: {
+          id: {
+            in: [sketchAsset.id, identityAsset.id, avatarAsset.id, styleAsset.id, itemAsset.id],
+          },
+        },
+      });
+    }
   });
 
   it('character-style IMAGE task injects the identity reference first', async () => {

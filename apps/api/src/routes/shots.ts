@@ -18,7 +18,6 @@ import { estimateCost } from '@oneness/shared/pricing';
 import { queueForTaskType } from '@oneness/shared/queues';
 import { sanitizeShotVideoPrompt } from '@oneness/shared/shot-prompts';
 import type { VideoReference } from '@oneness/shared/providers';
-import { uniqueAssetIds } from '../lib/character-identity.js';
 import { reconcileShotSketchTasksForEpisode } from '../lib/shot-sketches.js';
 
 export const shotRoutes = new Hono();
@@ -381,14 +380,15 @@ shotRoutes.post(
 );
 
 /**
- * Resolves the shot's selected references (and optional continuation source)
- * into the VideoReference array the worker passes to the Seedance provider.
+ * Resolves the shot card's visible references into the VideoReference array
+ * the worker passes to the video provider.
  *
- * - CharacterStyle.assetId (when present) → reference_image
- * - Scene.assetId           → reference_image
- * - Item.assetId            → reference_image
- * - CompositionTask current image          → reference_image
- * - sketchAssetId           → reference_image
+ * Keep this aligned with ShotCard.buildReferenceThumbs:
+ * - sketchAssetId is the visible main storyboard image and always comes first.
+ * - CompositionTask current image → one reference_image per visible card.
+ * - CharacterStyle.assetId        → one reference_image per visible style card.
+ * - Scene.assetId                 → one reference_image per visible scene card.
+ * - Item.assetId                  → one reference_image per visible item card.
  * - When shotType='continuation' & preId set: the referenced shot's
  *   lastFrameAssetId → first_frame
  */
@@ -404,48 +404,15 @@ async function resolveReferences(
     compositionTask: jsonArr(shot.compositionTaskIds),
   };
 
-  if (ids.characterStyle.length > 0) {
-    const styles = await prisma.characterStyle.findMany({
-      where: { id: { in: ids.characterStyle } },
-      // Fall back to the parent character's avatar when the style itself has no
-      // generated image — the reference picker shows `style.image || avatar`, so
-      // a selection must always resolve to whatever image the user actually saw.
-      select: {
-        assetId: true,
-        character: { select: { identityAssetId: true, avatarAssetId: true } },
-      },
-    });
-    for (const s of styles) {
-      for (const assetId of uniqueAssetIds([
-        s.character?.identityAssetId ?? s.character?.avatarAssetId ?? null,
-        s.assetId,
-      ])) {
-        refs.push({ assetId, role: 'reference_image' });
-      }
-    }
+  if (shot.sketchAssetId) {
+    refs.push({ assetId: shot.sketchAssetId, role: 'reference_image' });
   }
-  if (ids.scene.length > 0) {
-    const scenes = await prisma.scene.findMany({
-      where: { id: { in: ids.scene } },
-      select: { assetId: true },
-    });
-    for (const s of scenes) {
-      if (s.assetId) refs.push({ assetId: s.assetId, role: 'reference_image' });
-    }
-  }
-  if (ids.item.length > 0) {
-    const items = await prisma.item.findMany({
-      where: { id: { in: ids.item } },
-      select: { assetId: true },
-    });
-    for (const i of items) {
-      if (i.assetId) refs.push({ assetId: i.assetId, role: 'reference_image' });
-    }
-  }
+
   if (ids.compositionTask.length > 0) {
     const compositionTasks = await prisma.compositionTask.findMany({
       where: { id: { in: ids.compositionTask }, projectId: shot.episode.projectId },
       select: {
+        id: true,
         imageAssetId: true,
         currentImageRun: {
           select: {
@@ -463,17 +430,50 @@ async function resolveReferences(
         },
       },
     });
-    for (const task of compositionTasks) {
+    const byId = new Map(compositionTasks.map((task) => [task.id, task]));
+    for (const taskId of ids.compositionTask) {
+      const task = byId.get(taskId);
       const assetId =
-        task.currentImageRun?.outputAssetId ??
-        task.currentImageRun?.taskJob?.assets[0]?.assetId ??
-        task.imageAssetId ??
+        task?.currentImageRun?.outputAssetId ??
+        task?.currentImageRun?.taskJob?.assets[0]?.assetId ??
+        task?.imageAssetId ??
         null;
       if (assetId) refs.push({ assetId, role: 'reference_image' });
     }
   }
-  if (shot.sketchAssetId) {
-    refs.push({ assetId: shot.sketchAssetId, role: 'reference_image' });
+
+  if (ids.characterStyle.length > 0) {
+    const styles = await prisma.characterStyle.findMany({
+      where: { id: { in: ids.characterStyle } },
+      select: { id: true, assetId: true },
+    });
+    const byId = new Map(styles.map((style) => [style.id, style]));
+    for (const styleId of ids.characterStyle) {
+      const assetId = byId.get(styleId)?.assetId ?? null;
+      if (assetId) refs.push({ assetId, role: 'reference_image' });
+    }
+  }
+  if (ids.scene.length > 0) {
+    const scenes = await prisma.scene.findMany({
+      where: { id: { in: ids.scene } },
+      select: { id: true, assetId: true },
+    });
+    const byId = new Map(scenes.map((scene) => [scene.id, scene]));
+    for (const sceneId of ids.scene) {
+      const assetId = byId.get(sceneId)?.assetId ?? null;
+      if (assetId) refs.push({ assetId, role: 'reference_image' });
+    }
+  }
+  if (ids.item.length > 0) {
+    const items = await prisma.item.findMany({
+      where: { id: { in: ids.item } },
+      select: { id: true, assetId: true },
+    });
+    const byId = new Map(items.map((item) => [item.id, item]));
+    for (const itemId of ids.item) {
+      const assetId = byId.get(itemId)?.assetId ?? null;
+      if (assetId) refs.push({ assetId, role: 'reference_image' });
+    }
   }
 
   if (shot.shotType === 'continuation' && shot.preId != null) {
@@ -486,11 +486,21 @@ async function resolveReferences(
     }
   }
 
-  return refs;
+  return dedupeVideoReferences(refs);
 }
 
 function jsonArr(v: unknown): string[] {
   return Array.isArray(v) ? (v.filter((x) => typeof x === 'string') as string[]) : [];
+}
+
+function dedupeVideoReferences(refs: VideoReference[]): VideoReference[] {
+  const seen = new Set<string>();
+  return refs.filter((ref) => {
+    const key = `${ref.role ?? 'reference_image'}:${ref.assetId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 const SEEDANCE_PRO_MODEL = 'doubao-seedance-2-0-260128';
