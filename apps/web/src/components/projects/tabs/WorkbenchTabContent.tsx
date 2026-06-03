@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, Minus, Maximize, PlusCircle, LayoutGrid, GitBranch } from 'lucide-react';
+import { Plus, Minus, Maximize, GitBranch } from 'lucide-react';
 
 export function WorkbenchTabContent() {
   return (

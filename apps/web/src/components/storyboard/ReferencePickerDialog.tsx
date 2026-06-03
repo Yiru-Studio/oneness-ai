@@ -109,7 +109,6 @@ export function ReferencePickerDialog({
   const { isGenerating, getError } = useGeneration();
   const wasOpenRef = useRef(false);
 
-  /* eslint-disable react-hooks/set-state-in-effect -- This dialog owns draft selections and resets them from props each time it opens. */
   useEffect(() => {
     if (!isOpen) {
       wasOpenRef.current = false;
@@ -133,8 +132,6 @@ export function ReferencePickerDialog({
     selected.sceneIds,
     selected.itemIds,
   ]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
   if (!isOpen) return null;
 
   const characterGroups: CharacterStyleGroup[] = characters

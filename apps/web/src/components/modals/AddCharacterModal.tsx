@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { X } from 'lucide-react';
 
 interface Props {
@@ -17,17 +17,17 @@ interface Props {
  * Reference: docs/research/likeai-screenshots/p03-after-add-char-card.png
  */
 export function AddCharacterModal({ isOpen, onClose, onCreate }: Props) {
+  if (!isOpen) return null;
+  return <AddCharacterModalContent onClose={onClose} onCreate={onCreate} />;
+}
+
+function AddCharacterModalContent({
+  onClose,
+  onCreate,
+}: Pick<Props, 'onClose' | 'onCreate'>) {
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setName('');
-      setSaving(false);
-      setError(null);
-    }
-  }, [isOpen]);
 
   const handleConfirm = async () => {
     if (!name.trim()) {
@@ -45,8 +45,6 @@ export function AddCharacterModal({ isOpen, onClose, onCreate }: Props) {
       setSaving(false);
     }
   };
-
-  if (!isOpen) return null;
 
   return (
     <div

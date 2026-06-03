@@ -2,7 +2,7 @@
 
 import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from 'react';
 import { Character, Project } from '@/types';
-import { User, ImagePlus, Plus, Trash2, Sparkles, Loader2, Pencil, AlertCircle } from 'lucide-react';
+import { User, ImagePlus, Plus, Trash2, Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import {
   createCharacter,
   updateCharacter,
@@ -346,7 +346,6 @@ function CharacterEditableDetail({
   onUpdated,
   onStyleChanged,
 }: DetailProps) {
-  const [error, setError] = useState<string | null>(null);
   const [avatarDrawerOpen, setAvatarDrawerOpen] = useState(false);
   const { isGenerating, getError } = useGeneration();
   const genBusy = isGenerating('character-avatar', character.id);
@@ -412,9 +411,7 @@ function CharacterEditableDetail({
         </div>
       </div>
 
-      {(error || remoteError) && (
-        <div className="text-sm text-red-600">{error || remoteError}</div>
-      )}
+      {remoteError && <div className="text-sm text-red-600">{remoteError}</div>}
 
       <EntityDetailDrawer
         open={avatarDrawerOpen}

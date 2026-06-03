@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { Language } from '@/types';
 
 interface LocaleContextType {
@@ -14,12 +14,10 @@ const DEFAULT_LOCALE: Language = 'zh-CN';
 const STORAGE_KEY = 'locale';
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Language>(DEFAULT_LOCALE);
-
-  useEffect(() => {
+  const [locale, setLocaleState] = useState<Language>(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
-    if (stored) setLocaleState(stored as Language);
-  }, []);
+    return stored ? (stored as Language) : DEFAULT_LOCALE;
+  });
 
   const setLocale = useCallback((lang: Language) => {
     setLocaleState(lang);

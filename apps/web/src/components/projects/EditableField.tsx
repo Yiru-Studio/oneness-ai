@@ -24,11 +24,6 @@ export function EditableField({ label, value, options, onSave, multiline }: Prop
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (editing) return;
-    setDraft(value);
-  }, [editing, value]);
-
-  useEffect(() => {
     if (editing && inputRef.current) inputRef.current.focus();
   }, [editing]);
 
@@ -83,6 +78,12 @@ export function EditableField({ label, value, options, onSave, multiline }: Prop
     setEditing(false);
   };
 
+  const startEditing = () => {
+    setDraft(value);
+    setError(null);
+    setEditing(true);
+  };
+
   // When options are provided, render an always-visible dropdown (like likeai.pro)
   if (options) {
     return (
@@ -130,6 +131,7 @@ export function EditableField({ label, value, options, onSave, multiline }: Prop
           <span className="text-xs text-[var(--color-text-secondary)]">{label}</span>
         </div>
         <textarea
+          key={value}
           ref={(el) => {
             inputRef.current = el;
           }}
@@ -155,7 +157,7 @@ export function EditableField({ label, value, options, onSave, multiline }: Prop
         {!editing && (
           <button
             type="button"
-            onClick={() => setEditing(true)}
+            onClick={startEditing}
             className="text-gray-400 hover:text-gray-600"
             aria-label={`编辑${label}`}
           >

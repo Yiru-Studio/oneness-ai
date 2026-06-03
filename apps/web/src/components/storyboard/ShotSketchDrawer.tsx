@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   CheckCircle2,
@@ -191,8 +191,45 @@ export function ShotSketchDrawer({
   }, [context?.sketchHistory, shot.sketch, shot.updatedAt]);
   const hasPrompt = promptDraft.trim().length > 0;
 
+  const refreshRuns = useCallback(
+    async (taskId?: string | null) => {
+      const targetTaskId = taskId ?? contextTaskId;
+      if (!targetTaskId) return;
+      setRunsLoading(true);
+      try {
+        setRuns(await getCompositionTaskRuns(targetTaskId));
+      } catch (error) {
+        onError(error instanceof Error ? error.message : '刷新已有图失败');
+      } finally {
+        setRunsLoading(false);
+      }
+    },
+    [contextTaskId, onError],
+  );
+
+  const loadContextAndRuns = useCallback(
+    async (options: { quiet?: boolean } = {}) => {
+      if (!options.quiet) setContextLoading(true);
+      try {
+        const nextContext = await getShotSketchContext(project.id, { shotId: shot.id });
+        if (activeContextShotRef.current !== shot.id) return;
+        setContext(nextContext);
+        setPromptDraft((current) => (current === shot.prompt ? nextContext.prompt : current));
+        setModel(nextContext.model || project.imageModel);
+        setRatio(nextContext.ratio || project.ratio);
+        await refreshRuns(nextContext.compositionTaskId);
+      } catch (error) {
+        onError(error instanceof Error ? error.message : '加载分镜图设置失败');
+      } finally {
+        if (!options.quiet) setContextLoading(false);
+      }
+    },
+    [onError, project.id, project.imageModel, project.ratio, refreshRuns, shot.id, shot.prompt],
+  );
+
   useEffect(() => {
     if (!open) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- Opening a shot drawer initializes owned draft UI state from the selected shot and fetched context. */
     setPromptDraft(shot.prompt);
     setModel(project.imageModel);
     setRatio(project.ratio);
@@ -203,8 +240,8 @@ export function ShotSketchDrawer({
     setOptimisticSketchTaskId(null);
     activeContextShotRef.current = shot.id;
     void loadContextAndRuns();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, shot.id]);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [loadContextAndRuns, open, project.imageModel, project.ratio, shot.id, shot.prompt]);
 
   useEffect(() => {
     if (
@@ -212,15 +249,16 @@ export function ShotSketchDrawer({
       shot.sketchTaskId === optimisticSketchTaskId &&
       !isTaskPending(shot.sketchTaskStatus)
     ) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Clears a local optimistic marker after server task status catches up.
       setOptimisticSketchTaskId(null);
     }
   }, [optimisticSketchTaskId, shot.sketchTaskId, shot.sketchTaskStatus]);
 
   useEffect(() => {
     if (!open || !shot.sketch || previewGenerating) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Refreshing external sketch context after an applied image is the effect's synchronization work.
     void loadContextAndRuns({ quiet: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, shot.sketch?.id, previewGenerating]);
+  }, [loadContextAndRuns, open, shot.sketch, previewGenerating]);
 
   useEffect(() => {
     if (!open) return;
@@ -233,38 +271,7 @@ export function ShotSketchDrawer({
       void onRefreshShots().catch(() => {});
     }, 3000);
     return () => window.clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, context?.sketchHistory, previewGenerating]);
-
-  const loadContextAndRuns = async (options: { quiet?: boolean } = {}) => {
-    if (!options.quiet) setContextLoading(true);
-    try {
-      const nextContext = await getShotSketchContext(project.id, { shotId: shot.id });
-      if (activeContextShotRef.current !== shot.id) return;
-      setContext(nextContext);
-      setPromptDraft((current) => (current === shot.prompt ? nextContext.prompt : current));
-      setModel(nextContext.model || project.imageModel);
-      setRatio(nextContext.ratio || project.ratio);
-      await refreshRuns(nextContext.compositionTaskId);
-    } catch (error) {
-      onError(error instanceof Error ? error.message : '加载分镜图设置失败');
-    } finally {
-      if (!options.quiet) setContextLoading(false);
-    }
-  };
-
-  const refreshRuns = async (taskId?: string | null) => {
-    const targetTaskId = taskId ?? contextTaskId;
-    if (!targetTaskId) return;
-    setRunsLoading(true);
-    try {
-      setRuns(await getCompositionTaskRuns(targetTaskId));
-    } catch (error) {
-      onError(error instanceof Error ? error.message : '刷新已有图失败');
-    } finally {
-      setRunsLoading(false);
-    }
-  };
+  }, [loadContextAndRuns, onRefreshShots, open, context?.sketchHistory, previewGenerating]);
 
   const handleGenerate = async () => {
     setLocalBusy(true);

@@ -1,6 +1,6 @@
 'use client';
 
-import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from 'react';
+import { type Dispatch, type SetStateAction, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { StoryboardEpisode, Project } from '@/types';
 import { Plus, CheckCircle2, Trash2, Loader2, Sparkles, X, Pencil, FileText, Film } from 'lucide-react';
@@ -193,6 +193,7 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
       {error && <div className="text-sm text-red-600 mt-4">{error}</div>}
 
       <AddEpisodeModal
+        key={showAdd ? `add-${nextNumber}` : 'add-closed'}
         isOpen={showAdd}
         onClose={() => setShowAdd(false)}
         defaultNumber={nextNumber}
@@ -201,6 +202,7 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
 
       {open && (
         <EpisodeDetailDrawer
+          key={open.id}
           episode={open}
           onClose={() => setOpenId(null)}
           onSaved={async () => reload()}
@@ -210,6 +212,7 @@ export function StoryboardTabContent({ episodes, project, onChange }: Props) {
       )}
 
       <AnalyzeEpisodeDialog
+        key={analyzeId ?? 'analyze-closed'}
         episode={analyzeId ? episodes.find((e) => e.id === analyzeId) ?? null : null}
         onClose={() => setAnalyzeId(null)}
         onAnalyzed={async () => {
@@ -238,13 +241,6 @@ function AnalyzeEpisodeDialog({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!episode) {
-      setBusy(false);
-      setError(null);
-    }
-  }, [episode]);
 
   if (!episode) return null;
 
@@ -343,22 +339,6 @@ function AddEpisodeModal({
   const [content, setContent] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const wasOpenRef = useRef(false);
-
-  useEffect(() => {
-    if (!isOpen) {
-      wasOpenRef.current = false;
-      setNumber(defaultNumber);
-      setTitle('');
-      setContent('');
-      setBusy(false);
-      setError(null);
-      return;
-    }
-    if (wasOpenRef.current) return;
-    wasOpenRef.current = true;
-    setNumber(defaultNumber);
-  }, [isOpen, defaultNumber]);
 
   const handleConfirm = async () => {
     if (!title.trim() || !content.trim()) {
@@ -469,22 +449,6 @@ function EpisodeDetailDrawer({
   const [content, setContent] = useState(episode.content);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const lastEpisodeIdRef = useRef(episode.id);
-
-  useEffect(() => {
-    const episodeChanged = lastEpisodeIdRef.current !== episode.id;
-    lastEpisodeIdRef.current = episode.id;
-    if (episodeChanged) {
-      setTitle(episode.title);
-      setContent(episode.content);
-      setEditTitle(false);
-      setEditContent(false);
-      setError(null);
-      return;
-    }
-    if (!editTitle) setTitle(episode.title);
-    if (!editContent) setContent(episode.content);
-  }, [editContent, editTitle, episode.id, episode.title, episode.content]);
 
   const saveTitle = async () => {
     if (title === episode.title) {
