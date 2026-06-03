@@ -364,6 +364,90 @@ describe('tasks lifecycle', () => {
     }
   });
 
+  it('default character-style IMAGE task can generate the first identity master', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true, credits: true },
+    });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.findFirst({ where: { ownerId: user.id } });
+    if (!project) throw new Error('Seed project missing.');
+
+    const character = await prisma.character.create({
+      data: {
+        projectId: project.id,
+        name: '默认造型身份母版测试角色',
+        description: '',
+        bio: '',
+      },
+    });
+    const style = await prisma.characterStyle.create({
+      data: {
+        characterId: character.id,
+        name: '默认造型',
+        prompt: '纯角色参考图，全身站姿。',
+        model: 'stub',
+        ratio: '1:1',
+      },
+    });
+
+    process.env.STUB_FAIL_RATE = '0';
+    let taskId: string | null = null;
+    try {
+      const res = await app.request('/api/tasks', {
+        method: 'POST',
+        headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          type: 'IMAGE',
+          projectId: project.id,
+          provider: 'stub',
+          input: {
+            prompt: '纯角色参考图，全身站姿。',
+            ratio: '1:1',
+            model: 'stub',
+            n: 1,
+          },
+          resourceTarget: { kind: 'character-style', entityId: style.id },
+        }),
+      });
+      expect(res.status).toBe(201);
+      const created = (await res.json()) as { id: string };
+      taskId = created.id;
+      const queued = await prisma.task.findUnique({
+        where: { id: created.id },
+        select: { input: true },
+      });
+      const input = queued?.input as {
+        identityReferenceAssetId?: string | null;
+        referenceAssetIds?: string[];
+      };
+      expect(input.identityReferenceAssetId).toBeUndefined();
+      expect(input.referenceAssetIds).toBeUndefined();
+
+      const final = await pollUntilTerminal(created.id);
+      expect(final).toBe(TaskStatus.SUCCEEDED);
+      const fresh = await prisma.character.findUnique({
+        where: { id: character.id },
+        select: { avatarAssetId: true, identityAssetId: true },
+      });
+      const freshStyle = await prisma.characterStyle.findUnique({
+        where: { id: style.id },
+        select: { assetId: true },
+      });
+      expect(freshStyle?.assetId).toBeTruthy();
+      expect(fresh?.identityAssetId).toBe(freshStyle?.assetId);
+      expect(fresh?.avatarAssetId).toBe(freshStyle?.assetId);
+    } finally {
+      process.env.STUB_FAIL_RATE = '0';
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { credits: user.credits },
+      });
+      await prisma.character.deleteMany({ where: { id: character.id } });
+      if (taskId) await prisma.task.deleteMany({ where: { id: taskId } });
+    }
+  });
+
   it('character-avatar IMAGE task persists status and fills avatar identity on success', async () => {
     const user = await prisma.user.findUnique({ where: { email: SEED_USER_EMAIL } });
     if (!user) throw new Error('Seed user missing.');
@@ -739,6 +823,182 @@ describe('tasks lifecycle', () => {
     const body = (await final2.json()) as { output: { kind: string; summary: string } };
     expect(body.output.kind).toBe('stub-text');
     expect(body.output.summary.length).toBeGreaterThan(10);
+  });
+
+  it('characters extraction enqueues zero-credit character_detail tasks', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true },
+    });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.findFirst({ where: { ownerId: user.id } });
+    if (!project) throw new Error('Seed project missing.');
+    const episode = await prisma.storyboardEpisode.findFirst({ where: { projectId: project.id } });
+    if (!episode) throw new Error('Seed episode missing.');
+
+    const task = await prisma.task.create({
+      data: {
+        ownerId: user.id,
+        projectId: project.id,
+        type: TaskType.TEXT_ANALYZE,
+        provider: 'stub',
+        status: TaskStatus.QUEUED,
+        costCredits: 0,
+        input: { episodeId: episode.id, subjectType: 'characters', model: 'stub' },
+      },
+    });
+
+    await processTask(task.id, { attemptsMade: 0, attempts: 1 });
+
+    const parent = await prisma.task.findUnique({
+      where: { id: task.id },
+      select: { status: true, output: true },
+    });
+    expect(parent?.status).toBe(TaskStatus.SUCCEEDED);
+    const createdIds = ((parent?.output as { createdIds?: string[] } | null)?.createdIds ?? []);
+    expect(createdIds.length).toBeGreaterThan(0);
+
+    const allDetailTasks = await prisma.task.findMany({
+      where: {
+        projectId: project.id,
+        type: TaskType.TEXT_ANALYZE,
+        input: { path: ['analysisType'], equals: 'character_detail' },
+      },
+      select: { id: true, costCredits: true, input: true, status: true },
+    });
+    const detailTasks = allDetailTasks.filter((row) =>
+      createdIds.includes((row.input as { characterId?: string }).characterId ?? ''),
+    );
+    const createdDetailIds = new Set(
+      detailTasks.map((row) => (row.input as { characterId?: string }).characterId),
+    );
+    expect(createdIds.every((id) => createdDetailIds.has(id))).toBe(true);
+    expect(detailTasks.every((row) => row.costCredits === 0)).toBe(true);
+    expect(
+      detailTasks.every((row) =>
+        [TaskStatus.QUEUED, TaskStatus.RUNNING, TaskStatus.SUCCEEDED].includes(row.status),
+      ),
+    ).toBe(true);
+
+    await Promise.all(
+      detailTasks.map((row) => pollUntilTerminal(row.id, 5000).catch(() => row.status)),
+    );
+
+    await prisma.task.deleteMany({
+      where: {
+        OR: [
+          { id: task.id },
+          { id: { in: detailTasks.map((row) => row.id) } },
+        ],
+      },
+    });
+    await prisma.character.deleteMany({ where: { id: { in: createdIds } } });
+  });
+
+  it('character_detail task creates reusable CharacterStyle records without charging credits', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true, credits: true },
+    });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.findFirst({ where: { ownerId: user.id } });
+    if (!project) throw new Error('Seed project missing.');
+    const episode = await prisma.storyboardEpisode.findFirst({ where: { projectId: project.id } });
+    if (!episode) throw new Error('Seed episode missing.');
+    const character = await prisma.character.create({
+      data: {
+        projectId: project.id,
+        name: '司机',
+        description: '中年网约车司机',
+        bio: '',
+      },
+    });
+    const task = await prisma.task.create({
+      data: {
+        ownerId: user.id,
+        projectId: project.id,
+        type: TaskType.TEXT_ANALYZE,
+        provider: 'stub',
+        status: TaskStatus.QUEUED,
+        costCredits: 0,
+        input: {
+          episodeId: episode.id,
+          characterId: character.id,
+          analysisType: 'character_detail',
+          model: 'stub',
+        },
+      },
+    });
+
+    try {
+      await processTask(task.id);
+      const fresh = await prisma.character.findUnique({
+        where: { id: character.id },
+        include: { styles: { orderBy: { createdAt: 'asc' } } },
+      });
+      expect(fresh?.avatarPrompt).toContain('头像');
+      expect(fresh?.styles).toHaveLength(2);
+      expect(fresh?.styles.every((style) => style.assetId === null)).toBe(true);
+      expect(fresh?.styles.every((style) => style.model === project.imageModel)).toBe(true);
+      const after = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { credits: true },
+      });
+      expect(after?.credits).toBe(user.credits);
+    } finally {
+      await prisma.task.deleteMany({ where: { id: task.id } });
+      await prisma.character.deleteMany({ where: { id: character.id } });
+    }
+  });
+
+  it('retryable TEXT provider error returns to QUEUED for BullMQ retry instead of terminal FAILED', async () => {
+    const user = await prisma.user.findUnique({
+      where: { email: SEED_USER_EMAIL },
+      select: { id: true, credits: true },
+    });
+    if (!user) throw new Error('Seed user missing.');
+    const project = await prisma.project.findFirst({ where: { ownerId: user.id } });
+    if (!project) throw new Error('Seed project missing.');
+    const episode = await prisma.storyboardEpisode.findFirst({ where: { projectId: project.id } });
+    if (!episode) throw new Error('Seed episode missing.');
+    const task = await prisma.task.create({
+      data: {
+        ownerId: user.id,
+        projectId: project.id,
+        type: TaskType.TEXT_ANALYZE,
+        provider: 'stub',
+        status: TaskStatus.QUEUED,
+        costCredits: 1,
+        input: { episodeId: episode.id, analysisType: 'general', model: 'test-openai-429' },
+      },
+    });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { credits: { decrement: task.costCredits } },
+    });
+
+    try {
+      await expect(processTask(task.id, { attemptsMade: 0, attempts: 3 })).rejects.toThrow(
+        'http_429',
+      );
+      const fresh = await prisma.task.findUnique({
+        where: { id: task.id },
+        select: { status: true, completedAt: true },
+      });
+      expect(fresh?.status).toBe(TaskStatus.QUEUED);
+      expect(fresh?.completedAt).toBeNull();
+      const after = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { credits: true },
+      });
+      expect(after?.credits).toBe(user.credits - task.costCredits);
+    } finally {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { credits: user.credits },
+      });
+      await prisma.task.deleteMany({ where: { id: task.id } });
+    }
   });
 
 	  it(

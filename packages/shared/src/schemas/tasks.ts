@@ -69,6 +69,12 @@ const TextInputSchema = z.union([
     subjectType: z.enum(['characters', 'items', 'scenes']),
     model: z.string().min(1).max(80).optional(),
   }),
+  z.object({
+    episodeId: CuidSchema,
+    characterId: CuidSchema,
+    analysisType: z.literal('character_detail'),
+    model: z.string().min(1).max(80).optional(),
+  }),
   // Storyboard "分析剧集": break the episode into scenes.
   z.object({
     episodeId: CuidSchema,

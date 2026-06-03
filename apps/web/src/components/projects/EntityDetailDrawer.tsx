@@ -316,14 +316,17 @@ export function EntityDetailDrawer({
     description !== (entity.description ?? '');
 
   const isStyle = kind === 'style';
+  const isDefaultStyle = isStyle && entity.name.trim() === '默认造型';
   const latestHistory = history[0] ?? null;
   const persistedPending = isResourceImagePending(latestHistory);
   const hasStyleIdentityReference = !isStyle || Boolean(identityReferenceAssetId);
+  const canGenerateStyleIdentitySeed = isStyle && isDefaultStyle && !identityReferenceAssetId;
+  const canGenerateStyle = hasStyleIdentityReference || canGenerateStyleIdentitySeed;
   const generateBusy = generating || persistedPending;
-  const generateDisabled = generateBusy || uploading || !hasPrompt || !hasStyleIdentityReference;
+  const generateDisabled = generateBusy || uploading || !hasPrompt || !canGenerateStyle;
   const generateTitle = !hasPrompt
     ? '请先填写提示词或点击「三视图」'
-    : !hasStyleIdentityReference
+    : !canGenerateStyle
       ? '请先生成或上传角色头像'
       : undefined;
   const handleAutoFill = () => {
@@ -367,7 +370,7 @@ export function EntityDetailDrawer({
       setError('请先填写提示词');
       return;
     }
-    if (!hasStyleIdentityReference) {
+    if (!canGenerateStyle) {
       setError('请先生成或上传角色头像，作为造型生成的身份母版');
       return;
     }
@@ -699,20 +702,28 @@ export function EntityDetailDrawer({
                     className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs ${
                       hasStyleIdentityReference
                         ? 'bg-emerald-50 text-emerald-700'
+                        : canGenerateStyleIdentitySeed
+                          ? 'bg-blue-50 text-blue-700'
                         : 'bg-amber-50 text-amber-700'
                     }`}
                     title={
                       hasStyleIdentityReference
                         ? '造型生成会优先使用角色身份母版'
+                        : canGenerateStyleIdentitySeed
+                          ? '默认造型生成成功后会成为角色身份母版'
                         : '缺少角色头像时不能生成造型'
                     }
                   >
-                    {hasStyleIdentityReference ? (
+                    {hasStyleIdentityReference || canGenerateStyleIdentitySeed ? (
                       <Check className="w-3.5 h-3.5" />
                     ) : (
                       <X className="w-3.5 h-3.5" />
                     )}
-                    {hasStyleIdentityReference ? '已绑定身份母版' : '缺少身份母版'}
+                    {hasStyleIdentityReference
+                      ? '已绑定身份母版'
+                      : canGenerateStyleIdentitySeed
+                        ? '将生成身份母版'
+                        : '缺少身份母版'}
                   </span>
                 )}
                 {referenceImageUrl && (

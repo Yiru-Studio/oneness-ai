@@ -57,6 +57,9 @@ export async function summarizeAnalysisForProjects(
       const entry = bySubject.get(subjectType);
       if (entry) subjects[subjectType] = toSubjectState(entry.status);
     }
+    if (subjects.characters === 'completed') {
+      subjects.characters = await characterDetailState(pid, rows);
+    }
     const statuses = Object.values(subjects);
     out.set(pid, {
       hasTasks: bySubject.size > 0,
@@ -82,11 +85,55 @@ export async function summarizeAnalysisForProject(
   };
 }
 
+async function characterDetailState(
+  projectId: string,
+  rows: Array<{ projectId: string | null; status: TaskStatus; input: unknown; createdAt: Date }>,
+): Promise<AnalysisSubjectState> {
+  const characterCount = await prisma.character.count({ where: { projectId } });
+  if (characterCount === 0) return 'completed';
+
+  const latestByCharacter = new Map<string, { status: TaskStatus; createdAt: Date }>();
+  for (const row of rows) {
+    if (row.projectId !== projectId) continue;
+    const characterId = getCharacterDetailId(row.input);
+    if (!characterId) continue;
+    const current = latestByCharacter.get(characterId);
+    if (!current || current.createdAt <= row.createdAt) {
+      latestByCharacter.set(characterId, { status: row.status, createdAt: row.createdAt });
+    }
+  }
+
+  const statuses = [...latestByCharacter.values()].map((entry) => entry.status);
+  if (statuses.some((status) =>
+    status === TaskStatus.QUEUED ||
+    status === TaskStatus.RUNNING ||
+    status === TaskStatus.RETRYING
+  )) {
+    return 'running';
+  }
+  if (statuses.some((status) => status === TaskStatus.FAILED || status === TaskStatus.CANCELLED)) {
+    return 'failed';
+  }
+  if (statuses.filter((status) => status === TaskStatus.SUCCEEDED).length >= characterCount) {
+    return 'completed';
+  }
+  return 'running';
+}
+
 function getSubjectExtractionType(input: unknown): SubjectType | null {
   if (!input || typeof input !== 'object' || !('subjectType' in input)) return null;
   const subjectType = (input as { subjectType?: unknown }).subjectType;
   return typeof subjectType === 'string' && SUBJECT_TYPE_SET.has(subjectType)
     ? (subjectType as SubjectType)
+    : null;
+}
+
+function getCharacterDetailId(input: unknown): string | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  const obj = input as { analysisType?: unknown; characterId?: unknown };
+  if (obj.analysisType !== 'character_detail') return null;
+  return typeof obj.characterId === 'string' && obj.characterId.length > 0
+    ? obj.characterId
     : null;
 }
 

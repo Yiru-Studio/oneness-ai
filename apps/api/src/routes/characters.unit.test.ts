@@ -1,21 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
-
-async function loadParser() {
-  vi.stubEnv('DATABASE_URL', 'postgresql://oneness:oneness@localhost:5432/oneness_test');
-  vi.stubEnv('REDIS_URL', 'redis://localhost:6379');
-  vi.stubEnv('MINIO_ENDPOINT', 'http://localhost:9000');
-  vi.stubEnv('MINIO_ACCESS_KEY', 'minioadmin');
-  vi.stubEnv('MINIO_SECRET_KEY', 'minioadmin');
-  vi.stubEnv('INTERNAL_SECRET', 'test-internal-secret');
-
-  const mod = await import('./characters.js');
-  return mod.parseCharacterAnalysisJson;
-}
+import { describe, expect, it } from 'vitest';
+import { parseCharacterAnalysisJson } from '@oneness/shared/character-analysis';
+import { CreateTaskSchema } from '@oneness/shared/schemas';
+import { TaskType } from '@oneness/shared/enums';
 
 describe('character analysis JSON parser', () => {
-  it('parses fenced JSON after removing trailing commas', async () => {
-    const parseCharacterAnalysisJson = await loadParser();
-
+  it('parses fenced JSON after removing trailing commas', () => {
     const parsed = parseCharacterAnalysisJson(`\`\`\`json
 {
   "description": "17岁高中女生",
@@ -34,9 +23,7 @@ describe('character analysis JSON parser', () => {
     expect(parsed.avatarPrompt).toContain('短发');
   });
 
-  it('repairs simple unquoted object keys without changing string values', async () => {
-    const parseCharacterAnalysisJson = await loadParser();
-
+  it('repairs simple unquoted object keys without changing string values', () => {
     const parsed = parseCharacterAnalysisJson(`{
   description: "45岁便利店老板，提示词里包含 style: realistic",
   bio: "穿米白色针织开衫，语气温和。",
@@ -48,5 +35,26 @@ describe('character analysis JSON parser', () => {
 
     expect(parsed.description).toContain('style: realistic');
     expect(parsed.styles?.[0]?.prompt).toContain('prompt: 保留');
+  });
+});
+
+describe('character_detail task schema', () => {
+  it('accepts per-character text analysis input', () => {
+    const parsed = CreateTaskSchema.parse({
+      type: TaskType.TEXT_ANALYZE,
+      projectId: 'clw0000000000000000000000',
+      provider: 'stub',
+      input: {
+        episodeId: 'clw0000000000000000000001',
+        characterId: 'clw0000000000000000000002',
+        analysisType: 'character_detail',
+        model: 'stub',
+      },
+    });
+
+    expect(parsed.input).toMatchObject({
+      analysisType: 'character_detail',
+      characterId: 'clw0000000000000000000002',
+    });
   });
 });

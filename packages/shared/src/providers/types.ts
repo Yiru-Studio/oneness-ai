@@ -97,6 +97,12 @@ export type TextInput =
       subjectType: 'characters' | 'items' | 'scenes';
       model?: string;
     }
+  | {
+      episodeId: string;
+      characterId: string;
+      analysisType: 'character_detail';
+      model?: string;
+    }
   // Storyboard "分析剧集": break the whole episode into scenes (summary + scenes[]).
   | {
       episodeId: string;

@@ -29,6 +29,63 @@ async function sleep(ms: number, signal: AbortSignal): Promise<void> {
 export const stubTextProvider: TextProvider = {
   name: 'stub',
   async analyze(input: TextInput, ctx: ProviderContext): Promise<ProviderResult> {
+    if (input.model === 'test-openai-429') {
+      throw new Error('openai[http_429]: rate_limit');
+    }
+
+    if ('analysisType' in input && input.analysisType === 'character_detail') {
+      await sleep(500, ctx.abortSignal);
+      const character = await ctx.prisma.character.findFirst({
+        where: {
+          id: input.characterId,
+          project: { ownerId: ctx.ownerId },
+        },
+        include: { project: true },
+      });
+      if (!character) throw new Error(`character not found: ${input.characterId}`);
+      await ctx.prisma.$transaction(async (tx) => {
+        await tx.character.update({
+          where: { id: character.id },
+          data: {
+            description: `${character.name} 的自动角色解析描述`,
+            bio: `${character.name} 的自动角色解析小传。`,
+            avatarPrompt: `${character.name} 头像，面部特征清晰，简洁背景。`,
+          },
+        });
+        await tx.characterStyle.deleteMany({
+          where: { characterId: character.id, assetId: null },
+        });
+        await tx.characterStyle.createMany({
+          data: [
+            {
+              characterId: character.id,
+              name: '日常造型',
+              prompt: `${character.name} 日常造型，全身角色参考图，简洁背景。`,
+              model: character.project.imageModel,
+              ratio: character.project.ratio,
+            },
+            {
+              characterId: character.id,
+              name: '剧情高光造型',
+              prompt: `${character.name} 剧情高光造型，全身角色参考图，简洁背景。`,
+              model: character.project.imageModel,
+              ratio: character.project.ratio,
+            },
+          ],
+        });
+      });
+      return {
+        outputJson: {
+          kind: 'stub-text',
+          analysisType: 'character_detail',
+          episodeId: input.episodeId,
+          characterId: input.characterId,
+          styleCount: 2,
+        },
+        actualCostCredits: 0,
+      };
+    }
+
     if ('analysisType' in input && input.analysisType === 'composition_scene_planning') {
       await sleep(1500, ctx.abortSignal);
       const project = await ctx.prisma.project.findFirst({

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  defaultCharacterStyleForExtractedCharacter,
   episodeSetupForShotBreakdown,
   shotBreakdownSystemPrompt,
 } from '../src/providers/openai-text';
@@ -30,5 +31,30 @@ describe('shot breakdown prompt', () => {
 
     expect(setup).toContain('写实电影感');
     expect(setup).not.toContain('雨下得很密');
+  });
+
+  it('creates a default full-body character style for extracted characters', () => {
+    const style = defaultCharacterStyleForExtractedCharacter(
+      {
+        name: '司机',
+        appearanceType: 'onscreen',
+        evidence: ['司机透过后视镜看见乘客的慌张。'],
+        description: '中年网约车司机，外表普通疲惫，神情烦躁。',
+        bio: '他起初烦躁，后来展现出体贴和幽默。',
+        avatarPrompt: '头像或胸像，正面，五官清晰。',
+      },
+      { imageModel: 'gpt-image-2', ratio: '16:9', stylePrompt: '写实电影感' },
+    );
+
+    expect(style).toMatchObject({
+      name: '默认造型',
+      model: 'gpt-image-2',
+      ratio: '16:9',
+    });
+    expect(style.prompt).toContain('纯角色参考图');
+    expect(style.prompt).toContain('全身或中全身');
+    expect(style.prompt).toContain('角色名：司机');
+    expect(style.prompt).toContain('风格：写实电影感');
+    expect(style.prompt).not.toContain('头像或胸像');
   });
 });

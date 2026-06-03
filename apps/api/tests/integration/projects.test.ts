@@ -220,6 +220,41 @@ describe('projects CRUD', () => {
         });
       }
 
+      const character = await prisma.character.create({
+        data: {
+          projectId: fresh.id,
+          name: '测试角色',
+          description: '',
+          bio: '',
+        },
+      });
+      const detailsRunning = await app.request(`/api/projects/${fresh.id}`, { headers: auth });
+      expect(detailsRunning.status).toBe(200);
+      const detailsRunningBody = (await detailsRunning.json()) as {
+        analysisState: string;
+        analysisSubjects: AnalysisSubjects;
+      };
+      expect(detailsRunningBody.analysisState).toBe('running');
+      expect(detailsRunningBody.analysisSubjects).toEqual({
+        ...completedSubjects(),
+        characters: 'running',
+      });
+
+      await prisma.task.create({
+        data: {
+          ownerId: user.id,
+          projectId: fresh.id,
+          type: TaskType.TEXT_ANALYZE,
+          provider: 'stub',
+          status: TaskStatus.SUCCEEDED,
+          input: {
+            analysisType: 'character_detail',
+            characterId: character.id,
+          },
+          costCredits: 0,
+        },
+      });
+
       const completed = await app.request(`/api/projects/${fresh.id}`, { headers: auth });
       expect(completed.status).toBe(200);
       const completedBody = (await completed.json()) as {

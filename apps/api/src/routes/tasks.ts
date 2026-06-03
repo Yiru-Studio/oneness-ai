@@ -18,6 +18,7 @@ import {
 import {
   prependIdentityReference,
   resolveCharacterIdentityReference,
+  resolveStyleIdentitySeed,
   resolveStyleIdentityReference,
 } from '../lib/character-identity.js';
 import { serializeTask } from '../serializers/task.js';
@@ -79,6 +80,10 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
       ? input.characterId
       : null;
   if (body.type === 'IMAGE') {
+    const styleIdentitySeed =
+      body.resourceTarget?.kind === 'character-style'
+        ? await resolveStyleIdentitySeed(prisma, body.resourceTarget.entityId, user.id)
+        : null;
     const styleIdentity =
       body.resourceTarget?.kind === 'character-style'
         ? await resolveStyleIdentityReference(
@@ -92,7 +97,11 @@ taskRoutes.post('/tasks', zValidator('json', CreateTaskSchema), async (c) => {
         ? await resolveCharacterIdentityReference(prisma, characterIdHint, user.id)
         : null;
     const identity = styleIdentity ?? hintedIdentity;
-    if (body.resourceTarget?.kind === 'character-style' && !identity) {
+    const canGenerateStyleIdentitySeed =
+      body.resourceTarget?.kind === 'character-style' &&
+      Boolean(styleIdentitySeed?.isDefaultStyle) &&
+      !styleIdentitySeed?.hasIdentity;
+    if (body.resourceTarget?.kind === 'character-style' && !identity && !canGenerateStyleIdentitySeed) {
       throw AppError.badRequest(
         ErrorCodes.VALIDATION_FAILED,
         '请先生成或上传角色头像，作为造型生成的身份母版',

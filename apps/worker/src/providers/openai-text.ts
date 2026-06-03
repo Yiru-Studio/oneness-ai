@@ -13,10 +13,17 @@ import {
   normalizeOpenAIError,
 } from '../lib/openai-client.js';
 import {
+  buildResourceImagePrompt,
   normalizeExtractedCharacters,
   normalizeExtractedItems,
   normalizeExtractedScenes,
+  type NormalizedCharacter,
 } from '@oneness/shared/resource-prompts';
+import {
+  buildCharacterAnalysisMessages,
+  normalizeCharacterAnalysis,
+  parseCharacterAnalysisJson,
+} from '@oneness/shared/character-analysis';
 import {
   buildReferenceBindingMessages,
   buildSceneImageCompositionPrompt,
@@ -94,6 +101,8 @@ function extractionSystemPrompt(
     'You extract distinct scenes from a storyboard episode. A scene is a continuous time/location. Return JSON exactly:\n' +
     '{ "scenes": [{ "name": string, "description": string, "prompt": string }] }\n' +
     'Each `name` is a short scene heading like "INT. 老旧家属楼 - 午后" (or English equivalent). ' +
+    'If a vehicle interior, back seat, driver cab, cockpit, elevator, train carriage, or other enclosed sub-space becomes the main visual location, extract it as its own INT. scene instead of merging it into the exterior location. ' +
+    'For example, when the script says the passenger gets into a ride-hailing car back seat, create a car-interior scene such as "INT. 网约车后座 - 夜" if that interior drives the image. ' +
     '`description` is one concise sentence describing the physical environment, lighting, time, and mood. ' +
     '`prompt` should be an environment-only scene reference prompt. Do not make a character or prop the subject. ' +
     'Use the script\'s native language. No prose outside the JSON object.'
@@ -320,6 +329,10 @@ export const openaiTextProvider: TextProvider = {
 
     if ('analysisType' in input && input.analysisType === 'composition_scene_planning') {
       return planCompositionSceneTasks({ client, model, input, ctx });
+    }
+
+    if ('analysisType' in input && input.analysisType === 'character_detail') {
+      return analyzeCharacterDetail({ client, model, input, ctx });
     }
 
     const ep = await ctx.prisma.storyboardEpisode.findUnique({
@@ -821,6 +834,140 @@ function textMentions(text: string, term: string): boolean {
   return text.includes(needle) || needle.includes(text.trim());
 }
 
+export function defaultCharacterStyleForExtractedCharacter(
+  character: NormalizedCharacter,
+  project: { imageModel?: string | null; ratio?: string | null; stylePrompt?: string | null } = {},
+) {
+  return {
+    name: '默认造型',
+    prompt: buildResourceImagePrompt({
+      kind: 'character-style',
+      name: character.name,
+      description: character.description,
+      bio: character.bio,
+      styleName: '默认造型',
+      projectStylePrompt: project.stylePrompt ?? null,
+      ratio: project.ratio ?? null,
+    }),
+    model: project.imageModel ?? null,
+    ratio: project.ratio ?? null,
+  };
+}
+
+async function analyzeCharacterDetail(args: {
+  client: OpenAI;
+  model: string;
+  input: Extract<TextInput, { analysisType: 'character_detail' }>;
+  ctx: ProviderContext;
+}): Promise<ProviderResult> {
+  const { client, model, input, ctx } = args;
+  const character = await ctx.prisma.character.findFirst({
+    where: {
+      id: input.characterId,
+      project: { id: ctx.projectId ?? undefined, ownerId: ctx.ownerId },
+    },
+    include: { project: true },
+  });
+  if (!character) throw new Error(`character not found: ${input.characterId}`);
+
+  const episodes = await ctx.prisma.storyboardEpisode.findMany({
+    where: { projectId: character.projectId },
+    orderBy: { number: 'asc' },
+  });
+  const scriptText = episodes
+    .map((ep) => `第${ep.number}集 — ${ep.title}\n${ep.content || '(无内容)'}`)
+    .join('\n\n---\n\n');
+
+  ctx.log.info(
+    {
+      provider: 'openai',
+      op: 'character_detail',
+      model,
+      episodeId: input.episodeId,
+      characterId: input.characterId,
+    },
+    'character detail analyze start',
+  );
+
+  try {
+    const resp = await client.chat.completions.create(
+      {
+        model,
+        messages: buildCharacterAnalysisMessages({
+          characterName: character.name,
+          existingDescription: character.description ?? '',
+          scriptText,
+          projectStylePrompt: character.project.stylePrompt ?? '',
+        }),
+        response_format: { type: 'json_object' },
+      },
+      { signal: ctx.abortSignal },
+    );
+    const raw = resp.choices[0]?.message?.content ?? '';
+    if (!raw.trim()) throw new Error('LLM returned empty content');
+    const parsed = parseCharacterAnalysisJson(raw);
+    const analysis = normalizeCharacterAnalysis({
+      characterName: character.name,
+      existingDescription: character.description ?? '',
+      projectStylePrompt: character.project.stylePrompt ?? '',
+      parsed,
+    });
+
+    await ctx.prisma.$transaction(async (tx) => {
+      await tx.character.update({
+        where: { id: character.id },
+        data: {
+          description: analysis.description,
+          bio: analysis.bio,
+          avatarPrompt: analysis.avatarPrompt,
+        },
+      });
+      await tx.characterStyle.deleteMany({
+        where: { characterId: character.id, assetId: null },
+      });
+      const remainingStyles = await tx.characterStyle.findMany({
+        where: { characterId: character.id },
+        select: { name: true },
+      });
+      const takenNames = new Set(remainingStyles.map((s) => s.name));
+      for (const look of analysis.styles) {
+        let name = look.name.trim() || '造型';
+        if (takenNames.has(name)) {
+          let suffix = 2;
+          while (takenNames.has(`${name}${suffix}`)) suffix++;
+          name = `${name}${suffix}`;
+        }
+        takenNames.add(name);
+        await tx.characterStyle.create({
+          data: {
+            characterId: character.id,
+            name,
+            prompt: look.prompt,
+            model: character.project.imageModel,
+            ratio: character.project.ratio,
+          },
+        });
+      }
+    });
+
+    return {
+      outputJson: {
+        provider: 'openai',
+        model,
+        analysisType: 'character_detail',
+        episodeId: input.episodeId,
+        characterId: input.characterId,
+        styleCount: analysis.styles.length,
+        generationId: resp.id ?? null,
+        usage: resp.usage ?? null,
+      },
+      actualCostCredits: 0,
+    };
+  } catch (err) {
+    throw normalizeOpenAIError(err);
+  }
+}
+
 async function persistExtractedEntities(
   ctx: ProviderContext,
   projectId: string,
@@ -832,9 +979,10 @@ async function persistExtractedEntities(
       safeParseEntities<ExtractedCharacter>(raw, 'characters', ctx.log),
     );
     if (chars.length === 0) return [];
-    const rows = await ctx.prisma.$transaction(
-      chars.map((c) =>
-        ctx.prisma.character.create({
+    const rows = await ctx.prisma.$transaction(async (tx) => {
+      const created = [];
+      for (const c of chars) {
+        const row = await tx.character.create({
           data: {
             projectId,
             name: c.name,
@@ -842,9 +990,11 @@ async function persistExtractedEntities(
             bio: c.bio,
             avatarPrompt: c.avatarPrompt,
           },
-        }),
-      ),
-    );
+        });
+        created.push(row);
+      }
+      return created;
+    });
     return rows.map((r) => r.id);
   }
   if (subjectType === 'items') {

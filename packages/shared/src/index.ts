@@ -6,3 +6,4 @@ export * from './schemas/index.js';
 export * from './queues.js';
 export * from './pricing.js';
 export * from './providers/types.js';
+export * from './character-analysis.js';

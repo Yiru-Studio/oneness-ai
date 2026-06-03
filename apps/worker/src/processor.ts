@@ -1,5 +1,6 @@
 import { createId } from '@paralleldrive/cuid2';
 import { Prisma } from '@prisma/client';
+import { Queue } from 'bullmq';
 import { prisma } from './lib/prisma.js';
 import { minioClient, TaskOutputsBucket } from './lib/minio.js';
 import { logger, metrics } from '@oneness/shared/logger';
@@ -18,8 +19,22 @@ import {
   isRunnableTaskStatus,
 } from './lib/image-retry-policy.js';
 import { enqueueRetryTaskJob } from './lib/retry-queue.js';
+import {
+  DefaultTaskJobAttempts,
+  QueueNames,
+  type TaskJobData,
+} from '@oneness/shared/queues';
 
 const CANCEL_POLL_MS = 1000;
+const textQueue = new Queue<TaskJobData>(QueueNames.TEXT, {
+  connection: { url: config.REDIS_URL },
+  defaultJobOptions: {
+    attempts: DefaultTaskJobAttempts,
+    backoff: { type: 'exponential', delay: 5000 },
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 200 },
+  },
+});
 
 type ProcessTaskOptions = {
   attemptsMade?: number;
@@ -276,6 +291,44 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
       return;
     }
 
+    if (shouldRetryProviderError(providerError, opts)) {
+      await prisma.$transaction([
+        prisma.task.update({
+          where: { id: taskId },
+          data: {
+            status: TaskStatus.QUEUED,
+            error: providerError.message,
+            startedAt: null,
+          },
+        }),
+        prisma.resourceImage.updateMany({
+          where: { taskId },
+          data: {
+            status: TaskStatus.QUEUED,
+            error: providerError.message,
+          },
+        }),
+        prisma.shotSketchRun.updateMany({
+          where: { taskJobId: taskId },
+          data: {
+            status: TaskStatus.QUEUED,
+            error: providerError.message,
+          },
+        }),
+      ]);
+      metrics.incr('task.bullmq_retry', { type: task.type, provider: task.provider });
+      taskLog.warn(
+        {
+          err: providerError.message,
+          attemptsMade: opts.attemptsMade ?? 0,
+          attempts: opts.attempts ?? 1,
+          durationMs: Date.now() - startedAtMs,
+        },
+        'task failed transiently, handing retry to BullMQ',
+      );
+      throw providerError;
+    }
+
     const exhaustedRetryWindow =
       retry.reason === 'retry_window_exhausted' && task.type === 'IMAGE';
     if (exhaustedRetryWindow) {
@@ -352,6 +405,39 @@ export async function processTask(taskId: string, opts: ProcessTaskOptions = {})
 
   // 5. Success path — persist outputs.
   const r = result!;
+  try {
+    if (shouldCreateCharacterDetailTasks(task, r)) {
+      await createCharacterDetailTasks(task, r, taskLog);
+    }
+  } catch (err) {
+    const enqueueError = err instanceof Error ? err : new Error(String(err));
+    if (shouldRetryProviderError(enqueueError, opts)) {
+      await prisma.task.update({
+        where: { id: taskId },
+        data: {
+          status: TaskStatus.QUEUED,
+          error: enqueueError.message,
+          startedAt: null,
+        },
+      });
+    } else {
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: task.ownerId },
+          data: { credits: { increment: task.costCredits } },
+        }),
+        prisma.task.update({
+          where: { id: taskId },
+          data: {
+            status: TaskStatus.FAILED,
+            error: enqueueError.message,
+            completedAt: new Date(),
+          },
+        }),
+      ]);
+    }
+    throw enqueueError;
+  }
   await persistSuccess(taskId, task.ownerId, task.costCredits, r);
   // If this VIDEO task was generating for a shot, link the produced asset back
   // to the Shot row so the UI can display it without polling assets manually.
@@ -425,6 +511,138 @@ function shouldRetryProviderError(
     msg.includes('etimedout') ||
     msg.includes('http_429') ||
     /http_5\d\d/.test(msg)
+  );
+}
+
+function shouldCreateCharacterDetailTasks(
+  task: {
+    id: string;
+    type: TaskType;
+    input: Prisma.JsonValue;
+  },
+  result: ProviderResult,
+): boolean {
+  if (task.type !== 'TEXT_ANALYZE') return false;
+  const input = task.input;
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return false;
+  if ((input as Record<string, unknown>).subjectType !== 'characters') return false;
+  const output = result.outputJson;
+  if (!output || typeof output !== 'object' || Array.isArray(output)) return false;
+  return Array.isArray((output as Record<string, unknown>).createdIds);
+}
+
+async function createCharacterDetailTasks(
+  task: {
+    id: string;
+    ownerId: string;
+    projectId: string | null;
+    type: TaskType;
+    provider: string;
+    input: Prisma.JsonValue;
+  },
+  result: ProviderResult,
+  log: import('@oneness/shared/logger').Logger,
+) {
+  if (!task.projectId) return;
+  const input = task.input as Record<string, unknown>;
+  const episodeId = typeof input.episodeId === 'string' ? input.episodeId : null;
+  if (!episodeId) return;
+  const model = typeof input.model === 'string' ? input.model : undefined;
+  const output = result.outputJson as Record<string, unknown>;
+  const characterIds = (output.createdIds as unknown[])
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  if (characterIds.length === 0) return;
+
+  const created = await prisma.$transaction(async (tx) => {
+    const rows: Array<{ id: string; characterId: string }> = [];
+    for (const characterId of characterIds) {
+      const existing = await tx.task.findFirst({
+        where: {
+          ownerId: task.ownerId,
+          projectId: task.projectId,
+          type: task.type,
+          status: {
+            in: [
+              TaskStatus.QUEUED,
+              TaskStatus.RUNNING,
+              TaskStatus.RETRYING,
+              TaskStatus.SUCCEEDED,
+            ],
+          },
+          input: {
+            path: ['analysisType'],
+            equals: 'character_detail',
+          },
+          AND: [
+            {
+              input: {
+                path: ['characterId'],
+                equals: characterId,
+              },
+            },
+          ],
+        },
+        select: { id: true, status: true },
+      });
+      if (existing) {
+        if (existing.status === TaskStatus.QUEUED) {
+          rows.push({ id: existing.id, characterId });
+        }
+        continue;
+      }
+      const row = await tx.task.create({
+        data: {
+          ownerId: task.ownerId,
+          projectId: task.projectId,
+          type: 'TEXT_ANALYZE',
+          provider: task.provider,
+          status: TaskStatus.QUEUED,
+          input: {
+            episodeId,
+            characterId,
+            analysisType: 'character_detail',
+            ...(model ? { model } : {}),
+          },
+          costCredits: 0,
+        },
+        select: { id: true },
+      });
+      rows.push({ id: row.id, characterId });
+    }
+    return rows;
+  });
+
+  try {
+    await Promise.all(
+      created.map((row) =>
+        textQueue.add('process-task', { taskId: row.id }, {
+          jobId: row.id,
+          attempts: DefaultTaskJobAttempts,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnComplete: { count: 200 },
+          removeOnFail: { count: 200 },
+        }),
+      ),
+    );
+  } catch (err) {
+    log.warn(
+      {
+        parentTaskId: task.id,
+        createdTaskIds: created.map((row) => row.id),
+        err: err instanceof Error ? err.message : String(err),
+      },
+      'failed to enqueue character detail tasks',
+    );
+    throw err;
+  }
+
+  log.info(
+    {
+      parentTaskId: task.id,
+      characterDetailTaskCount: created.length,
+      characterIds: created.map((row) => row.characterId),
+    },
+    'character detail tasks enqueued',
   );
 }
 
@@ -717,10 +935,28 @@ async function linkResourceImageOutputs(
         },
       });
     } else if (row.kind === 'character-style' && row.characterStyleId) {
-      await tx.characterStyle.update({
+      const style = await tx.characterStyle.update({
         where: { id: row.characterStyleId },
         data: { assetId: firstOutputAssetId },
+        select: {
+          name: true,
+          characterId: true,
+          character: { select: { identityAssetId: true, avatarAssetId: true } },
+        },
       });
+      if (
+        style.name.trim() === '默认造型' &&
+        !style.character.identityAssetId &&
+        !style.character.avatarAssetId
+      ) {
+        await tx.character.update({
+          where: { id: style.characterId },
+          data: {
+            avatarAssetId: firstOutputAssetId,
+            identityAssetId: firstOutputAssetId,
+          },
+        });
+      }
     } else if (row.kind === 'scene' && row.sceneId) {
       await tx.scene.update({
         where: { id: row.sceneId },

@@ -9,6 +9,12 @@ export type CharacterIdentityReference = {
   source: 'identity' | 'avatar';
 };
 
+export type CharacterStyleIdentitySeed = {
+  characterId: string;
+  isDefaultStyle: boolean;
+  hasIdentity: boolean;
+};
+
 export async function resolveCharacterIdentityReference(
   db: Db,
   characterId: string,
@@ -46,6 +52,26 @@ export async function resolveStyleIdentityReference(
     characterId: style.character.id,
     assetId,
     source: style.character.identityAssetId ? 'identity' : 'avatar',
+  };
+}
+
+export async function resolveStyleIdentitySeed(
+  db: Db,
+  styleId: string,
+  userId: string,
+): Promise<CharacterStyleIdentitySeed | null> {
+  const style = await db.characterStyle.findFirst({
+    where: { id: styleId, character: { project: { ownerId: userId } } },
+    select: {
+      name: true,
+      character: { select: { id: true, identityAssetId: true, avatarAssetId: true } },
+    },
+  });
+  if (!style) return null;
+  return {
+    characterId: style.character.id,
+    isDefaultStyle: style.name.trim() === '默认造型',
+    hasIdentity: Boolean(style.character.identityAssetId ?? style.character.avatarAssetId),
   };
 }
 

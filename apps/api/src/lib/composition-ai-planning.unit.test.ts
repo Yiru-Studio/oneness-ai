@@ -8,11 +8,28 @@ import {
   parseSceneImageReferenceBindingResponse,
   referenceLibraryIdSets,
   sanitizeReferenceBinding,
+  buildSceneImagePlanningMessages,
   type EpisodeScene,
   type ReferenceLibraryForPlanning,
 } from './composition-ai-planning.js';
 
 describe('composition AI planning helpers', () => {
+  it('instructs planning to split vehicle interiors from exterior scenes', () => {
+    const { userPrompt } = buildSceneImagePlanningMessages({
+      project: { ratio: '16:9', stylePrompt: '写实电影感' },
+      episode: {
+        number: 1,
+        title: '遇见',
+        content: '小区雨夜，我坐进网约车后座，司机透过后视镜看见我的慌张。',
+      },
+    });
+
+    expect(userPrompt).toContain('车内、后座、驾驶室');
+    expect(userPrompt).toContain('不要被外景场次吞并');
+    expect(userPrompt).toContain('INT. 网约车后座 - 夜');
+    expect(userPrompt).toContain('外部空间锚点 + 内部空间锚点');
+  });
+
   it('parses and normalizes AI scene image plans', () => {
     const plans = parseSceneImagePlanResponse(`\`\`\`json
 {
